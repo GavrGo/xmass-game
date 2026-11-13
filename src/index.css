@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --tg-bg: #0f1a14; --tg-text: #ffffff; }
+
+body {
+  margin: 0;
+  background: #0f1a14;
+  color: #fff;
+  font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
