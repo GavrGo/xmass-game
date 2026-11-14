@@ -1,7 +1,7 @@
 // Хранит текущего игрока и раздаёт его всем экранам.
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { getTelegramId } from "../lib/telegram";
-import { getUser, createUser, updateUser } from "../api/users";
+import { getUser, createUser, updateUser, isAdmin as проверитьАдмина } from "../api/users";
 import { supabase } from "../lib/supabase";
 import type { User } from "../types";
 
@@ -13,6 +13,8 @@ interface Ctx {
   user: User | null;
   loading: boolean;
   error: string | null;
+  /** null — ещё проверяем, true — игрок есть в таблице admins, false — не админ */
+  isAdmin: boolean | null;
   register: (nickname: string, emoji: string) => Promise<void>;
   patch: (p: Partial<User>) => Promise<void>;
   /** Изменить баланс (и, при желании, другие поля, например уровень прокачки).
@@ -29,6 +31,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   // Всегда актуальная копия игрока (чтобы быстрые подряд изменения считались верно)
   const userRef = useRef<User | null>(null);
@@ -41,6 +44,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
       .then(записать)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }, [telegramId]);
+
+  // Проверяем, есть ли telegram_id игрока в таблице admins
+  useEffect(() => {
+    if (!telegramId) { setIsAdmin(false); return; }
+    проверитьАдмина(telegramId).then(setIsAdmin).catch(() => setIsAdmin(false));
   }, [telegramId]);
 
   // Realtime: любые изменения в базе (в т.ч. от админа) сразу видны на всех экранах
@@ -96,7 +105,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <UserCtx.Provider value={{ telegramId, user, loading, error, register, patch, change }}>
+    <UserCtx.Provider value={{ telegramId, user, loading, error, isAdmin, register, patch, change }}>
       {children}
     </UserCtx.Provider>
   );

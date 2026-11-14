@@ -35,6 +35,11 @@ function applyTheme() {
 export function getTelegramId(): number | null {
   const id = tg?.initDataUnsafe?.user?.id;
   if (id) return Number(id);
-  const dev = import.meta.env.VITE_DEV_TELEGRAM_ID;
-  return dev ? Number(dev) : null;
+  // Тестовый id работает ТОЛЬКО при локальной разработке (npm run dev).
+  // В опубликованной версии (Vercel) его нет — игрок определяется только через Telegram.
+  if (import.meta.env.DEV) {
+    const dev = import.meta.env.VITE_DEV_TELEGRAM_ID;
+    return dev ? Number(dev) : null;
+  }
+  return null;
 }

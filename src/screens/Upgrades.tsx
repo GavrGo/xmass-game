@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ПРОКАЧКИ, КлючПрокачки, ценаСледующегоУровня } from "../config";
 import { КОЛОНКА_УРОВНЯ } from "../types";
+import type { User } from "../types";
 import { useUser } from "../store/UserContext";
 
 export default function Upgrades() {
@@ -18,7 +19,9 @@ export default function Upgrades() {
     setОшибка("");
     try {
       // Списываем фишки и повышаем уровень одним действием, сразу сохраняя в базу
-      await change({ chips: -цена }, { [колонка]: уровень + 1 });
+      const новыйУровень: Partial<User> = {};
+      (новыйУровень as any)[колонка] = уровень + 1;
+      await change({ chips: -цена }, новыйУровень);
     } catch (e: any) {
       setОшибка(e.message);
     }

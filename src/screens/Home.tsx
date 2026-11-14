@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import SlotReels from "../components/SlotReels";
 import { СИМВОЛЫ_СЛОТА, СЛОТ } from "../config";
@@ -6,7 +7,7 @@ import { крутитьСлот, случайныйСимвол, текстНа�
 import { шансБесплатнойКрутки } from "../game/effects";
 
 export default function Home() {
-  const { user, change } = useUser();
+  const { user, change, isAdmin } = useUser();
 
   // Барабаны: что сейчас показано и какие из них ещё крутятся
   const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйСимвол().эмодзи, случайныйСимвол().эмодзи, случайныйСимвол().эмодзи]);
@@ -87,6 +88,12 @@ export default function Home() {
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-3xl">{user.emoji}</div>
         <div className="font-bold">{user.nickname}</div>
+        {/* Кнопка видна только админам (id есть в таблице admins) */}
+        {isAdmin && (
+          <Link to="/admin" className="ml-auto rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-xmas-gold">
+            ⚙️ Админка
+          </Link>
+        )}
       </div>
 
       {/* Балансы */}
