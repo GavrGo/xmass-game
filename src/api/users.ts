@@ -53,7 +53,7 @@ export async function isAdmin(telegramId: number): Promise<boolean> {
   return !!data;
 }
 
-export type КолонкаРекорда = "best_ksuha_run" | "best_match3" | "best_jira_level";
+export type КолонкаРекорда = "best_ksuha_run" | "best_match3" | "best_jira_level" | "best_babka_crash";
 export interface Рекорд { telegram_id: number; nickname: string; значение: number }
 
 /** Глобальный рекорд в игре: кто и сколько (максимум среди всех игроков). */

@@ -46,3 +46,7 @@ Ksuha Run: полный экран, меню сложностей, монеты,
 ## Этап 8
 3 в ряд: колонка рекорда теперь best_match3, вспышка при 4 в ряд, покачивание иконок. Новая игра Jira Fight.
 В Supabase выполните: ALTER TABLE public.users ADD COLUMN IF NOT EXISTS best_jira_level integer DEFAULT 0;  (migrations/005_jira_fight.sql)
+
+## Этап 9
+Только тапы во всех играх, анимация крутки аватара, единый вид модалок результатов, Jira Fight на время короче, новая игра Babka Crash.
+В Supabase выполните: ALTER TABLE public.users ADD COLUMN IF NOT EXISTS best_babka_crash integer DEFAULT 0;  (migrations/006_babka_crash.sql)

@@ -14,6 +14,7 @@ export interface User {
   puzzles_solved: number; // всего собрано пазлов в Пятнашках
   best_match3: number; // рекорд «3 в ряд»: максимум пройденных этапов
   best_jira_level: number; // рекорд Jira Fight: лучший пройденный уровень
+  best_babka_crash: number; // рекорд Babka Crash: максимум пройденных дорог
   created_at: string;
   updated_at: string;
 }

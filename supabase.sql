@@ -14,6 +14,7 @@ create table public.users (
   puzzles_solved   integer not null default 0,  -- сколько пазлов (Пятнашки) собрано за всё время
   best_match3 integer not null default 0, -- рекорд в «3 в ряд» (этапов)
   best_jira_level integer not null default 0, -- рекорд в Jira Fight (лучший уровень)
+  best_babka_crash integer not null default 0, -- рекорд в Babka Crash (дорог)
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );

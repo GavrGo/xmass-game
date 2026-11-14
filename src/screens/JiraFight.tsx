@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ДЖИРА_ФАЙТ as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/РекордыБлок";
+import { глобальныйРекорд } from "../game/records";
 import { бонусВремениСек } from "../game/effects";
 import type { User } from "../types";
 import {
@@ -13,7 +15,11 @@ import {
 
 type Фаза = "menu" | "playing" | "level" | "over";
 
-interface ДанныеУровня { уровень: number; награда: number; досок: number; фишекЗаДоски: number }
+interface ДанныеУровня {
+  уровень: number; награда: number; досок: number; фишекЗаДоски: number;
+  личный: number;
+  глобальный: Рекорд | null | "ошибка" | undefined;
+}
 interface Итог {
   причина: "нет ходов" | "время" | "выход";
   уровней: number;
@@ -41,6 +47,7 @@ function Задача({ цвет }: { цвет: string }) {
 export default function JiraFight() {
   const { user, change } = useUser();
   const navigate = useNavigate();
+  useNoSwipes(); // игра управляется только тапами
 
   const [фаза, setФаза] = useState<Фаза>("menu");
   const [режим, setРежим] = useState<Режим>("zen");
@@ -160,9 +167,22 @@ export default function JiraFight() {
     if (новыйРекорд) рекордRef.current = L;
     сессия.current.уровней = L;
     начислить(бонус, новыйРекорд ? { best_jira_level: L } : {});
-    setДанныеУровня({ уровень: L, награда: бонус, досок: статУровня.current.досок, фишекЗаДоски: статУровня.current.фишек });
+    const личный = Math.max(рекордRef.current, L);
+    setДанныеУровня({ уровень: L, награда: бонус, досок: статУровня.current.досок, фишекЗаДоски: статУровня.current.фишек, личный, глобальный: undefined });
     setВыбрана(null);
     setФаза("level");
+    // Глобальный рекорд подгружаем после того, как запись в базу прошла
+    if (u) {
+      (async () => {
+        await очередь.current;
+        try {
+          const г = await глобальныйРекорд("best_jira_level", личный, u);
+          setДанныеУровня((п) => (п && п.уровень === L ? { ...п, глобальный: г } : п));
+        } catch {
+          setДанныеУровня((п) => (п && п.уровень === L ? { ...п, глобальный: "ошибка" } : п));
+        }
+      })();
+    }
   };
 
   /** Переливаем задачи с доски a на доску b. */
@@ -331,6 +351,7 @@ export default function JiraFight() {
               <div className="my-1 border-t border-white/10" />
               <Строка л="Всего за уровень" п={`+${данныеУровня.фишекЗаДоски + данныеУровня.награда} 🪙`} />
             </div>
+            <РекордыБлок личный={{ nickname: user.nickname, значение: данныеУровня.личный }} глобальный={данныеУровня.глобальный} />
             <p className="mb-3 text-xs text-white/60">Дальше: уровень {данныеУровня.уровень + 1} — {доскНаУровне(данныеУровня.уровень + 1)} досок</p>
             <div className="flex gap-2">
               <button onClick={() => начатьУровень(данныеУровня.уровень + 1)} className="flex-1 rounded-xl bg-[#36B37E] py-3 font-bold">Дальше ▶</button>

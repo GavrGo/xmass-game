@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ТРИ_В_РЯД as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/РекордыБлок";
+import { глобальныйРекорд } from "../game/records";
 import ВспышкиCanvas, { Вспышка } from "../components/ВспышкиCanvas";
 import {
   N, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
@@ -17,6 +19,8 @@ interface ДанныеЭтапа {
   награда: ReturnType<typeof наградаЭтапа>;
   сохранилось: boolean;
   предупреждение?: string;
+  личный: number;
+  глобальный: Рекорд | null | "ошибка" | undefined;
 }
 interface Итог {
   причина: "ходы" | "выход";
@@ -39,6 +43,7 @@ const кадр = () => new Promise<void>((r) => requestAnimationFrame(() => requ
 export default function Match3() {
   const { user, change } = useUser();
   const navigate = useNavigate();
+  useNoSwipes(); // игра управляется только тапами
 
   const [фаза, setФаза] = useState<Фаза>("menu");
   const [поле, setПоле] = useState<Поле>([]);
@@ -64,7 +69,6 @@ export default function Match3() {
   const цельRef = useRef(0);
   const этапRef = useRef(1);
   const занято = useRef(false);
-  const нажатие = useRef<{ idx: number; x: number; y: number } | null>(null);
   const сессия = useRef({ пройдено: 0, фишек: 0 });
   const таймерТоста = useRef<ReturnType<typeof setTimeout>>();
   const свежее = useRef({ user, change });
@@ -163,8 +167,15 @@ export default function Match3() {
     }
     if (сохранилось) сессия.current.фишек += награда.итого;
     сессия.current.пройдено = н;
-    setДанныеЭтапа({ этап: н, награда, сохранилось, предупреждение });
+    const личный = Math.max(рекорд, н);
+    setДанныеЭтапа({ этап: н, награда, сохранилось, предупреждение, личный, глобальный: undefined });
     setФаза("stage");
+    try {
+      const г = await глобальныйРекорд("best_match3", личный, u);
+      setДанныеЭтапа((п) => (п && п.этап === н ? { ...п, глобальный: г } : п));
+    } catch {
+      setДанныеЭтапа((п) => (п && п.этап === н ? { ...п, глобальный: "ошибка" } : п));
+    }
   };
 
   /** Ход игрока: обмен двух соседних клеток и вся цепочка последствий. */
@@ -234,7 +245,7 @@ export default function Match3() {
     }
   };
 
-  // ---------- Нажатия и свайпы по полю ----------
+  // ---------- Нажатия по полю (только тапы) ----------
   const индексПоТочке = (x: number, y: number): number => {
     const el = доскаRef.current;
     if (!el) return -1;
@@ -242,31 +253,14 @@ export default function Match3() {
     const c = Math.floor(((x - р.left) / р.width) * N), r = Math.floor(((y - р.top) / р.height) * N);
     return c < 0 || c >= N || r < 0 || r >= N ? -1 : r * N + c;
   };
-  const нажали = (e: React.PointerEvent) => {
+  const нажатьКлетку = (e: React.MouseEvent) => {
     if (фаза !== "playing" || занято.current) return;
     const idx = индексПоТочке(e.clientX, e.clientY);
     if (idx < 0) return;
-    нажатие.current = { idx, x: e.clientX, y: e.clientY };
-  };
-  const отпустили = (e: React.PointerEvent) => {
-    const н = нажатие.current;
-    нажатие.current = null;
-    if (!н || фаза !== "playing" || занято.current) return;
-    const dx = e.clientX - н.x, dy = e.clientY - н.y;
-    if (Math.hypot(dx, dy) > 18) {
-      // Свайп: двигаем символ в сторону свайпа
-      const шаг = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : -1) : dy > 0 ? N : -N;
-      const цельИдx = н.idx + шаг;
-      if (цельИдx >= 0 && цельИдx < N * N && соседи(н.idx, цельИдx)) сделатьХод(н.idx, цельИдx);
-    } else if (выбранная === null) {
-      setВыбранная(н.idx);
-    } else if (выбранная === н.idx) {
-      setВыбранная(null);
-    } else if (соседи(выбранная, н.idx)) {
-      сделатьХод(выбранная, н.idx);
-    } else {
-      setВыбранная(н.idx);
-    }
+    if (выбранная === null) setВыбранная(idx);
+    else if (выбранная === idx) setВыбранная(null);
+    else if (соседи(выбранная, idx)) сделатьХод(выбранная, idx);
+    else setВыбранная(idx);
   };
 
   const выйти = () => {
@@ -284,7 +278,7 @@ export default function Match3() {
   const следующий = данныеЭтапа ? данныеЭтапа.этап + 1 : 2;
 
   return (
-    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-xmas-dark px-4 pb-4 pt-3 select-none" style={{ touchAction: "none" }}>
+    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-xmas-dark px-4 pb-4 pt-3 select-none" style={{ touchAction: "manipulation" }}>
       {/* Шапка */}
       <div className="flex w-full max-w-md items-center justify-between">
         <button onClick={выйти} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold">← {фаза === "playing" ? "Выйти" : "Назад"}</button>
@@ -307,9 +301,7 @@ export default function Match3() {
       <div className="relative mt-3" style={{ width: "min(92vw, calc(100dvh - 190px), 520px)", aspectRatio: "1 / 1" }}>
         <div
           ref={доскаRef}
-          onPointerDown={нажали}
-          onPointerUp={отпустили}
-          onPointerCancel={() => { нажатие.current = null; }}
+          onClick={нажатьКлетку}
           className="absolute inset-0 isolate overflow-hidden rounded-xl bg-black/40 ring-2 ring-xmas-gold/60"
         >
           {поле.map((к, i) => {
@@ -354,7 +346,7 @@ export default function Match3() {
       </div>
 
       {фаза === "playing" && (
-        <p className="mt-3 text-center text-xs text-white/50">Тапните два соседних символа или смахните символ в сторону</p>
+        <p className="mt-3 text-center text-xs text-white/50">Тапните один символ, затем соседний — они поменяются местами</p>
       )}
 
       {/* ===== МЕНЮ ===== */}
@@ -398,6 +390,7 @@ export default function Match3() {
               <div className="my-1 border-t border-white/10" />
               <Строка л="Получено фишек" п={`+${данныеЭтапа.награда.итого} 🪙`} />
             </div>
+            <РекордыБлок личный={{ nickname: user.nickname, значение: данныеЭтапа.личный }} глобальный={данныеЭтапа.глобальный} />
             {!данныеЭтапа.сохранилось && <p className="mb-2 text-xs text-red-400">Не удалось сохранить награду</p>}
             {данныеЭтапа.предупреждение && <p className="mb-2 text-xs text-orange-300">{данныеЭтапа.предупреждение}</p>}
             <p className="mb-3 text-xs text-white/60">

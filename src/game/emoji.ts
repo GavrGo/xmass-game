@@ -1,5 +1,5 @@
 // Список эмодзи для круток аватара (берётся из config.ts) и счётчик купленных круток.
-import { СТРОКА_ЭМОДЗИ } from "../config";
+import { СТРОКА_ЭМОДЗИ, АВАТАР_КРУТКА } from "../config";
 
 function разрезать(s: string): string[] {
   try {
@@ -19,4 +19,18 @@ export function прочитатьКрутки(id: number | null): number {
 }
 export function записатьКрутки(id: number | null, n: number) {
   try { localStorage.setItem(ключ(id), String(Math.max(0, n))); } catch {}
+}
+
+/** Анимация крутки: эмодзи мелькают (как барабаны слота) и останавливаются на итоговом. */
+export function анимироватьЭмодзи(показать: (э: string) => void, итог: string): Promise<void> {
+  return new Promise((готово) => {
+    const таймер = setInterval(() => {
+      показать(СПИСОК_ЭМОДЗИ[Math.floor(Math.random() * СПИСОК_ЭМОДЗИ.length)]);
+    }, АВАТАР_КРУТКА.сменаКадраМс);
+    setTimeout(() => {
+      clearInterval(таймер);
+      показать(итог);
+      готово();
+    }, АВАТАР_КРУТКА.длительностьМс);
+  });
 }

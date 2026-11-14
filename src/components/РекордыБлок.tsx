@@ -1,6 +1,9 @@
 export interface ЗаписьРекорда { nickname: string; значение: number }
 
-// Общий блок рекордов для окон результата мини-игр: «Рекорд за Andrey 35»
+// Единый блок рекордов в окнах результата всех мини-игр:
+//   Личный рекорд: 35
+//   Глобальный рекорд: 48
+//       рекорд за Andrey
 export default function РекордыБлок({
   личный,
   глобальный,
@@ -8,18 +11,14 @@ export default function РекордыБлок({
   личный: ЗаписьРекорда;
   глобальный: ЗаписьРекорда | null | "ошибка" | undefined; // undefined — ещё грузим
 }) {
+  const есть = глобальный && глобальный !== "ошибка";
   return (
     <div className="mb-3 rounded-2xl bg-white/10 p-3 text-left text-sm">
-      <div className="text-xs text-white/50">Личный рекорд</div>
-      <div className="mb-2 font-bold">🏅 Рекорд за {личный.nickname} {личный.значение}</div>
-      <div className="text-xs text-white/50">Глобальный рекорд</div>
-      <div className="font-bold">
-        {глобальный === undefined
-          ? "…"
-          : !глобальный || глобальный === "ошибка"
-          ? "—"
-          : `🌍 Рекорд за ${глобальный.nickname} ${глобальный.значение}`}
+      <div>Личный рекорд: <b>{личный.значение}</b></div>
+      <div className="mt-2">
+        Глобальный рекорд: <b>{глобальный === undefined ? "…" : есть ? глобальный.значение : "—"}</b>
       </div>
+      {есть && <div className="mt-0.5 pl-4 text-xs text-white/60">рекорд за {глобальный.nickname}</div>}
     </div>
   );
 }

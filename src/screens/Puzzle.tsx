@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ПЯТНАШКИ } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { перемешать, сдвинуть, собрана, наградаЗаПазл, пазлов, ПУСТАЯ, Режим } from "../game/puzzle";
 import { выбратьКартинку } from "../game/puzzleImages";
 import { getPuzzleLeader, ЛидерПазлов } from "../api/users";
+import РекордыБлок from "../components/РекордыБлок";
 
 type Фаза = "menu" | "loading" | "playing" | "ending" | "won" | "lost";
 
@@ -28,6 +30,7 @@ const мм = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(
 export default function Puzzle() {
   const { user, change, telegramId } = useUser();
   const navigate = useNavigate();
+  useNoSwipes(); // игра управляется только тапами
 
   const [фаза, setФаза] = useState<Фаза>("menu");
   const [режим, setРежим] = useState<Режим>("zen");
@@ -103,13 +106,11 @@ export default function Puzzle() {
     setИтог({ победа, режим: р, награда, секунд, ходов: ходовRef.current, всего, лидер: undefined, сохранение, предупреждение, текстОшибки });
     setФаза(победа ? "won" : "lost");
 
-    if (победа) {
-      try {
-        const л = await getPuzzleLeader();
-        setИтог((п) => (п ? { ...п, лидер: л } : п));
-      } catch {
-        setИтог((п) => (п ? { ...п, лидер: "ошибка" } : п));
-      }
+    try {
+      const л = await getPuzzleLeader();
+      setИтог((п) => (п ? { ...п, лидер: л } : п));
+    } catch {
+      setИтог((п) => (п ? { ...п, лидер: "ошибка" } : п));
     }
   };
   const завершитьRef = useRef(завершить);
@@ -265,7 +266,8 @@ export default function Puzzle() {
               <Строка л="Получено фишек" п={`+${итог.награда.итого} 🪙`} />
             </div>
 
-            {итог.победа && <p className="mb-2 text-sm font-bold text-xmas-gold">{строкаЛидера(итог, telegramId)}</p>}
+            <РекордыБлок личный={{ nickname: user.nickname, значение: итог.всего }} глобальный={глобальныйПазлов(итог, user.nickname)} />
+            <p className="-mt-2 mb-2 text-[11px] text-white/40">Рекорд — общее число собранных пазлов</p>
 
             {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
             {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-400">Не удалось сохранить награду: {итог.текстОшибки}</p>}
@@ -281,13 +283,12 @@ export default function Puzzle() {
   );
 }
 
-/** «Вы собрали 5 пазлов! Вася собрал 12 пазлов!» или «Вы собрали пазлов больше всех!» */
-function строкаЛидера(итог: Итог, мойId: number | null): string {
-  const мой = итог.всего;
+/** Глобальный рекорд пазлов для единого блока: рекордсмен — лидер из базы или вы, если у вас не меньше. */
+function глобальныйПазлов(итог: Итог, мойНик: string): { nickname: string; значение: number } | null | "ошибка" | undefined {
   const л = итог.лидер;
-  if (!л || л === "ошибка") return `Вы собрали ${пазлов(мой)}!`;
-  if (л.telegram_id === мойId || мой >= л.count) return "Вы собрали пазлов больше всех! 🏆";
-  return `Вы собрали ${пазлов(мой)}! ${л.nickname} собрал ${пазлов(л.count)}!`;
+  if (л === undefined || л === "ошибка") return л;
+  if (!л || итог.всего >= л.count) return итог.всего > 0 ? { nickname: мойНик, значение: итог.всего } : null;
+  return { nickname: л.nickname, значение: л.count };
 }
 
 const Строка = ({ л, п }: { л: string; п: string }) => (

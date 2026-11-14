@@ -10,6 +10,7 @@ import Leaderboard from "./screens/Leaderboard";
 import Puzzle from "./screens/Puzzle";
 import Match3 from "./screens/Match3";
 import JiraFight from "./screens/JiraFight";
+import Babka from "./screens/Babka";
 import Exchange from "./screens/Exchange";
 import AdminPage from "./admin/AdminPage";
 
@@ -32,6 +33,7 @@ function Game() {
       <Route path="/games/puzzle" element={<Puzzle />} />
       <Route path="/games/match3" element={<Match3 />} />
       <Route path="/games/jira" element={<JiraFight />} />
+      <Route path="/games/babka" element={<Babka />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/upgrades" element={<Upgrades />} />

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useUser } from "../store/UserContext";
 import SpeechBubble from "../components/SpeechBubble";
+import { анимироватьЭмодзи } from "../game/emoji";
 import { ОНБОРДИНГ, СТРОКА_ЭМОДЗИ } from "../config";
 
 // Режем строку на отдельные эмодзи (учитывает сложные символы вроде ☺️)
@@ -24,10 +25,18 @@ export default function Onboarding() {
     ник.trim().length >= ОНБОРДИНГ.минДлинаНика &&
     ник.trim().length <= ОНБОРДИНГ.максДлинаНика;
 
-  const крутить = () => {
-    if (крутки >= ОНБОРДИНГ.максКрутокЭмодзи) return;
-    setЭмодзи(списокЭмодзи[Math.floor(Math.random() * списокЭмодзи.length)]);
-    setКрутки(крутки + 1);
+  const [крутится, setКрутится] = useState(false);
+  const [показаноКруток, setПоказаноКруток] = useState(0); // для баблов: считаем после остановки анимации
+
+  const крутить = async () => {
+    if (крутится || крутки >= ОНБОРДИНГ.максКрутокЭмодзи) return;
+    const номер = крутки + 1;
+    const итогЭмодзи = списокЭмодзи[Math.floor(Math.random() * списокЭмодзи.length)];
+    setКрутки(номер);
+    setКрутится(true);
+    await анимироватьЭмодзи(setЭмодзи, итогЭмодзи); // эмодзи мелькают, потом останавливаются
+    setКрутится(false);
+    setПоказаноКруток(номер);
   };
 
   const подтвердить = async () => {
@@ -41,7 +50,7 @@ export default function Onboarding() {
   };
 
   // Бабл показываем, только если для ТЕКУЩЕГО номера крутки есть текст
-  const бабл = ОНБОРДИНГ.баблы[крутки];
+  const бабл = крутится ? undefined : ОНБОРДИНГ.баблы[показаноКруток];
   const кончились = крутки >= ОНБОРДИНГ.максКрутокЭмодзи;
 
   if (шаг === "ник") {
@@ -73,7 +82,7 @@ export default function Onboarding() {
 
       <div className="flex h-16 items-end">{бабл && <SpeechBubble text={бабл} />}</div>
 
-      <div className="flex h-40 w-40 items-center justify-center rounded-full bg-white/10 text-8xl">
+      <div className={`flex h-40 w-40 items-center justify-center rounded-full bg-white/10 text-8xl transition ${крутится ? "scale-95 animate-pulse blur-[1px]" : ""}`}>
         {эмодзи}
       </div>
 
@@ -83,7 +92,7 @@ export default function Onboarding() {
 
       <button
         onClick={крутить}
-        disabled={кончились}
+        disabled={кончились || крутится}
         className="w-full max-w-xs rounded-xl bg-xmas-red py-3 text-lg font-bold disabled:bg-gray-600 disabled:text-white/40"
       >
         Крутить
@@ -91,7 +100,7 @@ export default function Onboarding() {
 
       <button
         onClick={подтвердить}
-        disabled={крутки === 0 || сохраняем}
+        disabled={крутки === 0 || крутится || сохраняем}
         className="w-full max-w-xs rounded-xl bg-xmas-green py-3 text-lg font-bold disabled:bg-gray-600 disabled:text-white/40"
       >
         {сохраняем ? "Сохраняем…" : "Это я!"}
