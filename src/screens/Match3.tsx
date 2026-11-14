@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Т } from "../texts";
+import Модалка from "../components/Модалка";
+import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
+import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ТРИ_В_РЯД as К } from "../config";
@@ -136,6 +140,7 @@ export default function Match3() {
     const личный = Math.max(u.best_match3 ?? 0, пройдено);
     setИтог({ причина, пройдено, фишек: сессия.current.фишек, личный, глобальный: undefined });
     setФаза("over");
+    if (причина === "ходы") звук.sfx("поражение"); // ← звук проигрыша
     try {
       const г = await getGlobalRecord("best_match3");
       const рекордсмен: Рекорд | null =
@@ -161,7 +166,7 @@ export default function Match3() {
       if (н > рекорд && String(e?.message).includes("best_match3")) {
         try {
           await изменить({ chips: награда.итого });
-          предупреждение = "Фишки зачислены, но рекорд не сохранён: выполните SQL из migrations/004_match3.sql";
+          предупреждение = Т.предупреждения.match3;
         } catch { сохранилось = false; }
       } else { сохранилось = false; }
     }
@@ -170,6 +175,7 @@ export default function Match3() {
     const личный = Math.max(рекорд, н);
     setДанныеЭтапа({ этап: н, награда, сохранилось, предупреждение, личный, глобальный: undefined });
     setФаза("stage");
+    звук.sfx("победа"); // ← звук «этап пройден»
     try {
       const г = await глобальныйРекорд("best_match3", личный, u);
       setДанныеЭтапа((п) => (п && п.этап === н ? { ...п, глобальный: г } : п));
@@ -199,6 +205,7 @@ export default function Match3() {
 
       ходыRef.current -= 1;
       setХоды(ходыRef.current);
+      звук.sfx("ход"); // ← звук хода
 
       let каскад = 1;
       let центры = [a, b];
@@ -208,9 +215,10 @@ export default function Match3() {
         очкиRef.current += очкиЗаШаг(р.индексы.size, каскад);
         setОчки(очкиRef.current);
         // Взрыв (4 в ряд) показываем вспышкой, остальные эффекты — надписью
+        if (р.взрывы.length) звук.sfx("взрыв"); // ← звук взрыва
         р.взрывы.forEach(добавитьВспышку);
         if (р.эффект && р.эффект !== "взрыв") показатьТост(ТЕКСТ_ЭФФЕКТА[р.эффект]);
-        else if (каскад > 1) показатьТост(`Каскад ×${каскад}!`);
+        else if (каскад > 1) показатьТост(Т.игры.три_в_ряд.каскад(каскад));
 
         setУдаляются(new Set([...р.индексы].map((i) => п[i]!.id)));
         await пауза(240);
@@ -232,7 +240,7 @@ export default function Match3() {
       }
 
       if (!естьХод(п)) {
-        показатьТост("Нет ходов — перемешиваем");
+        показатьТост(Т.игры.три_в_ряд.нетХодов);
         п = перемешатьПоле(п);
         полеRef.current = п; setПоле(п);
         await пауза(К.анимацияМс + 100);
@@ -266,7 +274,7 @@ export default function Match3() {
   const выйти = () => {
     if (занято.current) return;
     if (фаза === "playing") {
-      if (!confirm("Выйти из игры? Награда за текущий этап не начислится (за пройденные этапы — уже начислена).")) return;
+      if (!confirm(Т.игры.три_в_ряд.выходПодтверждение)) return;
       завершить("выход");
     } else {
       navigate("/games");
@@ -276,24 +284,26 @@ export default function Match3() {
   if (!user) return null;
   const доля = цель > 0 ? Math.min(100, (очки / цель) * 100) : 0;
   const следующий = данныеЭтапа ? данныеЭтапа.этап + 1 : 2;
+  const ТМ = Т.игры.три_в_ряд;
+  const размерВзрыва = `${К.радиусВзрыва * 2 + 1}×${К.радиусВзрыва * 2 + 1}`;
 
   return (
-    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-xmas-dark px-4 pb-4 pt-3 select-none" style={{ touchAction: "manipulation" }}>
+    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-app px-4 pb-4 pt-3 select-none" style={{ touchAction: "manipulation" }}>
       {/* Шапка */}
       <div className="flex w-full max-w-md items-center justify-between">
-        <button onClick={выйти} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold">← {фаза === "playing" ? "Выйти" : "Назад"}</button>
-        <h2 className="text-xl font-bold">3 в ряд 🍬</h2>
-        <div className="min-w-[72px] rounded-xl bg-white/10 px-3 py-2 text-center text-sm font-bold">{фаза === "menu" ? "—" : `Этап ${этап}`}</div>
+        <button onClick={выйти} className="btn btn-ghost !px-3 !py-2 text-sm">{фаза === "playing" ? Т.общее.выйти : Т.общее.назад}</button>
+        <h2 className="text-xl font-bold">{ТМ.заголовокМеню}</h2>
+        <div className="pill min-w-[72px] px-3 py-2 text-center text-sm font-bold">{фаза === "menu" ? "—" : ТМ.этап(этап)}</div>
       </div>
 
       {/* Очки и ходы */}
       <div className="mt-3 w-full max-w-md">
         <div className="flex justify-between text-sm text-white/80">
-          <span>Очки: <b>{очки}</b> / {цель}</span>
-          <span>Ходов: <b className={ходы <= 3 && фаза === "playing" ? "text-red-400" : ""}>{ходы}</b></span>
+          <span>{ТМ.очки}: <b>{очки}</b> / {цель}</span>
+          <span>{ТМ.ходов}: <b className={ходы <= 3 && фаза === "playing" ? "text-red-400" : ""}>{ходы}</b></span>
         </div>
         <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-xmas-gold transition-all duration-300" style={{ width: `${доля}%` }} />
+          <div className="h-full rounded-full bg-brand-yellow transition-all duration-300" style={{ width: `${доля}%` }} />
         </div>
       </div>
 
@@ -302,7 +312,7 @@ export default function Match3() {
         <div
           ref={доскаRef}
           onClick={нажатьКлетку}
-          className="absolute inset-0 isolate overflow-hidden rounded-xl bg-black/40 ring-2 ring-xmas-gold/60"
+          className="absolute inset-0 isolate overflow-hidden rounded-xl bg-black/40 ring-2 ring-brand-yellow/60"
         >
           {поле.map((к, i) => {
             if (!к) return null;
@@ -323,7 +333,7 @@ export default function Match3() {
                 }}
               >
                 <div className={`h-full w-full p-[4%] transition-all duration-200 ${удал ? "scale-0 opacity-0" : ""} ${выбрана ? "scale-110" : ""}`}>
-                  <div className={`flex h-full w-full items-center justify-center rounded-lg ${выбрана ? "bg-white/30 ring-2 ring-xmas-gold" : "bg-white/10"}`}>
+                  <div className={`flex h-full w-full items-center justify-center rounded-lg ${выбрана ? "bg-white/30 ring-2 ring-brand-yellow" : "bg-white/10"}`}>
                     {фото[сим.id] ? (
                       <img src={К.папка + сим.файл} alt="" draggable={false} className="h-[84%] w-[84%] object-contain" style={idle(к.id)} />
                     ) : (
@@ -340,94 +350,73 @@ export default function Match3() {
 
         {тост && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 text-center">
-            <span className="inline-block rounded-2xl bg-black/75 px-4 py-2 text-lg font-bold text-xmas-gold ring-2 ring-xmas-gold">{тост}</span>
+            <span className="inline-block rounded-2xl bg-black/75 px-4 py-2 text-lg font-bold text-brand-yellow ring-2 ring-brand-yellow">{тост}</span>
           </div>
         )}
       </div>
 
-      {фаза === "playing" && (
-        <p className="mt-3 text-center text-xs text-white/50">Тапните один символ, затем соседний — они поменяются местами</p>
-      )}
+      {фаза === "playing" && <p className="mt-3 text-center text-xs text-white/50">{ТМ.справка}</p>}
 
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-y-auto bg-black/85 p-5">
-          <h2 className="text-3xl font-bold text-xmas-gold">3 в ряд 🍬</h2>
-          <p className="mt-2 max-w-sm text-center text-sm text-white/70">
-            Меняйте соседние символы местами. Наберите очки до конца ходов — и переходите на следующий этап. Чем дальше этап, тем больше фишек.
-          </p>
-          <div className="mt-3 w-full max-w-sm rounded-2xl bg-white/10 p-3 text-xs text-white/80">
-            <div>3 в ряд — символы исчезают</div>
-            <div>4 в ряд — 💥 взрыв вокруг ({К.радиусВзрыва * 2 + 1}×{К.радиусВзрыва * 2 + 1})</div>
-            <div>5 в ряд — ⚡ вся линия</div>
-            <div>6 в ряд — 🌈 все символы этого вида</div>
-            <div>{К.ультиматумОтДлины}+ в ряд — 🌟 всё поле</div>
+          <h2 className="text-3xl font-bold text-brand-yellow">{ТМ.заголовокМеню}</h2>
+          <p className="mt-2 max-w-sm text-center text-sm text-white/70">{ТМ.описаниеИгры}</p>
+          <div className="stat-box mt-3 w-full max-w-sm p-3 text-xs text-white/80">
+            <div>{ТМ.правила.три}</div>
+            <div>{ТМ.правила.четыре(размерВзрыва)}</div>
+            <div>{ТМ.правила.пять}</div>
+            <div>{ТМ.правила.шесть}</div>
+            <div>{ТМ.правила.много(К.ультиматумОтДлины)}</div>
           </div>
-          <p className="mt-3 text-sm text-white/70">
-            Этап 1: {цельЭтапа(1)} очков за {ходовЭтапа(1)} ходов · награда {К.награда.старт} 🪙
-          </p>
-          <button
-            onClick={старт}
-            disabled={!готово}
-            className="mt-4 w-full max-w-sm rounded-2xl bg-xmas-red py-4 text-xl font-bold active:scale-95 disabled:bg-gray-600 disabled:text-white/40"
-          >
-            {готово ? "▶ Старт" : "Загрузка…"}
+          <p className="mt-3 text-sm text-white/70">{ТМ.этапПервый(цельЭтапа(1), ходовЭтапа(1), К.награда.старт)}</p>
+          <button onClick={старт} disabled={!готово} className="btn btn-yellow mt-4 w-full max-w-sm !py-4 text-xl">
+            {готово ? Т.общее.старт : Т.общее.загрузка}
           </button>
-          <button onClick={() => navigate("/games")} className="mt-3 text-sm text-white/60">← К списку игр</button>
-          <p className="mt-3 text-xs text-xmas-gold">Ваш рекорд: этапов {user.best_match3 ?? 0}</p>
+          <button onClick={() => navigate("/games")} className="mt-3 text-sm text-white/60">{Т.общее.кСпискуИгр}</button>
+          <p className="mt-3 text-xs text-brand-yellow">{ТМ.вашРекорд(user.best_match3 ?? 0)}</p>
         </div>
       )}
 
       {/* ===== ЭТАП ПРОЙДЕН ===== */}
       {фаза === "stage" && данныеЭтапа && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/75 p-5">
-          <div className="w-full max-w-sm rounded-3xl bg-xmas-dark p-5 text-center ring-2 ring-xmas-gold">
-            <h3 className="mb-2 text-2xl font-bold">🎉 Этап {данныеЭтапа.этап} пройден!</h3>
-            <div className="my-3 rounded-2xl bg-white/10 p-3 text-left text-sm">
-              <Строка л="Награда этапа" п={`${данныеЭтапа.награда.база} 🪙`} />
-              {данныеЭтапа.награда.заХоды > 0 && <Строка л="Бонус за оставшиеся ходы" п={`+${данныеЭтапа.награда.заХоды} 🪙`} />}
-              {данныеЭтапа.награда.бонусПроц > 0 && <Строка л="Бонус «Повышение ЗП»" п={`+${данныеЭтапа.награда.бонусПроц}%`} />}
-              <div className="my-1 border-t border-white/10" />
-              <Строка л="Получено фишек" п={`+${данныеЭтапа.награда.итого} 🪙`} />
-            </div>
-            <РекордыБлок личный={{ nickname: user.nickname, значение: данныеЭтапа.личный }} глобальный={данныеЭтапа.глобальный} />
-            {!данныеЭтапа.сохранилось && <p className="mb-2 text-xs text-red-400">Не удалось сохранить награду</p>}
-            {данныеЭтапа.предупреждение && <p className="mb-2 text-xs text-orange-300">{данныеЭтапа.предупреждение}</p>}
-            <p className="mb-3 text-xs text-white/60">
-              Дальше: этап {следующий} — {цельЭтапа(следующий)} очков за {ходовЭтапа(следующий)} ходов, награда {К.награда.старт + К.награда.прирост * (следующий - 1)} 🪙
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => начатьЭтап(следующий)} className="flex-1 rounded-xl bg-xmas-green py-3 font-bold">Дальше ▶</button>
-              <button onClick={() => завершить("выход")} className="flex-1 rounded-xl bg-xmas-red py-3 font-bold">Забрать и выйти</button>
-            </div>
+        <Модалка режим="absolute">
+          <h3 className="mb-2 text-2xl font-bold">{ТМ.этапПройден(данныеЭтапа.этап)}</h3>
+          <div className="stat-box my-3 p-3 text-left text-sm">
+            <СтрокаИтога л={ТМ.наградаЭтапа} п={Т.общее.фишки(данныеЭтапа.награда.база)} />
+            {данныеЭтапа.награда.заХоды > 0 && <СтрокаИтога л={ТМ.бонусЗаХоды} п={Т.общее.плюсФишки(данныеЭтапа.награда.заХоды)} />}
+            {данныеЭтапа.награда.бонусПроц > 0 && <СтрокаИтога л={Т.общее.бонусЗП} п={`+${данныеЭтапа.награда.бонусПроц}%`} />}
+            <Разделитель />
+            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(данныеЭтапа.награда.итого)} />
           </div>
-        </div>
+          <РекордыБлок личный={{ nickname: user.nickname, значение: данныеЭтапа.личный }} глобальный={данныеЭтапа.глобальный} />
+          {!данныеЭтапа.сохранилось && <p className="mb-2 text-xs text-red-300">{ТМ.ошибкаНаграды}</p>}
+          {данныеЭтапа.предупреждение && <p className="mb-2 text-xs text-orange-300">{данныеЭтапа.предупреждение}</p>}
+          <p className="mb-3 text-xs text-white/60">
+            {ТМ.дальнейший(следующий, цельЭтапа(следующий), ходовЭтапа(следующий), К.награда.старт + К.награда.прирост * (следующий - 1))}
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => начатьЭтап(следующий)} className="btn btn-blue flex-1">{Т.общее.дальше}</button>
+            <button onClick={() => завершить("выход")} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
+          </div>
+        </Модалка>
       )}
 
       {/* ===== ИТОГ ИГРЫ ===== */}
       {фаза === "over" && итог && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center overflow-y-auto bg-black/75 p-5">
-          <div className="w-full max-w-sm rounded-3xl bg-xmas-dark p-5 text-center ring-2 ring-xmas-gold">
-            <h3 className="mb-2 text-2xl font-bold">{итог.причина === "ходы" ? "😵 Ходы закончились" : "👋 Игра завершена"}</h3>
-            <div className="my-3 rounded-2xl bg-white/10 p-3 text-left text-sm">
-              <Строка л="Этапов пройдено" п={String(итог.пройдено)} />
-              <Строка л="Получено фишек" п={`+${итог.фишек} 🪙`} />
-            </div>
-            <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личный }} глобальный={итог.глобальный} />
-            <div className="flex gap-2">
-              <button onClick={() => { setИтог(null); setФаза("menu"); }} className="flex-1 rounded-xl bg-xmas-green py-3 font-bold">Играть ещё</button>
-              <button onClick={() => navigate("/games")} className="flex-1 rounded-xl bg-xmas-red py-3 font-bold">Забрать и выйти</button>
-            </div>
+        <Модалка режим="absolute">
+          <h3 className="mb-2 text-2xl font-bold">{итог.причина === "ходы" ? ТМ.ходыЗакончились : ТМ.играЗавершена}</h3>
+          <div className="stat-box my-3 p-3 text-left text-sm">
+            <СтрокаИтога л={ТМ.этаповПройдено} п={String(итог.пройдено)} />
+            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(итог.фишек)} />
           </div>
-        </div>
+          <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личный }} глобальный={итог.глобальный} />
+          <div className="flex gap-2">
+            <button onClick={() => { setИтог(null); setФаза("menu"); }} className="btn btn-blue flex-1">{Т.общее.игратьЕщё}</button>
+            <button onClick={() => navigate("/games")} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
+          </div>
+        </Модалка>
       )}
     </div>
   );
 }
-
-const Строка = ({ л, п }: { л: string; п: string }) => (
-  <div className="flex justify-between gap-3 py-0.5">
-    <span className="text-white/60">{л}</span>
-    <span className="text-right font-bold">{п}</span>
-  </div>
-);

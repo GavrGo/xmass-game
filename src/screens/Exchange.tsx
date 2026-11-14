@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useUser } from "../store/UserContext";
-import { ОБМЕН, МАГАЗИН_ОБМЕННИКА, ОНБОРДИНГ } from "../config";
+import { ОБМЕН, МАГАЗИН_ОБМЕННИКА, ОНБОРДИНГ, АССЕТЫ } from "../config";
 import { комиссияОбменаПроц } from "../game/effects";
 import { посчитатьОбмен, Направление } from "../game/exchange";
 import { прочитатьКрутки, записатьКрутки } from "../game/emoji";
 import AvatarSpinModal from "../components/AvatarSpinModal";
+import { Иконка, Картинка } from "../components/Иконка";
+import { звук } from "../lib/sound";
+import { Т } from "../texts";
 
 export default function Exchange() {
   const { user, change, telegramId } = useUser();
@@ -29,6 +32,7 @@ export default function Exchange() {
   const баланс = фишкиВБилеты ? user.chips : user.tickets;
   const хватает = количество <= баланс;
   const можно = !занят && получите >= 1 && хватает;
+  const ТО = Т.обмен;
 
   const подтвердить = async () => {
     if (!можно) return;
@@ -39,10 +43,15 @@ export default function Exchange() {
           ? { chips: -спишется, tickets: получите }
           : { tickets: -спишется, chips: получите }
       );
-      setСообщение(`Готово: −${спишется} ${фишкиВБилеты ? "🪙" : "🎟️"}, +${получите} ${фишкиВБилеты ? "🎟️" : "🪙"}`);
+      setСообщение(ТО.готово(
+        фишкиВБилеты ? Т.общее.фишки(спишется) : Т.общее.билеты(спишется),
+        фишкиВБилеты ? Т.общее.билеты(получите) : Т.общее.фишки(получите),
+      ));
       setВвод("");
+      звук.sfx("покупка"); // ← звук обмена
     } catch (e: any) {
-      setСообщение("Ошибка: " + e.message);
+      setСообщение(ТО.ошибка(e.message));
+      звук.sfx("ошибка");
     }
     setЗанят(false);
   };
@@ -64,10 +73,12 @@ export default function Exchange() {
     setСообщениеМагазина("");
     try {
       await change({ chips: -цНик }, { nickname: ник });
-      setСообщениеМагазина(`✅ Ник изменён на «${ник}»`);
+      setСообщениеМагазина(ТО.магазин.ник.готово(ник));
       setНовыйНик("");
+      звук.sfx("покупка");
     } catch (e: any) {
-      setСообщениеМагазина("Ошибка: " + e.message);
+      setСообщениеМагазина(ТО.ошибка(e.message));
+      звук.sfx("ошибка");
     }
     setЗанят(false);
   };
@@ -86,8 +97,10 @@ export default function Exchange() {
       записатьКрутки(telegramId, новое);
       setКрутки(новое);
       setОкноАватара(true); // сразу открываем выбор аватара
+      звук.sfx("покупка");
     } catch (e: any) {
-      setСообщениеМагазина("Ошибка: " + e.message);
+      setСообщениеМагазина(ТО.ошибка(e.message));
+      звук.sfx("ошибка");
     }
     setЗанят(false);
   };
@@ -99,106 +112,104 @@ export default function Exchange() {
   };
 
   return (
-    <div className="p-4">
-      <h2 className="mb-1 text-xl font-bold">Обмен валют</h2>
-      <p className="mb-4 text-white/60">🪙 {user.chips} · 🎟️ {user.tickets}</p>
-
-      {/* Направление */}
-      <button onClick={переключить} className="mb-4 flex w-full items-center justify-center gap-3 rounded-2xl bg-white/10 py-4 text-xl font-bold">
-        <span>{фишкиВБилеты ? "🪙 Фишки" : "🎟️ Билеты"}</span>
-        <span className="text-xmas-gold">⇄</span>
-        <span>{фишкиВБилеты ? "🎟️ Билеты" : "🪙 Фишки"}</span>
-      </button>
-
-      {/* Ввод количества */}
-      <label className="text-sm text-white/60">
-        Отдаёте ({фишкиВБилеты ? "фишек" : "билетов"})
-        <div className="mt-1 flex gap-2">
-          <input
-            type="number" inputMode="numeric" min={0} value={ввод}
-            onChange={(e) => { setВвод(e.target.value); setСообщение(""); }}
-            placeholder="0"
-            className="w-full rounded-xl bg-white/10 px-4 py-3 text-lg text-white outline-none focus:ring-2 focus:ring-xmas-gold"
-          />
-          <button onClick={() => setВвод(String(баланс))} className="rounded-xl bg-white/10 px-4 font-bold">Всё</button>
-        </div>
-      </label>
-
-      {/* Расчёт */}
-      <div className="mt-4 rounded-2xl bg-white/5 p-4 text-sm">
-        <Строка л="Курс без комиссии" п={`1 🎟️ = ${ОБМЕН.фишекЗаБилет} 🪙`} />
-        <Строка л="Комиссия" п={`${комиссия}%`} />
-        <Строка л="Спишется" п={`${спишется} ${фишкиВБилеты ? "🪙" : "🎟️"}`} />
-        <div className="mt-2 flex justify-between text-lg font-bold text-xmas-gold">
-          <span>Получите</span>
-          <span>{получите} {фишкиВБилеты ? "🎟️" : "🪙"}</span>
-        </div>
+    <div className="px-4">
+      {/* Персонаж: public/assets/characters/exchange.png */}
+      <div className="mb-2 flex justify-center">
+        <Картинка
+          путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обмен}
+          fallback={<div className="text-8xl leading-none">🧑‍🎄</div>}
+          className="max-h-40 object-contain"
+        />
       </div>
 
-      {!хватает && <p className="mt-2 text-sm text-red-400">Не хватает средств</p>}
-      {количество > 0 && получите < 1 && хватает && <p className="mt-2 text-sm text-white/50">Слишком мало: после комиссии не выйдет и 1 единицы</p>}
+      {/* Панель обмена */}
+      <div className="card p-4">
+        <h3 className="mb-3 text-center text-lg font-bold">{ТО.заголовок}</h3>
 
-      <button
-        onClick={подтвердить} disabled={!можно}
-        className="mt-4 w-full rounded-xl bg-xmas-green py-3 text-lg font-bold disabled:bg-gray-600 disabled:text-white/40"
-      >
-        Обменять
-      </button>
-      {сообщение && <p className="mt-3 text-center text-sm text-xmas-gold">{сообщение}</p>}
+        <div className="rounded-2xl bg-surface2 p-3">
+          <div className="text-xs text-muted">{ТО.платишь}</div>
+          <div className="mt-1 flex items-center gap-3">
+            <div className="flex items-center gap-2 font-bold">
+              <Иконка имя={фишкиВБилеты ? "фишки" : "билеты"} размер={26} />
+              {фишкиВБилеты ? ТО.фишки : ТО.билеты}
+            </div>
+            <input
+              type="number" inputMode="numeric" min={0} value={ввод}
+              onChange={(e) => { setВвод(e.target.value); setСообщение(""); }}
+              placeholder="0"
+              className="ml-auto w-28 bg-transparent text-right text-2xl font-bold text-white outline-none placeholder:text-white/30"
+            />
+          </div>
+          <div className="mt-1 flex items-center justify-between text-xs text-muted">
+            <span>{ТО.баланс(баланс)}</span>
+            <button onClick={() => setВвод(String(баланс))} className="rounded-md bg-surface px-2 py-0.5 font-bold text-white">{ТО.всё}</button>
+          </div>
+        </div>
+
+        <div className="my-2 flex justify-center">
+          <button onClick={переключить} className="flex h-10 w-10 items-center justify-center rounded-full bg-surface2 text-xl ring-4 ring-[#1E1F24] active:scale-95">{ТО.переключить}</button>
+        </div>
+
+        <div className="rounded-2xl bg-surface2 p-3">
+          <div className="text-xs text-muted">{ТО.получаешь}</div>
+          <div className="mt-1 flex items-center gap-3">
+            <div className="flex items-center gap-2 font-bold">
+              <Иконка имя={фишкиВБилеты ? "билеты" : "фишки"} размер={26} />
+              {фишкиВБилеты ? ТО.билеты : ТО.фишки}
+            </div>
+            <div className="ml-auto text-2xl font-bold text-brand-yellow">{получите}</div>
+          </div>
+        </div>
+
+        <div className="mt-3 space-y-0.5 text-center text-xs text-muted">
+          <div>{ТО.курс(ОБМЕН.фишекЗаБилет)}</div>
+          <div>{ТО.комиссия(комиссия)} · {ТО.спишется}: {спишется}</div>
+        </div>
+
+        {!хватает && <p className="mt-2 text-center text-sm text-red-400">{ТО.нехватаетСредств}</p>}
+        {количество > 0 && получите < 1 && хватает && <p className="mt-2 text-center text-sm text-muted">{ТО.слишкомМало}</p>}
+
+        <button onClick={подтвердить} disabled={!можно} className="btn btn-blue mt-3 w-full !py-3 text-lg">{ТО.кнопка}</button>
+        {сообщение && <p className="mt-3 text-center text-sm text-brand-yellow">{сообщение}</p>}
+      </div>
 
       {/* ================= МАГАЗИН ================= */}
-      <h3 className="mb-3 mt-8 text-lg font-bold">Магазин</h3>
+      <h3 className="mb-3 mt-6 text-lg font-bold">{ТО.магазин.заголовок}</h3>
 
-      {/* Смена ника */}
-      <div className="mb-3 rounded-2xl bg-white/10 p-4">
+      <div className="card mb-3 p-4">
         <div className="flex justify-between font-bold">
-          <span>✏️ Смена никнейма</span>
-          <span className="text-xmas-gold">{цНик} 🪙</span>
+          <span>{ТО.магазин.ник.заголовок}</span>
+          <span className="text-brand-yellow">{Т.общее.фишки(цНик)}</span>
         </div>
-        <p className="mb-2 text-sm text-white/60">Сейчас: {user.nickname}</p>
+        <p className="mb-2 text-sm text-muted">{ТО.магазин.ник.сейчас(user.nickname)}</p>
         <input
           value={новыйНик}
           onChange={(e) => setНовыйНик(e.target.value)}
           maxLength={ОНБОРДИНГ.максДлинаНика}
-          placeholder="Новый ник"
-          className="w-full rounded-xl bg-black/30 px-4 py-2 text-white outline-none focus:ring-2 focus:ring-xmas-gold"
+          placeholder={ТО.магазин.ник.подсказка}
+          className="w-full rounded-xl bg-surface2 px-4 py-2.5 text-white outline-none placeholder:text-muted focus:ring-2 focus:ring-brand-blue"
         />
-        <button
-          onClick={сменитьНик}
-          disabled={занят || !ник_ок || user.chips < цНик}
-          className="mt-2 w-full rounded-xl bg-xmas-green py-2 font-bold disabled:bg-gray-600 disabled:text-white/40"
-        >
-          Сменить за {цНик} 🪙
-        </button>
-        {user.chips < цНик && <p className="mt-1 text-xs text-red-400">Не хватает фишек</p>}
+        <button onClick={сменитьНик} disabled={занят || !ник_ок || user.chips < цНик} className="btn btn-blue mt-2 w-full">{ТО.магазин.ник.кнопка(цНик)}</button>
+        {user.chips < цНик && <p className="mt-1 text-xs text-red-400">{ТО.магазин.нехватаетФишек}</p>}
       </div>
 
-      {/* Крутки эмодзи */}
-      <div className="rounded-2xl bg-white/10 p-4">
+      <div className="card p-4">
         <div className="flex justify-between font-bold">
-          <span>{user.emoji} {колКруток} круток аватарки</span>
-          <span className="text-xmas-gold">{цКрутки} 🪙</span>
+          <span>{ТО.магазин.крутки.заголовок(user.emoji, колКруток)}</span>
+          <span className="text-brand-yellow">{Т.общее.фишки(цКрутки)}</span>
         </div>
-        <p className="mb-2 text-sm text-white/60">
-          Крутите эмодзи и выберите новый аватар.
-          {крутки > 0 && <> У вас осталось круток: <b>{крутки}</b>.</>}
+        <p className="mb-2 text-sm text-muted">
+          {ТО.магазин.крутки.описание}
+          {крутки > 0 && ТО.магазин.крутки.осталось(крутки)}
         </p>
         {крутки > 0 && (
-          <button onClick={() => setОкноАватара(true)} className="mb-2 w-full rounded-xl bg-xmas-red py-2 font-bold">
-            Крутить аватарку ({крутки})
-          </button>
+          <button onClick={() => setОкноАватара(true)} className="btn btn-yellow mb-2 w-full">{ТО.магазин.крутки.крутить(крутки)}</button>
         )}
-        <button
-          onClick={купитьКрутки}
-          disabled={занят || user.chips < цКрутки}
-          className="w-full rounded-xl bg-xmas-green py-2 font-bold disabled:bg-gray-600 disabled:text-white/40"
-        >
-          Купить {колКруток} круток за {цКрутки} 🪙
-        </button>
-        {user.chips < цКрутки && <p className="mt-1 text-xs text-red-400">Не хватает фишек</p>}
+        <button onClick={купитьКрутки} disabled={занят || user.chips < цКрутки} className="btn btn-blue w-full">{ТО.магазин.крутки.купить(колКруток, цКрутки)}</button>
+        {user.chips < цКрутки && <p className="mt-1 text-xs text-red-400">{ТО.магазин.нехватаетФишек}</p>}
       </div>
 
-      {сообщениеМагазина && <p className="mt-3 text-center text-sm text-xmas-gold">{сообщениеМагазина}</p>}
+      {сообщениеМагазина && <p className="mt-3 text-center text-sm text-brand-yellow">{сообщениеМагазина}</p>}
 
       {окноАватара && (
         <AvatarSpinModal
@@ -212,7 +223,3 @@ export default function Exchange() {
     </div>
   );
 }
-
-const Строка = ({ л, п }: { л: string; п: string }) => (
-  <div className="flex justify-between py-0.5 text-white/70"><span>{л}</span><span>{п}</span></div>
-);

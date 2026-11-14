@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import SlotReels from "../components/SlotReels";
 import { Конфетти, Взрыв } from "../components/SlotEffects";
-import { СИМВОЛЫ_СЛОТА, СЛОТ } from "../config";
+import { Иконка } from "../components/Иконка";
+import { СИМВОЛЫ_СЛОТА, СЛОТ, АССЕТЫ } from "../config";
 import { крутитьСлот, случайныйСимвол, текстНаграды } from "../game/slot";
 import { шансБесплатнойКрутки } from "../game/effects";
+import { естьФайл, useАссеты } from "../lib/assets";
+import { звук } from "../lib/sound";
+import { Т } from "../texts";
 
 type Эффект = { вид: "конфетти"; эмодзи: string } | { вид: "взрыв" } | null;
 
@@ -14,7 +17,8 @@ const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
 const минСек = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(2, "0")}`;
 
 export default function Home() {
-  const { user, change, isAdmin, telegramId } = useUser();
+  const { user, change, telegramId } = useUser();
+  useАссеты();
 
   const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйСимвол().эмодзи, случайныйСимвол().эмодзи, случайныйСимвол().эмодзи]);
   const [крутятся, setКрутятся] = useState<boolean[]>([false, false, false]);
@@ -54,6 +58,10 @@ export default function Home() {
   const хватаетБилетов = user.tickets >= ставка;
   const можноКрутить = !идёт && !заблокирован && (бесплатная || хватаетБилетов);
 
+  // Своя картинка кнопки: public/assets/ui/spin-button.png
+  const картинкаКнопки = АССЕТЫ.папки.ui + АССЕТЫ.ui.кнопкаСпин;
+  const своиКнопка = естьФайл(картинкаКнопки) === true;
+
   const показатьЭффект = (э: Эффект, секунд: number) => {
     setЭффект(э);
     setTimeout(() => setЭффект(null), секунд * 1000);
@@ -82,6 +90,7 @@ export default function Home() {
     занято.current = true;
     setИдёт(true);
     setСообщение("");
+    звук.sfx("спин"); // ← звук начала крутки
 
     const цена = бесплатная ? 0 : ставка;
     const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель);
@@ -106,16 +115,21 @@ export default function Home() {
         setЗаблокированоДо(до);
         try { localStorage.setItem(ключБлока(telegramId), String(до)); } catch {}
         показатьЭффект({ вид: "взрыв" }, СЛОТ.эффектыСекунд.взрыв);
+        звук.sfx("взрыв"); // ← звук взрыва бомб
       } else if (итог.тройка) {
         показатьЭффект({ вид: "конфетти", эмодзи: итог.символы[0].эмодзи }, СЛОТ.эффектыСекунд.конфетти);
+        звук.sfx("победа"); // ← звук джекпота
+      } else if (итог.награда.chips || итог.награда.tickets || итог.награда.hearts) {
+        звук.sfx("бонус"); // ← звук небольшого выигрыша
       }
 
       if (итог.бесплатнаяКрутка && !бомба) setБесплатныеКрутки((n) => n + 1);
-      setСообщение(итог.описание + (итог.бесплатнаяКрутка && !бомба ? " 🎁 Выпал Free Spin — крутите ещё раз бесплатно!" : ""));
+      setСообщение(итог.описание + (итог.бесплатнаяКрутка && !бомба ? Т.слот.выпалFreeSpin : ""));
     } catch (e: any) {
       if (бесплатная) setБесплатныеКрутки((n) => n + 1);
-      setСообщение("Ошибка сохранения: " + (e.message ?? "попробуйте ещё раз"));
+      setСообщение(Т.слот.ошибкаСохранения(e.message));
       setКрутятся([false, false, false]);
+      звук.sfx("ошибка");
     } finally {
       setЗаморозка(null);
       setИдёт(false);
@@ -123,112 +137,95 @@ export default function Home() {
     }
   };
 
+  const подпись = идёт
+    ? Т.слот.крутится
+    : заблокирован
+    ? Т.слот.нельзяКрутить(минСек(осталосьБлок))
+    : бесплатная
+    ? Т.слот.бесплатная(бесплатныеКрутки)
+    : Т.слот.крутить(ставка);
+
   return (
-    <div className="p-4">
+    <div className="px-4 pb-6">
       {эффект?.вид === "конфетти" && <Конфетти эмодзи={эффект.эмодзи} />}
       {эффект?.вид === "взрыв" && <Взрыв />}
 
-      {/* Шапка: аватар, ник, справа — Лидерборд и (для админов) значок админки */}
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-3xl">{user.emoji}</div>
-        <div className="min-w-0 flex-1 truncate font-bold">{user.nickname}</div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <Link to="/admin" aria-label="Админка" className="rounded-xl bg-white/10 px-3 py-2 text-lg">⚙️</Link>
-          )}
-          <Link to="/leaderboard" className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-xmas-gold">
-            🏆 Лидерборд
-          </Link>
+      {/* Крупный баланс: хэпэшки и фишки */}
+      <div className="mt-1 flex flex-col items-center">
+        <div className="flex items-center gap-2 text-5xl font-extrabold">
+          <Иконка имя="хэпэшки" размер={44} /> {баланс.hearts}
         </div>
-      </div>
-
-      {/* Балансы */}
-      <div className="mb-6 grid grid-cols-3 gap-2 text-center">
-        <Баланс иконка="🪙" название="Фишки" значение={баланс.chips} />
-        <Баланс иконка="🎟️" название="Билеты" значение={баланс.tickets} />
-        <Баланс иконка="❤️" название="Хэпэшки" значение={баланс.hearts} />
+        <div className="mt-1 flex items-center gap-2 text-xl font-bold text-brand-yellow">
+          <Иконка имя="фишки" размер={24} /> {баланс.chips}
+        </div>
       </div>
 
       {/* Слот (после бомб покрывается сажей) */}
       <div
-        className="relative rounded-3xl"
+        className="relative mt-4 rounded-3xl"
         style={заблокирован ? { background: "radial-gradient(circle at center, rgba(0,0,0,0.85) 0%, rgba(40,20,0,0.55) 60%, rgba(0,0,0,0) 100%)" } : undefined}
       >
-        {заблокирован && (
-          <p className="pt-3 text-center text-sm font-bold text-orange-300">
-            💣 Слот закоптился — нельзя крутить {минСек(осталосьБлок)}
-          </p>
-        )}
-        <div className="p-2">
+        {заблокирован && <p className="pt-3 text-center text-sm font-bold text-orange-300">{Т.слот.закоптился(минСек(осталосьБлок))}</p>}
+        <div className="p-1">
           <SlotReels символы={барабаны} крутятся={крутятся} />
         </div>
       </div>
 
-      <p className="mt-3 h-10 text-center text-sm text-xmas-gold">{сообщение}</p>
+      <p className="mt-3 min-h-[2.5rem] text-center text-sm text-brand-yellow">{сообщение}</p>
 
-      <button
-        onClick={крутить}
-        disabled={!можноКрутить}
-        className="w-full rounded-xl bg-xmas-red py-4 text-lg font-bold disabled:bg-gray-600 disabled:text-white/40"
-      >
-        {идёт
-          ? "Крутится…"
-          : заблокирован
-          ? `🔥 Нельзя крутить: ${минСек(осталосьБлок)}`
-          : бесплатная
-          ? `🎁 Бесплатная крутка (${бесплатныеКрутки})`
-          : `Крутить · ${ставка} 🎟️`}
-      </button>
+      {/* Большая кнопка и билеты */}
+      <div className="mt-3 flex flex-col items-center">
+        <button
+          onClick={крутить}
+          disabled={!можноКрутить}
+          className={`btn-spin ${своиКнопка ? "btn-spin-image" : ""}`}
+          style={своиКнопка ? { backgroundImage: `url(/${картинкаКнопки})` } : undefined}
+        >
+          {подпись}
+        </button>
+        <div className="pill mt-6 inline-flex items-center gap-2 px-4 py-1.5 text-sm font-bold">
+          <Иконка имя="билеты" размер={18} /> {баланс.tickets}
+        </div>
+      </div>
+
       {/* Переключатель множителя ставки */}
-      <div className="mt-3 grid grid-cols-4 gap-2">
+      <div className="mt-4 grid grid-cols-4 gap-2">
         {СЛОТ.множителиСтавки.map((м) => (
           <button
             key={м}
             onClick={() => setМножитель(м)}
             disabled={идёт || (бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем)}
-            className={`rounded-xl py-2 font-bold disabled:opacity-60 ${м === эфМножитель ? "bg-xmas-gold text-black" : "bg-white/10"}`}
+            className={`btn !px-0 !py-2 ${м === эфМножитель ? "btn-yellow" : "btn-ghost"}`}
           >
             x{м}
           </button>
         ))}
       </div>
-      <p className="mt-1 text-center text-xs text-white/40">
-        Ставка: {бесплатная ? 0 : ставка} 🎟️ · награда ×{эфМножитель} · бомбы всегда блокируют на {СЛОТ.блокировкаПослеБомбСекунд} сек
-      </p>
+      <p className="mt-1 text-center text-xs text-white/40">{Т.слот.ставка(бесплатная ? 0 : ставка, эфМножитель, СЛОТ.блокировкаПослеБомбСекунд)}</p>
 
       {!идёт && !заблокирован && !бесплатная && !хватаетБилетов && (
-        <p className="mt-2 text-center text-xs text-white/50">Не хватает билетов для x{множитель} — уменьшите множитель или обменяйте фишки во вкладке «Обмен»</p>
+        <p className="mt-2 text-center text-xs text-white/50">{Т.слот.нехватаетБилетов(множитель)}</p>
       )}
-      <p className="mt-2 text-center text-xs text-white/40">Шанс Free Spin: {шансБесплатнойКрутки(user)}%</p>
+      <p className="mt-2 text-center text-xs text-white/40">{Т.слот.шансFreeSpin(шансБесплатнойКрутки(user))}</p>
 
       {/* Таблица выплат — строится из config.ts автоматически */}
-      <details className="mt-4 rounded-2xl bg-white/5 p-3 text-sm">
-        <summary className="cursor-pointer text-white/70">Таблица выплат</summary>
+      <details className="card mt-4 p-3 text-sm">
+        <summary className="cursor-pointer text-white/70">{Т.слот.таблицаВыплат}</summary>
         <div className="mt-2 flex flex-col gap-1">
           {СИМВОЛЫ_СЛОТА.map((с) => (
             <div key={с.id} className="flex justify-between">
               <span>{с.эмодзи}{с.эмодзи}{с.эмодзи}</span>
-              <span>{с.бомба ? `💥 блок ${СЛОТ.блокировкаПослеБомбСекунд} сек` : текстНаграды(с.за3) || "—"}</span>
+              <span>{с.бомба ? Т.слот.блокВыплата(СЛОТ.блокировкаПослеБомбСекунд) : текстНаграды(с.за3) || "—"}</span>
             </div>
           ))}
           {СИМВОЛЫ_СЛОТА.filter((с) => текстНаграды(с.за2)).map((с) => (
             <div key={"2" + с.id} className="flex justify-between text-white/60">
-              <span>два {с.эмодзи}</span>
+              <span>{Т.слот.дваСимвола(с.эмодзи)}</span>
               <span>{текстНаграды(с.за2)}</span>
             </div>
           ))}
         </div>
       </details>
-    </div>
-  );
-}
-
-function Баланс(p: { иконка: string; название: string; значение: number }) {
-  return (
-    <div className="rounded-2xl bg-white/10 py-3">
-      <div className="text-2xl">{p.иконка}</div>
-      <div className="text-lg font-bold">{p.значение}</div>
-      <div className="text-xs text-white/50">{p.название}</div>
     </div>
   );
 }

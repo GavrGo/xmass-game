@@ -4,6 +4,7 @@ import { getTelegramId } from "../lib/telegram";
 import { getUser, createUser, updateUser, isAdmin as проверитьАдмина } from "../api/users";
 import { supabase } from "../lib/supabase";
 import type { User } from "../types";
+import { Т } from "../texts";
 
 // Изменение баланса: положительное число — прибавить, отрицательное — списать.
 export interface Изменение { chips?: number; tickets?: number; hearts?: number }
@@ -79,7 +80,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const change = async (delta: Изменение, extra: Partial<User> = {}) => {
     const текущий = userRef.current;
-    if (!текущий) throw new Error("Игрок не загружен");
+    if (!текущий) throw new Error(Т.ошибки.игрокНеЗагружен);
 
     const новый: User = {
       ...текущий,
@@ -89,7 +90,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       hearts: текущий.hearts + (delta.hearts ?? 0),
     };
     if (новый.chips < 0 || новый.tickets < 0 || новый.hearts < 0) {
-      throw new Error("Недостаточно средств");
+      throw new Error(Т.ошибки.нехватаетСредств);
     }
 
     записать(новый); // 1) сразу показываем на экране

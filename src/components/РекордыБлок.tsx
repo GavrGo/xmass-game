@@ -1,3 +1,5 @@
+import { Т } from "../texts";
+
 export interface ЗаписьРекорда { nickname: string; значение: number }
 
 // Единый блок рекордов в окнах результата всех мини-игр:
@@ -13,12 +15,12 @@ export default function РекордыБлок({
 }) {
   const есть = глобальный && глобальный !== "ошибка";
   return (
-    <div className="mb-3 rounded-2xl bg-white/10 p-3 text-left text-sm">
-      <div>Личный рекорд: <b>{личный.значение}</b></div>
+    <div className="stat-box mb-3 p-3 text-left text-sm">
+      <div>{Т.рекорды.личный}: <b>{личный.значение}</b></div>
       <div className="mt-2">
-        Глобальный рекорд: <b>{глобальный === undefined ? "…" : есть ? глобальный.значение : "—"}</b>
+        {Т.рекорды.глобальный}: <b>{глобальный === undefined ? "…" : есть ? глобальный.значение : Т.рекорды.прочерк}</b>
       </div>
-      {есть && <div className="mt-0.5 pl-4 text-xs text-white/60">рекорд за {глобальный.nickname}</div>}
+      {есть && <div className="mt-0.5 pl-4 text-xs text-white/60">{Т.рекорды.рекордЗа} {глобальный.nickname}</div>}
     </div>
   );
 }

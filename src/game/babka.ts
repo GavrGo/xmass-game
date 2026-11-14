@@ -1,6 +1,7 @@
 // Движок Babka Crash: полосы с движением, шаг вперёд по тапу, столкновения, рисование на canvas.
 // Все числа берутся из config.ts (раздел БАБКА_КРАШ).
-import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
+import { БАБКА_КРАШ as К, КлючПерсонажа, ЭффектЗвука } from "../config";
+import { Т } from "../texts";
 import { бонусЗарплатыПроц } from "./effects";
 
 export type РежимБабки = "zen" | "timed";
@@ -42,6 +43,8 @@ export class БабкаДвижок {
   safeTopCss = 0;
 
   персонаж: КлючПерсонажа = "babka";
+  // Хук для звуков: экран подключает сюда звуковой менеджер (звук шага, поражения)
+  событие: ((имя: ЭффектЗвука) => void) | null = null;
   полосы = new Map<number, Полоса>();
   позиция = 0;        // дробный номер полосы под персонажем (во время шага — между двумя полосами)
   полоса = 0;         // полоса, на которой стоит персонаж
@@ -141,6 +144,7 @@ export class БабкаДвижок {
     this.прыгает = true;
     this.t = 0;
     this.цельПолоса = this.полоса + 1;
+    this.событие?.("ход");
   }
 
   /** Двигаем противников (и в меню для красоты, и в игре). */
@@ -205,6 +209,7 @@ export class БабкаДвижок {
         if (Math.abs(в.x - px) < ((п.ширина + вт.ширина) / 2) * k) {
           this.закончена = true;
           this.причина = "crash";
+          this.событие?.("поражение");
           this.столкновение = { x: (в.x + px) / 2, y: i };
           return;
         }
@@ -276,11 +281,11 @@ export class БабкаДвижок {
       const y0 = 12 + this.safeTopCss / this.масштаб;
       ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 4;
       ctx.fillStyle = "#fff"; ctx.font = "bold 20px sans-serif"; ctx.textBaseline = "top";
-      ctx.textAlign = "left"; ctx.fillText(`Дорог: ${this.дорог}`, 14, y0);
-      if (this.лимит > 0) { ctx.textAlign = "right"; ctx.fillText(`⏱ ${Math.ceil(this.осталось)}`, W - 14, y0); }
+      ctx.textAlign = "left"; ctx.fillText(Т.игры.бабка.худ.дорог(this.дорог), 14, y0);
+      if (this.лимит > 0) { ctx.textAlign = "right"; ctx.fillText(Т.игры.бабка.худ.время(Math.ceil(this.осталось)), W - 14, y0); }
       if (фаза === "playing" && this.дорог === 0 && !this.закончена) {
         ctx.textAlign = "center"; ctx.font = "bold 18px sans-serif";
-        ctx.fillText("Тап — шаг вперёд", W / 2, H * 0.9);
+        ctx.fillText(Т.игры.бабка.худ.подсказкаШаг, W / 2, H * 0.9);
       }
       ctx.shadowBlur = 0;
     }

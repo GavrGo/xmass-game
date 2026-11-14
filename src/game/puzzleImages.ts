@@ -1,3 +1,4 @@
+import { Т } from "../texts";
 // Выбор случайной картинки из public/puzzles/ (список строит vite.config.ts автоматически).
 // Если картинок нет или они не грузятся — рисуем запасную прямо в игре.
 
@@ -37,7 +38,7 @@ function запаснаяКартинка(): string {
     ["🎄", 400, 400, 340], ["⛄", 150, 150, 150], ["🎁", 650, 160, 140], ["🔔", 150, 650, 140], ["⭐", 650, 650, 150],
   ];
   for (const [e, x, y, s] of фигуры) { ctx.font = `${s}px serif`; ctx.fillText(e, x, y); }
-  ctx.fillStyle = "#f4c430"; ctx.font = "bold 70px sans-serif"; ctx.fillText("100HP Christmas", 400, 740);
+  ctx.fillStyle = "#f4c430"; ctx.font = "bold 70px sans-serif"; ctx.fillText(Т.игры.пятнашки.запаснаяПодпись, 400, 740);
   return c.toDataURL("image/jpeg", 0.88);
 }
 

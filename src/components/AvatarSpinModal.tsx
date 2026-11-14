@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { СПИСОК_ЭМОДЗИ, анимироватьЭмодзи } from "../game/emoji";
+import Модалка from "./Модалка";
+import { Т } from "../texts";
 
 interface Props {
   текущий: string;                          // аватар игрока сейчас
@@ -11,6 +13,7 @@ interface Props {
 
 // Окно круток эмодзи для новой аватарки
 export default function AvatarSpinModal({ текущий, осталось, onКрутка, onВыбрать, onЗакрыть }: Props) {
+  const ТА = Т.обмен.аватар;
   const [превью, setПревью] = useState(текущий);
   const [крутили, setКрутили] = useState(false);
   const [крутится, setКрутится] = useState(false);
@@ -33,38 +36,24 @@ export default function AvatarSpinModal({ текущий, осталось, onК
       await onВыбрать(превью);
       onЗакрыть();
     } catch (e: any) {
-      setОшибка(e.message ?? "Не удалось сохранить");
+      setОшибка(e.message ?? ТА.ошибкаСохранения);
       setСохраняю(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-5">
-      <div className="w-full max-w-sm rounded-3xl bg-xmas-dark p-5 text-center ring-2 ring-xmas-gold">
-        <h3 className="mb-3 text-xl font-bold">Новая аватарка</h3>
-        <div className={`mx-auto flex h-36 w-36 items-center justify-center rounded-full bg-white/10 text-8xl transition ${крутится ? "scale-95 animate-pulse blur-[1px]" : ""}`}>{превью}</div>
-        <p className="mt-3 text-sm text-white/70">Осталось круток: <b>{осталось}</b></p>
-        {крутили && <p className="mt-1 text-xs text-white/40">Не нажмёте «Оставить» — аватар не изменится</p>}
+    <Модалка>
+      <h3 className="mb-3 text-xl font-bold">{ТА.заголовок}</h3>
+      <div className={`mx-auto flex h-36 w-36 items-center justify-center rounded-full bg-black/35 text-8xl ring-4 ring-white/10 transition ${крутится ? "scale-95 animate-pulse blur-[1px]" : ""}`}>{превью}</div>
+      <p className="mt-3 text-sm text-white/80">{ТА.осталось(осталось)}</p>
+      {крутили && <p className="mt-1 text-xs text-white/50">{ТА.предупреждение}</p>}
 
-        <button
-          onClick={крутить}
-          disabled={осталось <= 0 || крутится || сохраняю}
-          className="mt-4 w-full rounded-xl bg-xmas-red py-3 text-lg font-bold disabled:bg-gray-600 disabled:text-white/40"
-        >
-          Крутить
-        </button>
-        <button
-          onClick={выбрать}
-          disabled={!крутили || крутится || превью === текущий || сохраняю}
-          className="mt-2 w-full rounded-xl bg-xmas-green py-3 text-lg font-bold disabled:bg-gray-600 disabled:text-white/40"
-        >
-          {сохраняю ? "Сохраняем…" : "Оставить этот"}
-        </button>
-        <button onClick={onЗакрыть} disabled={сохраняю || крутится} className="mt-2 w-full rounded-xl bg-white/10 py-2 text-sm">
-          Закрыть
-        </button>
-        {ошибка && <p className="mt-2 text-sm text-red-400">{ошибка}</p>}
-      </div>
-    </div>
+      <button onClick={крутить} disabled={осталось <= 0 || крутится || сохраняю} className="btn btn-yellow mt-4 w-full !py-3 text-lg">{ТА.крутить}</button>
+      <button onClick={выбрать} disabled={!крутили || крутится || превью === текущий || сохраняю} className="btn btn-blue mt-2 w-full !py-3 text-lg">
+        {сохраняю ? ТА.сохраняем : ТА.оставить}
+      </button>
+      <button onClick={onЗакрыть} disabled={сохраняю || крутится} className="btn btn-ghost mt-2 w-full !py-2 text-sm">{ТА.закрыть}</button>
+      {ошибка && <p className="mt-2 text-sm text-red-300">{ошибка}</p>}
+    </Модалка>
   );
 }

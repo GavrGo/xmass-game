@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Т } from "../texts";
+import Модалка from "../components/Модалка";
+import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
+import { звук } from "../lib/sound";
 import { useUser } from "../store/UserContext";
 import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
 import { Рекорд } from "../api/users";
@@ -44,7 +48,10 @@ export default function Babka() {
   свежее.current = { user, change, персонаж, режим };
   const setФаза = (ф: ФазаБабки) => { фазаRef.current = ф; setФазаСтейт(ф); };
 
-  if (!движок.current) движок.current = new БабкаДвижок();
+  if (!движок.current) {
+    движок.current = new БабкаДвижок();
+    движок.current.событие = (э) => звук.sfx(э); // звуки: шаг, поражение
+  }
 
   /** Время забега: только в «Обычном» режиме (+ бонус «Сдвинуть сроки»). */
   const лимитВремени = (р: РежимБабки = свежее.current.режим) => {
@@ -90,7 +97,7 @@ export default function Babka() {
       if (новыйРекорд && String(e?.message).includes("best_babka_crash")) {
         try {
           await изменить({ chips: награда.итого });
-          setИтог((x) => (x ? { ...x, сохранение: "готово", предупреждение: "Фишки зачислены, но рекорд не сохранён: выполните SQL из migrations/006_babka_crash.sql" } : x));
+          setИтог((x) => (x ? { ...x, сохранение: "готово", предупреждение: Т.предупреждения.бабка } : x));
         } catch (e2: any) {
           setИтог((x) => (x ? { ...x, сохранение: "ошибка", текстОшибки: e2.message } : x));
         }
@@ -172,6 +179,7 @@ export default function Babka() {
   const отступ = getSafeTop() + 16;
   const бонусВрем = бонусВремениСек(user);
   const м = режим === "zen" ? К.дзенМножитель : 1;
+  const ТБ = Т.игры.бабка;
 
   return (
     <div ref={контейнер} className="fixed inset-0 z-30 select-none overflow-hidden bg-black" style={{ touchAction: "none" }}>
@@ -181,81 +189,69 @@ export default function Babka() {
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
         <div className="absolute inset-0 flex flex-col items-center overflow-y-auto bg-black/65 px-5 pb-6" style={{ paddingTop: отступ }}>
-          <button onClick={() => navigate("/games")} className="self-start rounded-xl bg-white/15 px-3 py-2 text-sm font-bold">← Назад</button>
-          <h2 className="mt-3 text-3xl font-bold text-xmas-gold">Babka Crash 👵🚗</h2>
-          <p className="mt-1 text-center text-sm text-white/70">Тап по экрану — шаг вперёд. Переходите дороги и не попадайтесь!</p>
+          <button onClick={() => navigate("/games")} className="btn btn-ghost self-start !px-3 !py-2 text-sm">{Т.общее.назад}</button>
+          <h2 className="mt-3 text-3xl font-bold text-brand-yellow">{ТБ.заголовокМеню}</h2>
+          <p className="mt-1 text-center text-sm text-white/70">{ТБ.подсказка}</p>
 
-          <p className="mb-2 mt-4 text-sm font-bold text-white/80">За кого играем</p>
+          <p className="mb-2 mt-4 text-sm font-bold text-white/80">{ТБ.заКогоИграем}</p>
           <div className="grid w-full max-w-sm grid-cols-2 gap-2">
             {(Object.keys(К.персонажи) as КлючПерсонажа[]).map((ключ) => {
               const п = К.персонажи[ключ];
+              const т = ТБ.персонажи[ключ];
               const выбран = ключ === персонаж;
               return (
-                <button key={ключ} onClick={() => выбратьПерсонажа(ключ)} className={`rounded-2xl p-3 text-center ${выбран ? "bg-xmas-green ring-2 ring-xmas-gold" : "bg-white/10"}`}>
+                <button key={ключ} onClick={() => выбратьПерсонажа(ключ)} className={`opt p-3 text-center ${выбран ? "opt-on" : ""}`}>
                   <div className="text-5xl">{п.эмодзи}</div>
-                  <div className="font-bold">{п.название}</div>
-                  <div className="text-[11px] text-white/70">{п.описание}</div>
-                  {п.множительНаграды !== 1 && <div className="text-[11px] text-xmas-gold">награда ×{п.множительНаграды}</div>}
+                  <div className="font-bold">{т.название}</div>
+                  <div className="text-[11px] text-white/70">{т.описание}</div>
+                  {п.множительНаграды !== 1 && <div className="text-[11px] text-brand-yellow">{ТБ.наградаПерсонажа(п.множительНаграды)}</div>}
                 </button>
               );
             })}
           </div>
 
-          <p className="mb-2 mt-4 text-sm font-bold text-white/80">Режим</p>
+          <p className="mb-2 mt-4 text-sm font-bold text-white/80">{ТБ.режимЗаголовок}</p>
           <div className="flex w-full max-w-sm flex-col gap-2">
-            <button onClick={() => setРежим("zen")} className={`rounded-2xl p-3 text-left ${режим === "zen" ? "bg-xmas-green ring-2 ring-xmas-gold" : "bg-white/10"}`}>
-              <div className="font-bold">🧘 Дзен</div>
-              <div className="text-xs text-white/70">Без таймера · награда ×{К.дзенМножитель}</div>
+            <button onClick={() => setРежим("zen")} className={`opt p-3 text-left ${режим === "zen" ? "opt-on" : ""}`}>
+              <div className="font-bold">{Т.общее.дзен}</div>
+              <div className="text-xs text-white/70">{ТБ.режимДзен(К.дзенМножитель)}</div>
             </button>
-            <button onClick={() => setРежим("timed")} className={`rounded-2xl p-3 text-left ${режим === "timed" ? "bg-xmas-green ring-2 ring-xmas-gold" : "bg-white/10"}`}>
-              <div className="font-bold">⏱ Обычный</div>
-              <div className="text-xs text-white/70">
-                {К.времяСек + бонусВрем} сек{бонусВрем > 0 ? ` (бонус +${бонусВрем})` : ""} · полная награда
-              </div>
+            <button onClick={() => setРежим("timed")} className={`opt p-3 text-left ${режим === "timed" ? "opt-on" : ""}`}>
+              <div className="font-bold">{Т.общее.обычный}</div>
+              <div className="text-xs text-white/70">{ТБ.режимОбычный(К.времяСек + бонусВрем, бонусВрем)}</div>
             </button>
           </div>
 
-          <button onClick={старт} className="mt-5 w-full max-w-sm rounded-2xl bg-xmas-red py-4 text-xl font-bold active:scale-95">▶ Старт</button>
-          <p className="mt-3 text-center text-xs text-white/60">
-            Дорога №1 — {число(К.награда.старт * м * К.персонажи[персонаж].множительНаграды)} 🪙, дальше награда за каждую дорогу растёт
-          </p>
-          <p className="mt-1 text-xs text-xmas-gold">Ваш рекорд: {user.best_babka_crash ?? 0} дорог</p>
+          <button onClick={старт} className="btn btn-yellow mt-5 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>
+          <p className="mt-3 text-center text-xs text-white/60">{ТБ.награда(число(К.награда.старт * м * К.персонажи[персонаж].множительНаграды))}</p>
+          <p className="mt-1 text-xs text-brand-yellow">{ТБ.вашРекорд(user.best_babka_crash ?? 0)}</p>
         </div>
       )}
 
       {/* ===== РЕЗУЛЬТАТ ===== */}
       {фаза === "over" && итог && (
-        <div className="absolute inset-0 flex items-center justify-center overflow-y-auto bg-black/70 p-5">
-          <div className="w-full max-w-sm rounded-3xl bg-xmas-dark p-5 text-center ring-2 ring-xmas-gold">
-            <h3 className="mb-2 text-2xl font-bold">
-              {итог.причина === "time" ? "⏱ Время вышло!" : итог.персонаж === "babka" ? "💥 Сбила машина!" : "💥 Сбили бабушку!"}
-            </h3>
-            <div className="my-3 rounded-2xl bg-white/10 p-3 text-left text-sm">
-              <Строка л="Дорог пройдено" п={`${итог.дорог} → ${число(итог.награда.сумма)} 🪙`} />
-              {итог.награда.режимМнож !== 1 && <Строка л="Режим «Дзен»" п={`×${итог.награда.режимМнож}`} />}
-              {итог.награда.персМнож !== 1 && <Строка л="Персонаж" п={`×${итог.награда.персМнож}`} />}
-              {итог.награда.бонусПроц > 0 && <Строка л="Бонус «Повышение ЗП»" п={`+${итог.награда.бонусПроц}%`} />}
-              <div className="my-1 border-t border-white/10" />
-              <Строка л="Получено фишек" п={`+${итог.награда.итого} 🪙`} />
-            </div>
-            <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личный }} глобальный={итог.глобальный} />
-            {итог.сохранение === "идёт" && <p className="mb-2 text-xs text-white/50">Сохраняем…</p>}
-            {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
-            {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-400">Не удалось сохранить награду: {итог.текстОшибки}</p>}
-            <div className="flex gap-2">
-              <button onClick={() => { setИтог(null); движок.current!.сброс(0, персонаж); setФаза("menu"); }} disabled={итог.сохранение === "идёт"} className="flex-1 rounded-xl bg-xmas-green py-3 font-bold disabled:bg-gray-600 disabled:text-white/40">Играть ещё</button>
-              <button onClick={() => navigate("/games")} disabled={итог.сохранение === "идёт"} className="flex-1 rounded-xl bg-xmas-red py-3 font-bold disabled:bg-gray-600 disabled:text-white/40">Забрать и выйти</button>
-            </div>
+        <Модалка режим="absolute">
+          <h3 className="mb-2 text-2xl font-bold">
+            {итог.причина === "time" ? ТБ.итог.времяВышло : итог.персонаж === "babka" ? ТБ.итог.сбилаМашина : ТБ.итог.сбилиБабушку}
+          </h3>
+          <div className="stat-box my-3 p-3 text-left text-sm">
+            <СтрокаИтога л={ТБ.итог.дорог} п={ТБ.итог.дорогЗнач(итог.дорог, число(итог.награда.сумма))} />
+            {итог.награда.режимМнож !== 1 && <СтрокаИтога л={ТБ.итог.режимДзен} п={`×${итог.награда.режимМнож}`} />}
+            {итог.награда.персМнож !== 1 && <СтрокаИтога л={ТБ.итог.персонаж} п={`×${итог.награда.персМнож}`} />}
+            {итог.награда.бонусПроц > 0 && <СтрокаИтога л={Т.общее.бонусЗП} п={`+${итог.награда.бонусПроц}%`} />}
+            <Разделитель />
+            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(итог.награда.итого)} />
           </div>
-        </div>
+          <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личный }} глобальный={итог.глобальный} />
+          {итог.сохранение === "идёт" && <p className="mb-2 text-xs text-white/50">{Т.общее.сохраняем}</p>}
+          {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
+          {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-300">{Т.общее.ошибкаСохранения(итог.текстОшибки)}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => { setИтог(null); движок.current!.сброс(0, персонаж); setФаза("menu"); }} disabled={итог.сохранение === "идёт"} className="btn btn-blue flex-1">{Т.общее.игратьЕщё}</button>
+            <button onClick={() => navigate("/games")} disabled={итог.сохранение === "идёт"} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
+          </div>
+        </Модалка>
       )}
     </div>
   );
 }
-
-const Строка = ({ л, п }: { л: string; п: string }) => (
-  <div className="flex justify-between gap-3 py-0.5">
-    <span className="text-white/60">{л}</span>
-    <span className="text-right font-bold">{п}</span>
-  </div>
-);

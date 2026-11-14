@@ -1,34 +1,47 @@
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useUser } from "./store/UserContext";
 import Onboarding from "./screens/Onboarding";
+import Прелоадер from "./screens/Прелоадер";
 import Layout from "./components/Layout";
 import Home from "./screens/Home";
 import Upgrades from "./screens/Upgrades";
 import MiniGames from "./screens/MiniGames";
-import KsuhaRun from "./screens/KsuhaRun";
+import Exchange from "./screens/Exchange";
 import Leaderboard from "./screens/Leaderboard";
+import KsuhaRun from "./screens/KsuhaRun";
 import Puzzle from "./screens/Puzzle";
 import Match3 from "./screens/Match3";
 import JiraFight from "./screens/JiraFight";
 import Babka from "./screens/Babka";
-import Exchange from "./screens/Exchange";
 import AdminPage from "./admin/AdminPage";
+import { ПРЕЛОАДЕР } from "./config";
+import { Т } from "./texts";
+import { загрузитьСписокФайлов } from "./lib/assets";
+import { звук } from "./lib/sound";
 
-const Center = ({ children }: { children: React.ReactNode }) => (
+const Центр = ({ children }: { children: React.ReactNode }) => (
   <div className="flex h-screen items-center justify-center p-6 text-center">{children}</div>
 );
 
-// Основная игра: онбординг для новых, вкладки для остальных
+// Основная игра: заставка → онбординг для новых → вкладки для остальных
 function Game() {
   const { user, loading, error, telegramId } = useUser();
-  if (loading) return <Center>Загрузка…</Center>;
-  if (error) return <Center>Ошибка: {error}</Center>;
-  if (!telegramId) return <Center>Откройте игру через Telegram</Center>;
+  const [заставкаПоказана, setЗаставкаПоказана] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setЗаставкаПоказана(true), ПРЕЛОАДЕР.минМс);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (loading || !заставкаПоказана) return <Прелоадер />;
+  if (error) return <Центр>{Т.общее.ошибка(error)}</Центр>;
+  if (!telegramId) return <Центр>{Т.приложение.откройтеЧерезТелеграм}</Центр>;
   if (!user) return <Onboarding />; // новый игрок → онбординг
 
   return (
     <Routes>
-      {/* Ksuha Run — на весь экран, без нижнего меню */}
+      {/* Игры на весь экран, без нижнего меню */}
       <Route path="/games/ksuha-run" element={<KsuhaRun />} />
       <Route path="/games/puzzle" element={<Puzzle />} />
       <Route path="/games/match3" element={<Match3 />} />
@@ -47,6 +60,18 @@ function Game() {
 }
 
 export default function App() {
+  // Один раз при старте: список картинок/звуков, звуковой менеджер и «клик» на любую кнопку
+  useEffect(() => {
+    загрузитьСписокФайлов();
+    звук.инициализировать();
+    const клик = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest("button, a")) звук.sfx("клик");
+    };
+    document.addEventListener("click", клик);
+    return () => document.removeEventListener("click", клик);
+  }, []);
+
   // Админка работает независимо от онбординга
   return (
     <Routes>

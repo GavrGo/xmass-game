@@ -3,9 +3,12 @@ import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import { supabase } from "../lib/supabase";
 import { getLeaderboard, getPlaceByHearts, СтрокаЛидерборда } from "../api/users";
-import { ЛИДЕРБОРД } from "../config";
+import { ЛИДЕРБОРД, АССЕТЫ } from "../config";
+import { Иконка, Картинка } from "../components/Иконка";
+import { коротко } from "../lib/format";
+import { Т } from "../texts";
 
-const медаль = (м: number) => (м === 1 ? "🥇" : м === 2 ? "🥈" : м === 3 ? "🥉" : String(м));
+const метка = (м: number) => (м === 1 ? "🥇" : м === 2 ? "🥈" : м === 3 ? "🥉" : String(м));
 
 export default function Leaderboard() {
   const { user, telegramId } = useUser();
@@ -20,7 +23,7 @@ export default function Leaderboard() {
       setСтроки(await getLeaderboard(ЛИДЕРБОРД.сколькоПоказывать));
       setОшибка("");
     } catch (e: any) {
-      setОшибка("Не удалось загрузить: " + (e.message ?? ""));
+      setОшибка(Т.лидерборд.ошибкаЗагрузки(e.message ?? ""));
     }
     setЗагрузка(false);
   };
@@ -50,39 +53,47 @@ export default function Leaderboard() {
   const места = строки.map((с) => строки.findIndex((x) => x.hearts === с.hearts) + 1);
 
   return (
-    <div className="p-4">
+    <div className="px-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-bold">🏆 Лидерборд</h2>
-        <Link to="/" className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold">← Назад</Link>
+        <h2 className="text-xl font-bold">{Т.лидерборд.заголовок}</h2>
+        <Link to="/" className="pill px-3 py-2 text-sm font-bold">{Т.лидерборд.назад}</Link>
       </div>
 
-      {/* Моё место */}
-      <div className="mb-4 flex items-center gap-3 rounded-2xl bg-xmas-green/40 p-3 ring-1 ring-xmas-gold/60">
-        <div className="w-12 text-center text-2xl font-bold">{моёМесто ? `#${моёМесто}` : "…"}</div>
-        <div className="text-3xl">{user.emoji}</div>
-        <div className="flex-1">
-          <div className="font-bold">{user.nickname} (вы)</div>
-          <div className="text-xs text-white/60">Ваше место по хэпэшкам</div>
+      {/* Ваша карточка */}
+      <div className="card mb-4 flex flex-col items-center p-4">
+        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-surface2 text-5xl">
+          <Картинка путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.лидерборд} fallback={<span>{user.emoji}</span>} className="h-full w-full object-cover" />
         </div>
-        <div className="text-lg font-bold">{user.hearts} ❤️</div>
+        <div className="mt-2 text-lg font-bold">{Т.лидерборд.выИмя(user.nickname)}</div>
+        <div className="mt-1 flex items-center gap-3 text-sm text-muted">
+          <span>{Т.лидерборд.вашеМесто}:</span>
+          <b className="text-brand-yellow">{моёМесто ? `#${моёМесто}` : "…"}</b>
+          <span className="flex items-center gap-1 font-bold text-white"><Иконка имя="хэпэшки" размер={16} />{коротко(user.hearts)}</span>
+        </div>
       </div>
 
       {ошибка && <p className="mb-2 text-sm text-red-400">{ошибка}</p>}
-      {загрузка && <p className="text-center text-white/50">Загрузка…</p>}
+      {загрузка && <p className="text-center text-muted">{Т.лидерборд.загрузка}</p>}
 
-      <div className="flex flex-col gap-2">
+      {/* Таблица */}
+      <div className="mb-1 flex items-center px-3 text-[11px] font-semibold uppercase text-muted">
+        <span className="w-10 text-center">{Т.лидерборд.колонкаМесто}</span>
+        <span className="flex-1 pl-2">{Т.лидерборд.колонкаУчастники}</span>
+        <span>{Т.лидерборд.колонкаОчки}</span>
+      </div>
+      <div className="flex flex-col gap-1.5">
         {строки.map((с, i) => {
           const я = с.telegram_id === telegramId;
           return (
-            <div key={с.telegram_id} className={`flex items-center gap-3 rounded-2xl p-3 ${я ? "bg-xmas-gold/20 ring-1 ring-xmas-gold" : "bg-white/10"}`}>
-              <div className="w-10 text-center text-lg font-bold">{медаль(места[i])}</div>
+            <div key={с.telegram_id} className={`flex items-center gap-2 rounded-2xl px-3 py-2.5 ${я ? "bg-brand-blue/20 ring-1 ring-brand-blue" : "bg-surface"}`}>
+              <div className="w-10 text-center text-base font-bold">{метка(места[i])}</div>
               <div className="text-2xl">{с.emoji}</div>
               <div className="min-w-0 flex-1 truncate font-bold">{с.nickname}</div>
-              <div className="font-bold">{с.hearts} ❤️</div>
+              <div className="flex items-center gap-1 font-bold"><Иконка имя="хэпэшки" размер={16} />{коротко(с.hearts)}</div>
             </div>
           );
         })}
-        {!загрузка && строки.length === 0 && <p className="text-center text-white/50">Пока никого нет</p>}
+        {!загрузка && строки.length === 0 && <p className="text-center text-muted">{Т.лидерборд.пусто}</p>}
       </div>
     </div>
   );

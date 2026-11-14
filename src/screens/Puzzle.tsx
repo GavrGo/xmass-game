@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Т } from "../texts";
+import Модалка from "../components/Модалка";
+import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
+import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ПЯТНАШКИ } from "../config";
 import { бонусВремениСек } from "../game/effects";
-import { перемешать, сдвинуть, собрана, наградаЗаПазл, пазлов, ПУСТАЯ, Режим } from "../game/puzzle";
+import { перемешать, сдвинуть, собрана, наградаЗаПазл, ПУСТАЯ, Режим } from "../game/puzzle";
 import { выбратьКартинку } from "../game/puzzleImages";
 import { getPuzzleLeader, ЛидерПазлов } from "../api/users";
 import РекордыБлок from "../components/РекордыБлок";
@@ -79,6 +83,7 @@ export default function Puzzle() {
     if (!u) return;
 
     setФаза("ending");
+    звук.sfx(победа ? "победа" : "поражение"); // ← звук победы / поражения
     if (победа) setРаскрыта(true);
 
     const награда = наградаЗаПазл(р, победа, u.salary_level);
@@ -97,7 +102,7 @@ export default function Puzzle() {
         // В базе нет колонки счётчика — хотя бы зачисляем фишки
         try {
           await изменить({ chips: награда.итого });
-          предупреждение = "Фишки зачислены, но счётчик пазлов не сохранён: выполните SQL из migrations/003_puzzles.sql";
+          предупреждение = Т.предупреждения.puzzle;
         } catch (e2: any) { сохранение = "ошибка"; текстОшибки = e2.message; }
       } else { сохранение = "ошибка"; текстОшибки = e?.message; }
     }
@@ -121,6 +126,7 @@ export default function Puzzle() {
     if (фаза !== "playing") return;
     const новая = сдвинуть(доска, позиция);
     if (!новая) return;
+    звук.sfx("ход"); // ← звук хода
     setДоска(новая);
     ходовRef.current += 1;
     setХодов(ходовRef.current);
@@ -143,7 +149,7 @@ export default function Puzzle() {
   }, [фаза]);
 
   const выйти = () => {
-    if (фаза === "playing" && !confirm("Выйти из игры? Награда за этот пазл не начислится.")) return;
+    if (фаза === "playing" && !confirm(Т.игры.пятнашки.выходПодтверждение)) return;
     navigate("/games");
   };
 
@@ -155,30 +161,31 @@ export default function Puzzle() {
     backgroundSize: `${N * 100}% ${N * 100}%`,
     backgroundPosition: `${((t % N) / (N - 1)) * 100}% ${(Math.floor(t / N) / (N - 1)) * 100}%`,
   });
+  const ТП = Т.игры.пятнашки;
 
   return (
-    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-xmas-dark px-4 pb-4 pt-3 select-none" style={{ touchAction: "manipulation" }}>
+    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-app px-4 pb-4 pt-3 select-none" style={{ touchAction: "manipulation" }}>
       {/* Шапка */}
       <div className="flex w-full max-w-md items-center justify-between">
-        <button onClick={выйти} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold">← Назад</button>
-        <h2 className="text-xl font-bold">Пятнашки 🧩</h2>
-        <div className={`min-w-[64px] rounded-xl bg-white/10 px-3 py-2 text-center text-sm font-bold ${режим === "timed" && осталось <= 10 && фаза === "playing" ? "text-red-400" : ""}`}>
+        <button onClick={выйти} className="btn btn-ghost !px-3 !py-2 text-sm">{Т.общее.назад}</button>
+        <h2 className="text-xl font-bold">{ТП.заголовокМеню}</h2>
+        <div className={`pill min-w-[64px] px-3 py-2 text-center text-sm font-bold ${режим === "timed" && осталось <= 10 && фаза === "playing" ? "text-red-400" : ""}`}>
           {фаза === "menu" || фаза === "loading" ? "—" : режим === "timed" ? `⏱ ${мм(осталось)}` : `⏱ ${мм(прошло)}`}
         </div>
       </div>
 
       {/* Панель под шапкой */}
       <div className="mt-3 flex w-full max-w-md items-center justify-between text-sm text-white/70">
-        <span>Ходов: {ходов}</span>
+        <span>{ТП.ходов(ходов)}</span>
         <div className="flex gap-2">
-          <button onClick={() => setНомера(!номера)} className={`rounded-lg px-3 py-1 font-bold ${номера ? "bg-xmas-gold text-black" : "bg-white/10"}`}>№</button>
-          <button onClick={() => setПодсказка(!подсказка)} className={`rounded-lg px-3 py-1 font-bold ${подсказка ? "bg-xmas-gold text-black" : "bg-white/10"}`}>👁 Подсказка</button>
+          <button onClick={() => setНомера(!номера)} className={`btn !rounded-lg !px-3 !py-1 ${номера ? "btn-yellow" : "btn-ghost"}`}>{ТП.номера}</button>
+          <button onClick={() => setПодсказка(!подсказка)} className={`btn !rounded-lg !px-3 !py-1 ${подсказка ? "btn-yellow" : "btn-ghost"}`}>{ТП.подсказкаКнопка}</button>
         </div>
       </div>
 
       {/* Поле */}
       <div className="relative mt-3" style={{ width: "min(92vw, calc(100dvh - 190px), 520px)", aspectRatio: "1 / 1" }}>
-        <div className="absolute inset-0 overflow-hidden rounded-xl bg-black/50 ring-2 ring-xmas-gold/60">
+        <div className="absolute inset-0 overflow-hidden rounded-xl bg-black/50 ring-2 ring-brand-yellow/60">
           {картинка && доска.length > 0 && (
             <>
               {плитки.map((t) => {
@@ -212,7 +219,7 @@ export default function Puzzle() {
               />
             </>
           )}
-          {фаза === "loading" && <div className="absolute inset-0 flex items-center justify-center text-white/70">Готовим пазл…</div>}
+          {фаза === "loading" && <div className="absolute inset-0 flex items-center justify-center text-white/70">{ТП.готовим}</div>}
         </div>
 
         {/* Подсказка: уменьшенная картинка */}
@@ -221,63 +228,54 @@ export default function Puzzle() {
         )}
       </div>
 
-      {фаза === "playing" && (
-        <p className="mt-3 text-center text-xs text-white/50">
-          Нажимайте на плитки рядом с пустой клеткой — можно двигать сразу ряд
-        </p>
-      )}
+      {фаза === "playing" && <p className="mt-3 text-center text-xs text-white/50">{ТП.справка}</p>}
 
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 p-5">
-          <h2 className="text-3xl font-bold text-xmas-gold">Пятнашки 🧩</h2>
-          <p className="mt-1 mb-5 text-center text-sm text-white/70">Соберите картинку, двигая плитки</p>
+          <h2 className="text-3xl font-bold text-brand-yellow">{ТП.заголовокМеню}</h2>
+          <p className="mb-5 mt-1 text-center text-sm text-white/70">{ТП.подзаголовок}</p>
           <div className="flex w-full max-w-sm flex-col gap-2">
-            <button onClick={() => setРежим("zen")} className={`rounded-2xl p-4 text-left ${режим === "zen" ? "bg-xmas-green ring-2 ring-xmas-gold" : "bg-white/10"}`}>
-              <div className="font-bold">🧘 Дзен</div>
-              <div className="text-xs text-white/70">Без времени · награда {ПЯТНАШКИ.дзен.награда} 🪙</div>
+            <button onClick={() => setРежим("zen")} className={`opt p-4 text-left ${режим === "zen" ? "opt-on" : ""}`}>
+              <div className="font-bold">{Т.общее.дзен}</div>
+              <div className="text-xs text-white/70">{ТП.режимДзен(ПЯТНАШКИ.дзен.награда)}</div>
             </button>
-            <button onClick={() => setРежим("timed")} className={`rounded-2xl p-4 text-left ${режим === "timed" ? "bg-xmas-green ring-2 ring-xmas-gold" : "bg-white/10"}`}>
-              <div className="font-bold">⏱ На время</div>
-              <div className="text-xs text-white/70">
-                {мм(лимитТекст)} на сборку · успели: {ПЯТНАШКИ.наВремя.наградаЗаСборку} 🪙
-                {ПЯТНАШКИ.наВремя.утешительнаяНаграда > 0 && ` · не успели: ${ПЯТНАШКИ.наВремя.утешительнаяНаграда} 🪙`}
-              </div>
+            <button onClick={() => setРежим("timed")} className={`opt p-4 text-left ${режим === "timed" ? "opt-on" : ""}`}>
+              <div className="font-bold">{Т.общее.наВремя}</div>
+              <div className="text-xs text-white/70">{ТП.режимВремя(мм(лимитТекст), ПЯТНАШКИ.наВремя.наградаЗаСборку, ПЯТНАШКИ.наВремя.утешительнаяНаграда)}</div>
             </button>
           </div>
-          <button onClick={старт} className="mt-5 w-full max-w-sm rounded-2xl bg-xmas-red py-4 text-xl font-bold active:scale-95">▶ Старт</button>
-          <button onClick={() => navigate("/games")} className="mt-3 text-sm text-white/60">← К списку игр</button>
-          <p className="mt-3 text-xs text-xmas-gold">Вы собрали пазлов: {user.puzzles_solved ?? 0}</p>
+          <button onClick={старт} className="btn btn-yellow mt-5 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>
+          <button onClick={() => navigate("/games")} className="mt-3 text-sm text-white/60">{Т.общее.кСпискуИгр}</button>
+          <p className="mt-3 text-xs text-brand-yellow">{ТП.вашРекорд(user.puzzles_solved ?? 0)}</p>
         </div>
       )}
 
       {/* ===== РЕЗУЛЬТАТ ===== */}
       {(фаза === "won" || фаза === "lost") && итог && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/75 p-5">
-          <div className="w-full max-w-sm rounded-3xl bg-xmas-dark p-5 text-center ring-2 ring-xmas-gold">
-            <h3 className="mb-2 text-2xl font-bold">{итог.победа ? "🧩 Пазл собран!" : "⏱ Время вышло!"}</h3>
+        <Модалка режим="absolute">
+          <h3 className="mb-2 text-2xl font-bold">{итог.победа ? ТП.победа : ТП.времяВышло}</h3>
 
-            <div className="my-3 rounded-2xl bg-white/10 p-3 text-left text-sm">
-              <Строка л="Режим" п={итог.режим === "zen" ? "Дзен" : "На время"} />
-              <Строка л="Время" п={мм(итог.секунд)} />
-              <Строка л="Ходов" п={String(итог.ходов)} />
-              {итог.награда.бонусПроц > 0 && итог.награда.итого > 0 && <Строка л="Бонус «Повышение ЗП»" п={`+${итог.награда.бонусПроц}%`} />}
-              <div className="my-1 border-t border-white/10" />
-              <Строка л="Получено фишек" п={`+${итог.награда.итого} 🪙`} />
-            </div>
-
-            <РекордыБлок личный={{ nickname: user.nickname, значение: итог.всего }} глобальный={глобальныйПазлов(итог, user.nickname)} />
-            <p className="-mt-2 mb-2 text-[11px] text-white/40">Рекорд — общее число собранных пазлов</p>
-
-            {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
-            {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-400">Не удалось сохранить награду: {итог.текстОшибки}</p>}
-
-            <div className="flex gap-2">
-              <button onClick={() => { setИтог(null); setФаза("menu"); }} className="flex-1 rounded-xl bg-xmas-green py-3 font-bold">Играть ещё</button>
-              <button onClick={() => navigate("/games")} className="flex-1 rounded-xl bg-xmas-red py-3 font-bold">Забрать и выйти</button>
-            </div>
+          <div className="stat-box my-3 p-3 text-left text-sm">
+            <СтрокаИтога л={ТП.итог.режим} п={итог.режим === "zen" ? ТП.итог.дзен : ТП.итог.наВремя} />
+            <СтрокаИтога л={ТП.итог.время} п={мм(итог.секунд)} />
+            <СтрокаИтога л={ТП.итог.ходов} п={String(итог.ходов)} />
+            {итог.награда.бонусПроц > 0 && итог.награда.итого > 0 && <СтрокаИтога л={Т.общее.бонусЗП} п={`+${итог.награда.бонусПроц}%`} />}
+            <Разделитель />
+            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(итог.награда.итого)} />
           </div>
-        </div>
+
+          <РекордыБлок личный={{ nickname: user.nickname, значение: итог.всего }} глобальный={глобальныйПазлов(итог, user.nickname)} />
+          <p className="-mt-2 mb-2 text-[11px] text-white/50">{ТП.примечаниеРекорда}</p>
+
+          {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
+          {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-300">{Т.общее.ошибкаСохранения(итог.текстОшибки)}</p>}
+
+          <div className="flex gap-2">
+            <button onClick={() => { setИтог(null); setФаза("menu"); }} className="btn btn-blue flex-1">{Т.общее.игратьЕщё}</button>
+            <button onClick={() => navigate("/games")} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
+          </div>
+        </Модалка>
       )}
     </div>
   );
@@ -290,10 +288,3 @@ function глобальныйПазлов(итог: Итог, мойНик: stri
   if (!л || итог.всего >= л.count) return итог.всего > 0 ? { nickname: мойНик, значение: итог.всего } : null;
   return { nickname: л.nickname, значение: л.count };
 }
-
-const Строка = ({ л, п }: { л: string; п: string }) => (
-  <div className="flex justify-between gap-3 py-0.5">
-    <span className="text-white/60">{л}</span>
-    <span className="text-right font-bold">{п}</span>
-  </div>
-);

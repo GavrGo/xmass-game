@@ -6,7 +6,7 @@
 
 body {
   margin: 0;
-  background: #0f1a14;
+  background: #0F0F11;
   color: #fff;
   font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -40,3 +40,43 @@ body {
 /* Тряска при невозможном ходе */
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .shake { animation: shake 0.3s ease-in-out; }
+
+/* =====================================================================
+   ДИЗАЙН-СИСТЕМА (по макетам): кнопки, карточки, модалки
+   ===================================================================== */
+.btn { border-radius: 14px; padding: 12px 16px; font-weight: 700; transition: transform .1s, filter .1s; text-align: center; }
+.btn:active:not(:disabled) { transform: scale(.97); filter: brightness(1.12); }
+.btn:disabled { background: #2A2B32 !important; color: #6E6F78 !important; box-shadow: none !important; }
+.btn-blue   { background: #0A84FF; color: #fff; }
+.btn-blue:disabled { background: #1C3A5E !important; color: #5A7A9F !important; }
+.btn-yellow { background: #FFD000; color: #000; }
+.btn-red    { background: #D81B36; color: #fff; }
+.btn-ghost  { background: rgba(255,255,255,.1); color: #fff; }
+
+.card { background: #1E1F24; border-radius: 20px; border: 1px solid rgba(255,255,255,.04); }
+.pill { background: #1E1F24; border-radius: 9999px; }
+.stat-box { background: rgba(0,0,0,.3); border-radius: 16px; }
+
+/* Выбираемая карточка (режим, сложность, персонаж) */
+.opt { background: rgba(255,255,255,.1); border-radius: 16px; border: 2px solid transparent; transition: background .15s, border-color .15s; }
+.opt-on { background: rgba(10,132,255,.22); border-color: #0A84FF; }
+
+/* Красная модалка из макетов */
+.modal-card {
+  background: radial-gradient(120% 100% at 50% 0%, #D81B36 0%, #700615 65%, #240307 100%);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 24px;
+  box-shadow: 0 -8px 30px rgba(216,27,54,.25), 0 20px 40px rgba(0,0,0,.8);
+}
+
+/* Большая кнопка слота (красная «кнопка на подставке») */
+.btn-spin {
+  display: block; width: 100%; max-width: 280px; margin: 0 auto;
+  border-radius: 22px; padding: 18px 12px; color: #fff; font-weight: 800; font-size: 18px; text-align: center;
+  background: linear-gradient(#FF3B55, #C8102E);
+  box-shadow: 0 6px 0 #8E0F20, 0 0 0 7px #D1D3D9, 0 13px 0 7px #9AA0AB, 0 22px 26px rgba(0,0,0,.55);
+  transition: transform .08s, box-shadow .08s;
+}
+.btn-spin:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #8E0F20, 0 0 0 7px #D1D3D9, 0 9px 0 7px #9AA0AB, 0 14px 18px rgba(0,0,0,.55); }
+.btn-spin:disabled { background: linear-gradient(#4a4b52, #34353b); color: #8a8b92; box-shadow: 0 4px 0 #26272c, 0 0 0 7px #3b3c42, 0 11px 0 7px #2c2d32, 0 18px 22px rgba(0,0,0,.5); }
+.btn-spin-image { background-color: transparent !important; box-shadow: none !important; background-size: 100% 100%; background-repeat: no-repeat; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.6); min-height: 84px; }

@@ -1,10 +1,17 @@
 import { useEffect } from "react";
+import { звук } from "./sound";
 
-// В Telegram свайп вниз может сворачивать игру. Пока открыта мини-игра, отключаем вертикальные свайпы.
+// Оболочка мини-игры:
+//  • отключает вертикальные свайпы Telegram (иначе свайп вниз сворачивает приложение);
+//  • переключает фоновую музыку на «игровую» и возвращает «главную» при выходе.
 export function useNoSwipes() {
   useEffect(() => {
     const w = window.Telegram?.WebApp;
     try { w?.disableVerticalSwipes?.(); } catch {}
-    return () => { try { w?.enableVerticalSwipes?.(); } catch {} };
+    звук.музыка("игра");
+    return () => {
+      try { w?.enableVerticalSwipes?.(); } catch {}
+      звук.музыка("главная");
+    };
   }, []);
 }
