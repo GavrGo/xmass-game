@@ -9,6 +9,7 @@ import KsuhaRun from "./screens/KsuhaRun";
 import Leaderboard from "./screens/Leaderboard";
 import Puzzle from "./screens/Puzzle";
 import Match3 from "./screens/Match3";
+import JiraFight from "./screens/JiraFight";
 import Exchange from "./screens/Exchange";
 import AdminPage from "./admin/AdminPage";
 
@@ -30,6 +31,7 @@ function Game() {
       <Route path="/games/ksuha-run" element={<KsuhaRun />} />
       <Route path="/games/puzzle" element={<Puzzle />} />
       <Route path="/games/match3" element={<Match3 />} />
+      <Route path="/games/jira" element={<JiraFight />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/upgrades" element={<Upgrades />} />

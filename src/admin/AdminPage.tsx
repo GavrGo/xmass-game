@@ -15,7 +15,8 @@ const ПОЛЯ: { ключ: keyof User; название: string }[] = [
   { ключ: "time_level", название: "Сдвинуть сроки (ур.)" },
   { ключ: "best_ksuha_run", название: "Рекорд Ksuha Run" },
   { ключ: "puzzles_solved", название: "Собрано пазлов" },
-  { ключ: "best_match3_stage", название: "Рекорд 3 в ряд (этап)" },
+  { ключ: "best_match3", название: "Рекорд 3 в ряд (этап)" },
+  { ключ: "best_jira_level", название: "Рекорд Jira Fight" },
 ];
 
 export default function AdminPage() {

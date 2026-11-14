@@ -42,3 +42,7 @@ Ksuha Run: полный экран, меню сложностей, монеты,
 ## Этап 7
 Рекорды с никами во всех окнах результата, режим «Бесконечный» в Ksuha Run, Пятнашки на 3 минуты, игра «3 в ряд».
 В Supabase выполните migrations/004_match3.sql. Картинки символов — в public/match3/.
+
+## Этап 8
+3 в ряд: колонка рекорда теперь best_match3, вспышка при 4 в ряд, покачивание иконок. Новая игра Jira Fight.
+В Supabase выполните: ALTER TABLE public.users ADD COLUMN IF NOT EXISTS best_jira_level integer DEFAULT 0;  (migrations/005_jira_fight.sql)

@@ -4,6 +4,7 @@ import { useUser } from "../store/UserContext";
 import { ТРИ_В_РЯД as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/РекордыБлок";
+import ВспышкиCanvas, { Вспышка } from "../components/ВспышкиCanvas";
 import {
   N, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
   очкиЗаШаг, цельЭтапа, ходовЭтапа, наградаЭтапа, ТЕКСТ_ЭФФЕКТА,
@@ -25,6 +26,13 @@ interface Итог {
   глобальный: Рекорд | null | "ошибка" | undefined;
 }
 
+// Лёгкое покачивание иконки в покое (у каждой свой ритм)
+const idle = (id: number) => ({
+  animation: "idle-sway 3s ease-in-out infinite",
+  animationDuration: `${(2.8 + (id % 5) * 0.25).toFixed(2)}s`,
+  animationDelay: `-${((id * 0.37) % 3).toFixed(2)}s`,
+});
+
 const пауза = (мс: number) => new Promise<void>((r) => setTimeout(r, мс));
 const кадр = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
@@ -42,6 +50,8 @@ export default function Match3() {
   const [цель, setЦель] = useState(0);
   const [ходы, setХоды] = useState(0);
   const [тост, setТост] = useState("");
+  const [вспышки, setВспышки] = useState<Вспышка[]>([]);
+  const счётВспышек = useRef(0);
   const [фото, setФото] = useState<Record<string, boolean>>({});
   const [готово, setГотово] = useState(false);
   const [данныеЭтапа, setДанныеЭтапа] = useState<ДанныеЭтапа | null>(null);
@@ -87,6 +97,14 @@ export default function Match3() {
     таймерТоста.current = setTimeout(() => setТост(""), 1400);
   };
 
+  /** Яркая вспышка в центре взрыва (4 в ряд). */
+  const добавитьВспышку = (центр: number) => {
+    const id = ++счётВспышек.current;
+    const r = Math.floor(центр / N), c = центр % N;
+    setВспышки((в) => [...в, { id, x: (c + 0.5) / N, y: (r + 0.5) / N, радиус: (К.радиусВзрыва + 1.4) / N, старт: performance.now() }]);
+    setTimeout(() => setВспышки((в) => в.filter((x) => x.id !== id)), 700);
+  };
+
   /** Новый этап (n = 1, 2, 3 ...). */
   const начатьЭтап = (n: number) => {
     этапRef.current = n; setЭтап(n);
@@ -111,11 +129,11 @@ export default function Match3() {
     const u = свежее.current.user;
     if (!u) return;
     const пройдено = сессия.current.пройдено;
-    const личный = Math.max(u.best_match3_stage ?? 0, пройдено);
+    const личный = Math.max(u.best_match3 ?? 0, пройдено);
     setИтог({ причина, пройдено, фишек: сессия.current.фишек, личный, глобальный: undefined });
     setФаза("over");
     try {
-      const г = await getGlobalRecord("best_match3_stage");
+      const г = await getGlobalRecord("best_match3");
       const рекордсмен: Рекорд | null =
         г && г.значение >= личный ? г : личный > 0 ? { telegram_id: u.telegram_id, nickname: u.nickname, значение: личный } : null;
       setИтог((п) => (п ? { ...п, глобальный: рекордсмен } : п));
@@ -130,13 +148,13 @@ export default function Match3() {
     if (!u) return;
     const н = этапRef.current;
     const награда = наградаЭтапа(н, ходыRef.current, u.salary_level);
-    const рекорд = u.best_match3_stage ?? 0;
+    const рекорд = u.best_match3 ?? 0;
     let сохранилось = true;
     let предупреждение: string | undefined;
     try {
-      await изменить({ chips: награда.итого }, н > рекорд ? { best_match3_stage: н } : {});
+      await изменить({ chips: награда.итого }, н > рекорд ? { best_match3: н } : {});
     } catch (e: any) {
-      if (н > рекорд && String(e?.message).includes("best_match3_stage")) {
+      if (н > рекорд && String(e?.message).includes("best_match3")) {
         try {
           await изменить({ chips: награда.итого });
           предупреждение = "Фишки зачислены, но рекорд не сохранён: выполните SQL из migrations/004_match3.sql";
@@ -178,7 +196,9 @@ export default function Match3() {
         центры = [];
         очкиRef.current += очкиЗаШаг(р.индексы.size, каскад);
         setОчки(очкиRef.current);
-        if (р.эффект) показатьТост(ТЕКСТ_ЭФФЕКТА[р.эффект]);
+        // Взрыв (4 в ряд) показываем вспышкой, остальные эффекты — надписью
+        р.взрывы.forEach(добавитьВспышку);
+        if (р.эффект && р.эффект !== "взрыв") показатьТост(ТЕКСТ_ЭФФЕКТА[р.эффект]);
         else if (каскад > 1) показатьТост(`Каскад ×${каскад}!`);
 
         setУдаляются(new Set([...р.индексы].map((i) => п[i]!.id)));
@@ -290,7 +310,7 @@ export default function Match3() {
           onPointerDown={нажали}
           onPointerUp={отпустили}
           onPointerCancel={() => { нажатие.current = null; }}
-          className="absolute inset-0 overflow-hidden rounded-xl bg-black/40 ring-2 ring-xmas-gold/60"
+          className="absolute inset-0 isolate overflow-hidden rounded-xl bg-black/40 ring-2 ring-xmas-gold/60"
         >
           {поле.map((к, i) => {
             if (!к) return null;
@@ -313,9 +333,9 @@ export default function Match3() {
                 <div className={`h-full w-full p-[4%] transition-all duration-200 ${удал ? "scale-0 opacity-0" : ""} ${выбрана ? "scale-110" : ""}`}>
                   <div className={`flex h-full w-full items-center justify-center rounded-lg ${выбрана ? "bg-white/30 ring-2 ring-xmas-gold" : "bg-white/10"}`}>
                     {фото[сим.id] ? (
-                      <img src={К.папка + сим.файл} alt="" draggable={false} className="h-[84%] w-[84%] object-contain" />
+                      <img src={К.папка + сим.файл} alt="" draggable={false} className="h-[84%] w-[84%] object-contain" style={idle(к.id)} />
                     ) : (
-                      <span style={{ fontSize: "clamp(18px, 6.2vw, 36px)", lineHeight: 1 }}>{сим.эмодзи}</span>
+                      <span className="inline-block" style={{ fontSize: "clamp(18px, 6.2vw, 36px)", lineHeight: 1, ...idle(к.id) }}>{сим.эмодзи}</span>
                     )}
                   </div>
                 </div>
@@ -324,8 +344,10 @@ export default function Match3() {
           })}
         </div>
 
+        <ВспышкиCanvas вспышки={вспышки} />
+
         {тост && (
-          <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center">
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 text-center">
             <span className="inline-block rounded-2xl bg-black/75 px-4 py-2 text-lg font-bold text-xmas-gold ring-2 ring-xmas-gold">{тост}</span>
           </div>
         )}
@@ -360,7 +382,7 @@ export default function Match3() {
             {готово ? "▶ Старт" : "Загрузка…"}
           </button>
           <button onClick={() => navigate("/games")} className="mt-3 text-sm text-white/60">← К списку игр</button>
-          <p className="mt-3 text-xs text-xmas-gold">Ваш рекорд: этапов {user.best_match3_stage ?? 0}</p>
+          <p className="mt-3 text-xs text-xmas-gold">Ваш рекорд: этапов {user.best_match3 ?? 0}</p>
         </div>
       )}
 
