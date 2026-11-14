@@ -12,6 +12,7 @@ create table public.users (
   time_level       integer not null default 0,
   best_ksuha_run   integer not null default 0,  -- личный рекорд в Ksuha Run
   puzzles_solved   integer not null default 0,  -- сколько пазлов (Пятнашки) собрано за всё время
+  best_match3_stage integer not null default 0, -- рекорд в «3 в ряд» (этапов)
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );

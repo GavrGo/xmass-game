@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../store/UserContext";
-import { getGlobalBestKsuhaRun } from "../api/users";
+import { getGlobalRecord, Рекорд } from "../api/users";
+import РекордыБлок from "../components/РекордыБлок";
 import { КСЮХА_РАН, КлючСложности } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { КсюхаРанДвижок, Фаза, посчитатьНаграду } from "../game/ksuhaRun";
@@ -14,7 +15,7 @@ interface Итог {
   награда: ReturnType<typeof посчитатьНаграду>;
   личныйРекорд: number;
   новыйРекорд: boolean;
-  глобальныйРекорд: number | null; // null — грузится, -1 — не удалось узнать
+  глобальный: Рекорд | null | "ошибка" | undefined; // undefined — ещё грузим
   причина: "crash" | "time" | null;
   сохранение: "идёт" | "готово" | "ошибка";
   предупреждение?: string;
@@ -45,8 +46,8 @@ export default function KsuhaRun() {
   const setФаза = (ф: Фаза) => { фазаRef.current = ф; setФазаСтейт(ф); };
 
   /** Лимит времени = базовое время + бонус прокачки «Сдвинуть сроки». */
-  const лимитВремени = () => {
-    if (КСЮХА_РАН.времяСессииСекунд <= 0) return 0;
+  const лимитВремени = (ключ: КлючСложности = свежее.current.сложность) => {
+    if (КСЮХА_РАН.времяСессииСекунд <= 0 || КСЮХА_РАН.сложности[ключ].безТаймера) return 0;
     const u = свежее.current.user;
     return КСЮХА_РАН.времяСессииСекунд + (u ? бонусВремениСек(u) : 0);
   };
@@ -55,7 +56,7 @@ export default function KsuhaRun() {
 
   /** Кнопка «Старт» в меню. */
   const старт = () => {
-    движок.current!.сброс(лимитВремени(), сложность);
+    движок.current!.сброс(лимитВремени(сложность), сложность);
     setИтог(null);
     setФаза("playing");
   };
@@ -82,7 +83,7 @@ export default function KsuhaRun() {
     setИтог({
       препятствий: n, монет: д.монетСобрано, награда,
       личныйРекорд: Math.max(n, прежний), новыйРекорд,
-      глобальныйРекорд: null, причина: д.причина, сохранение: "идёт",
+      глобальный: undefined, причина: д.причина, сохранение: "идёт",
     });
 
     const нужноСохранять = награда.итого > 0 || новыйРекорд;
@@ -106,10 +107,14 @@ export default function KsuhaRun() {
 
     // Глобальный рекорд (если не получилось — покажем «—»)
     try {
-      const г = await getGlobalBestKsuhaRun();
-      setИтог((п) => (п ? { ...п, глобальныйРекорд: Math.max(г, n) } : п));
+      const г = await getGlobalRecord("best_ksuha_run");
+      const мой = Math.max(n, прежний);
+      // Если ваш результат выше (или базу не удалось обновить) — рекордсмен вы
+      const рекордсмен: Рекорд | null =
+        г && г.значение >= мой ? г : мой > 0 ? { telegram_id: u.telegram_id, nickname: u.nickname, значение: мой } : null;
+      setИтог((п) => (п ? { ...п, глобальный: рекордсмен } : п));
     } catch {
-      setИтог((п) => (п ? { ...п, глобальныйРекорд: -1 } : п));
+      setИтог((п) => (п ? { ...п, глобальный: "ошибка" } : п));
     }
   };
   const завершитьRef = useRef(завершить);
@@ -201,7 +206,7 @@ export default function KsuhaRun() {
   }, []);
 
   if (!user) return null;
-  const лимит = лимитВремени();
+  const лимит = лимитВремени(сложность);
   const бонусПроц = посчитатьНаграду(0, 0, "medium", user.salary_level).бонусПроц;
   const отступ = safeTop + 16;
 
@@ -235,7 +240,9 @@ export default function KsuhaRun() {
                   <span className="flex-1">
                     <span className="block font-bold">{с.название}</span>
                     <span className="block text-xs text-white/70">
-                      скорость ×{с.множительСкорости} · награда ×{с.множительНаграды}
+                      скорость ×{с.множительСкорости}
+                      {с.множительРоста && с.множительРоста !== 1 ? ` · разгон ×${с.множительРоста}` : ""}
+                      {с.безТаймера ? " · без таймера" : ""} · награда ×{с.множительНаграды}
                     </span>
                   </span>
                   {выбрана && <span className="text-xl">✓</span>}
@@ -273,13 +280,8 @@ export default function KsuhaRun() {
               {итог.награда.бонусПроц > 0 && <Строка л="Бонус «Повышение ЗП»" п={`+${итог.награда.бонусПроц}%`} />}
               <div className="my-1 border-t border-white/10" />
               <Строка л="Получено фишек" п={`+${итог.награда.итого} 🪙`} />
-              <div className="my-1 border-t border-white/10" />
-              <Строка л="Личный рекорд" п={String(итог.личныйРекорд)} />
-              <Строка
-                л="Рекорд среди всех"
-                п={итог.глобальныйРекорд === null ? "…" : итог.глобальныйРекорд < 0 ? "—" : String(итог.глобальныйРекорд)}
-              />
             </div>
+            <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личныйРекорд }} глобальный={итог.глобальный} />
 
             {итог.сохранение === "идёт" && <p className="mb-2 text-xs text-white/50">Сохраняем…</p>}
             {итог.сохранение === "готово" && итог.награда.итого > 0 && !итог.предупреждение && (

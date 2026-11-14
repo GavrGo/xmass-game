@@ -53,16 +53,22 @@ export async function isAdmin(telegramId: number): Promise<boolean> {
   return !!data;
 }
 
-/** Глобальный рекорд Ksuha Run: максимум среди всех игроков. */
-export async function getGlobalBestKsuhaRun(): Promise<number> {
+export type КолонкаРекорда = "best_ksuha_run" | "best_match3_stage";
+export interface Рекорд { telegram_id: number; nickname: string; значение: number }
+
+/** Глобальный рекорд в игре: кто и сколько (максимум среди всех игроков). */
+export async function getGlobalRecord(колонка: КолонкаРекорда): Promise<Рекорд | null> {
   const { data, error } = await supabase
     .from("users")
-    .select("best_ksuha_run")
-    .order("best_ksuha_run", { ascending: false, nullsFirst: false })
+    .select(`telegram_id, nickname, ${колонка}`)
+    .order(колонка, { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data?.best_ksuha_run ?? 0;
+  if (!data) return null;
+  const строка = data as any;
+  return { telegram_id: строка.telegram_id, nickname: строка.nickname, значение: строка[колонка] ?? 0 };
 }
 
 // ---------- Лидерборд ----------

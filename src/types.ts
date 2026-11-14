@@ -12,6 +12,7 @@ export interface User {
   time_level: number;
   best_ksuha_run: number; // личный рекорд Ksuha Run (препятствий)
   puzzles_solved: number; // всего собрано пазлов в Пятнашках
+  best_match3_stage: number; // рекорд «3 в ряд»: максимум пройденных этапов
   created_at: string;
   updated_at: string;
 }

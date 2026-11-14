@@ -8,6 +8,7 @@ import MiniGames from "./screens/MiniGames";
 import KsuhaRun from "./screens/KsuhaRun";
 import Leaderboard from "./screens/Leaderboard";
 import Puzzle from "./screens/Puzzle";
+import Match3 from "./screens/Match3";
 import Exchange from "./screens/Exchange";
 import AdminPage from "./admin/AdminPage";
 
@@ -28,6 +29,7 @@ function Game() {
       {/* Ksuha Run — на весь экран, без нижнего меню */}
       <Route path="/games/ksuha-run" element={<KsuhaRun />} />
       <Route path="/games/puzzle" element={<Puzzle />} />
+      <Route path="/games/match3" element={<Match3 />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/upgrades" element={<Upgrades />} />
