@@ -27,6 +27,7 @@ export default function Home() {
     try { return Number(localStorage.getItem(ключБлока(telegramId))) || 0; } catch { return 0; }
   });
   const [сейчас, setСейчас] = useState(Date.now());
+  const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]); // выбранный x1/x3/x5/x10
   const занято = useRef(false);
 
   // Тикаем раз в полсекунды, пока слот заблокирован
@@ -47,7 +48,10 @@ export default function Home() {
 
   const баланс = заморозка ?? user;
   const бесплатная = бесплатныеКрутки > 0;
-  const хватаетБилетов = user.tickets >= СЛОТ.билетовЗаКрутку;
+  // Бесплатная крутка идёт как x1 (если в config не включено иначе)
+  const эфМножитель = бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем ? 1 : множитель;
+  const ставка = СЛОТ.билетовЗаКрутку * множитель; // сколько билетов спишется за обычную крутку
+  const хватаетБилетов = user.tickets >= ставка;
   const можноКрутить = !идёт && !заблокирован && (бесплатная || хватаетБилетов);
 
   const показатьЭффект = (э: Эффект, секунд: number) => {
@@ -79,8 +83,8 @@ export default function Home() {
     setИдёт(true);
     setСообщение("");
 
-    const цена = бесплатная ? 0 : СЛОТ.билетовЗаКрутку;
-    const итог = крутитьСлот(user.free_spin_level, бесплатная);
+    const цена = бесплатная ? 0 : ставка;
+    const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель);
 
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
@@ -173,10 +177,27 @@ export default function Home() {
           ? `🔥 Нельзя крутить: ${минСек(осталосьБлок)}`
           : бесплатная
           ? `🎁 Бесплатная крутка (${бесплатныеКрутки})`
-          : `Крутить · ${СЛОТ.билетовЗаКрутку} 🎟️`}
+          : `Крутить · ${ставка} 🎟️`}
       </button>
+      {/* Переключатель множителя ставки */}
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {СЛОТ.множителиСтавки.map((м) => (
+          <button
+            key={м}
+            onClick={() => setМножитель(м)}
+            disabled={идёт || (бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем)}
+            className={`rounded-xl py-2 font-bold disabled:opacity-60 ${м === эфМножитель ? "bg-xmas-gold text-black" : "bg-white/10"}`}
+          >
+            x{м}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-center text-xs text-white/40">
+        Ставка: {бесплатная ? 0 : ставка} 🎟️ · награда ×{эфМножитель} · бомбы всегда блокируют на {СЛОТ.блокировкаПослеБомбСекунд} сек
+      </p>
+
       {!идёт && !заблокирован && !бесплатная && !хватаетБилетов && (
-        <p className="mt-2 text-center text-xs text-white/50">Не хватает билетов — обменяйте фишки во вкладке «Обмен»</p>
+        <p className="mt-2 text-center text-xs text-white/50">Не хватает билетов для x{множитель} — уменьшите множитель или обменяйте фишки во вкладке «Обмен»</p>
       )}
       <p className="mt-2 text-center text-xs text-white/40">Шанс Free Spin: {шансБесплатнойКрутки(user)}%</p>
 

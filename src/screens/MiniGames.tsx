@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
-import { КСЮХА_РАН } from "../config";
+import { КСЮХА_РАН, ПЯТНАШКИ } from "../config";
 
 // Список мини-игр. Чтобы добавить новую — добавьте ещё один объект в этот список.
 export default function MiniGames() {
@@ -10,10 +10,17 @@ export default function MiniGames() {
   const игры = [
     {
       путь: "/games/ksuha-run",
-      эмодзи: "👧",
+      эмодзи: "🏃‍♀️",
       название: "Ksuha Run",
-      описание: `Бегите и прыгайте через препятствия. ${КСЮХА_РАН.препятствийЗаФишку} препятствий = 1 🪙`,
-      рекорд: user.best_ksuha_run ?? 0,
+      описание: `Бегите и прыгайте через препятствия. ${КСЮХА_РАН.препятствийЗаФишку} препятствия = 1 🪙, монеты — бонус`,
+      подпись: `Ваш рекорд: ${user.best_ksuha_run ?? 0}`,
+    },
+    {
+      путь: "/games/puzzle",
+      эмодзи: "🧩",
+      название: "Пятнашки",
+      описание: `Соберите картинку. Дзен — ${ПЯТНАШКИ.дзен.награда} 🪙, на время — до ${ПЯТНАШКИ.наВремя.наградаЗаСборку} 🪙`,
+      подпись: `Собрано пазлов: ${user.puzzles_solved ?? 0}`,
     },
   ];
 
@@ -27,7 +34,7 @@ export default function MiniGames() {
             <div className="flex-1">
               <div className="text-lg font-bold">{и.название}</div>
               <div className="text-sm text-white/60">{и.описание}</div>
-              <div className="mt-1 text-xs text-xmas-gold">Ваш рекорд: {и.рекорд} · вход бесплатный</div>
+              <div className="mt-1 text-xs text-xmas-gold">{и.подпись} · вход бесплатный</div>
             </div>
             <div className="text-2xl text-white/40">›</div>
           </Link>

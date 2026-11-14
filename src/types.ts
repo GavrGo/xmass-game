@@ -11,6 +11,7 @@ export interface User {
   exchange_level: number;
   time_level: number;
   best_ksuha_run: number; // личный рекорд Ksuha Run (препятствий)
+  puzzles_solved: number; // всего собрано пазлов в Пятнашках
   created_at: string;
   updated_at: string;
 }

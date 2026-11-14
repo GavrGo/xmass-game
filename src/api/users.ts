@@ -58,7 +58,7 @@ export async function getGlobalBestKsuhaRun(): Promise<number> {
   const { data, error } = await supabase
     .from("users")
     .select("best_ksuha_run")
-    .order("best_ksuha_run", { ascending: false })
+    .order("best_ksuha_run", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
@@ -93,4 +93,21 @@ export async function getPlaceByHearts(hearts: number): Promise<number> {
     .gt("hearts", hearts);
   if (error) throw error;
   return (count ?? 0) + 1;
+}
+
+// ---------- Пятнашки ----------
+export interface ЛидерПазлов { telegram_id: number; nickname: string; count: number }
+
+/** Игрок, собравший больше всех пазлов за всё время. */
+export async function getPuzzleLeader(): Promise<ЛидерПазлов | null> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("telegram_id, nickname, puzzles_solved")
+    .order("puzzles_solved", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { telegram_id: data.telegram_id, nickname: data.nickname, count: data.puzzles_solved ?? 0 };
 }

@@ -1,15 +1,24 @@
 import { useState } from "react";
 import { useUser } from "../store/UserContext";
-import { ОБМЕН } from "../config";
+import { ОБМЕН, МАГАЗИН_ОБМЕННИКА, ОНБОРДИНГ } from "../config";
 import { комиссияОбменаПроц } from "../game/effects";
 import { посчитатьОбмен, Направление } from "../game/exchange";
+import { прочитатьКрутки, записатьКрутки } from "../game/emoji";
+import AvatarSpinModal from "../components/AvatarSpinModal";
 
 export default function Exchange() {
-  const { user, change } = useUser();
+  const { user, change, telegramId } = useUser();
   const [направление, setНаправление] = useState<Направление>("chipsToTickets");
   const [ввод, setВвод] = useState("");
   const [сообщение, setСообщение] = useState("");
   const [занят, setЗанят] = useState(false);
+
+  // --- Магазин ---
+  const [новыйНик, setНовыйНик] = useState("");
+  const [сообщениеМагазина, setСообщениеМагазина] = useState("");
+  const [крутки, setКрутки] = useState(() => прочитатьКрутки(telegramId));
+  const [окноАватара, setОкноАватара] = useState(false);
+
   if (!user) return null;
 
   const комиссия = комиссияОбменаПроц(user);
@@ -42,6 +51,51 @@ export default function Exchange() {
     setНаправление(фишкиВБилеты ? "ticketsToChips" : "chipsToTickets");
     setВвод("");
     setСообщение("");
+  };
+
+  // ---------- Смена никнейма ----------
+  const цНик = МАГАЗИН_ОБМЕННИКА.сменаНика.цена;
+  const ник = новыйНик.trim();
+  const ник_ок = ник.length >= ОНБОРДИНГ.минДлинаНика && ник.length <= ОНБОРДИНГ.максДлинаНика && ник !== user.nickname;
+
+  const сменитьНик = async () => {
+    if (занят || !ник_ок || user.chips < цНик) return;
+    setЗанят(true);
+    setСообщениеМагазина("");
+    try {
+      await change({ chips: -цНик }, { nickname: ник });
+      setСообщениеМагазина(`✅ Ник изменён на «${ник}»`);
+      setНовыйНик("");
+    } catch (e: any) {
+      setСообщениеМагазина("Ошибка: " + e.message);
+    }
+    setЗанят(false);
+  };
+
+  // ---------- Крутки эмодзи ----------
+  const цКрутки = МАГАЗИН_ОБМЕННИКА.кручкиЭмодзи.цена;
+  const колКруток = МАГАЗИН_ОБМЕННИКА.кручкиЭмодзи.количество;
+
+  const купитьКрутки = async () => {
+    if (занят || user.chips < цКрутки) return;
+    setЗанят(true);
+    setСообщениеМагазина("");
+    try {
+      await change({ chips: -цКрутки });
+      const новое = крутки + колКруток;
+      записатьКрутки(telegramId, новое);
+      setКрутки(новое);
+      setОкноАватара(true); // сразу открываем выбор аватара
+    } catch (e: any) {
+      setСообщениеМагазина("Ошибка: " + e.message);
+    }
+    setЗанят(false);
+  };
+
+  const списатьКрутку = () => {
+    const новое = Math.max(0, крутки - 1);
+    записатьКрутки(telegramId, новое);
+    setКрутки(новое);
   };
 
   return (
@@ -91,6 +145,70 @@ export default function Exchange() {
         Обменять
       </button>
       {сообщение && <p className="mt-3 text-center text-sm text-xmas-gold">{сообщение}</p>}
+
+      {/* ================= МАГАЗИН ================= */}
+      <h3 className="mb-3 mt-8 text-lg font-bold">Магазин</h3>
+
+      {/* Смена ника */}
+      <div className="mb-3 rounded-2xl bg-white/10 p-4">
+        <div className="flex justify-between font-bold">
+          <span>✏️ Смена никнейма</span>
+          <span className="text-xmas-gold">{цНик} 🪙</span>
+        </div>
+        <p className="mb-2 text-sm text-white/60">Сейчас: {user.nickname}</p>
+        <input
+          value={новыйНик}
+          onChange={(e) => setНовыйНик(e.target.value)}
+          maxLength={ОНБОРДИНГ.максДлинаНика}
+          placeholder="Новый ник"
+          className="w-full rounded-xl bg-black/30 px-4 py-2 text-white outline-none focus:ring-2 focus:ring-xmas-gold"
+        />
+        <button
+          onClick={сменитьНик}
+          disabled={занят || !ник_ок || user.chips < цНик}
+          className="mt-2 w-full rounded-xl bg-xmas-green py-2 font-bold disabled:bg-gray-600 disabled:text-white/40"
+        >
+          Сменить за {цНик} 🪙
+        </button>
+        {user.chips < цНик && <p className="mt-1 text-xs text-red-400">Не хватает фишек</p>}
+      </div>
+
+      {/* Крутки эмодзи */}
+      <div className="rounded-2xl bg-white/10 p-4">
+        <div className="flex justify-between font-bold">
+          <span>{user.emoji} {колКруток} круток аватарки</span>
+          <span className="text-xmas-gold">{цКрутки} 🪙</span>
+        </div>
+        <p className="mb-2 text-sm text-white/60">
+          Крутите эмодзи и выберите новый аватар.
+          {крутки > 0 && <> У вас осталось круток: <b>{крутки}</b>.</>}
+        </p>
+        {крутки > 0 && (
+          <button onClick={() => setОкноАватара(true)} className="mb-2 w-full rounded-xl bg-xmas-red py-2 font-bold">
+            Крутить аватарку ({крутки})
+          </button>
+        )}
+        <button
+          onClick={купитьКрутки}
+          disabled={занят || user.chips < цКрутки}
+          className="w-full rounded-xl bg-xmas-green py-2 font-bold disabled:bg-gray-600 disabled:text-white/40"
+        >
+          Купить {колКруток} круток за {цКрутки} 🪙
+        </button>
+        {user.chips < цКрутки && <p className="mt-1 text-xs text-red-400">Не хватает фишек</p>}
+      </div>
+
+      {сообщениеМагазина && <p className="mt-3 text-center text-sm text-xmas-gold">{сообщениеМагазина}</p>}
+
+      {окноАватара && (
+        <AvatarSpinModal
+          текущий={user.emoji}
+          осталось={крутки}
+          onКрутка={списатьКрутку}
+          onВыбрать={(э) => change({}, { emoji: э })}
+          onЗакрыть={() => setОкноАватара(false)}
+        />
+      )}
     </div>
   );
 }
