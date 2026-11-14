@@ -10,6 +10,7 @@ export interface User {
   salary_level: number;
   exchange_level: number;
   time_level: number;
+  best_ksuha_run: number; // личный рекорд Ksuha Run (препятствий)
   created_at: string;
   updated_at: string;
 }

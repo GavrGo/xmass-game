@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Home from "./screens/Home";
 import Upgrades from "./screens/Upgrades";
 import MiniGames from "./screens/MiniGames";
+import KsuhaRun from "./screens/KsuhaRun";
 import Exchange from "./screens/Exchange";
 import AdminPage from "./admin/AdminPage";
 
@@ -26,6 +27,7 @@ function Game() {
         <Route path="/" element={<Home />} />
         <Route path="/upgrades" element={<Upgrades />} />
         <Route path="/games" element={<MiniGames />} />
+        <Route path="/games/ksuha-run" element={<KsuhaRun />} />
         <Route path="/exchange" element={<Exchange />} />
       </Route>
       <Route path="*" element={<Navigate to="/" />} />

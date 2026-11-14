@@ -10,6 +10,7 @@ create table public.users (
   salary_level     integer not null default 0,
   exchange_level   integer not null default 0,
   time_level       integer not null default 0,
+  best_ksuha_run   integer not null default 0,  -- личный рекорд в Ksuha Run
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );

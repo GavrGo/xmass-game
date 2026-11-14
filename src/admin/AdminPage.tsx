@@ -13,6 +13,7 @@ const ПОЛЯ: { ключ: keyof User; название: string }[] = [
   { ключ: "salary_level", название: "Повышение ЗП (ур.)" },
   { ключ: "exchange_level", название: "Договоримся (ур.)" },
   { ключ: "time_level", название: "Сдвинуть сроки (ур.)" },
+  { ключ: "best_ksuha_run", название: "Рекорд Ksuha Run" },
 ];
 
 export default function AdminPage() {

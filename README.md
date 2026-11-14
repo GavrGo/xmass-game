@@ -25,3 +25,7 @@
 ## Этап 3 (админка)
 Кнопка «Админка» на главном экране для админов, /admin с поиском, vercel.json для маршрутов.
 На Vercel задайте переменные VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY. VITE_DEV_TELEGRAM_ID на Vercel НЕ задавайте.
+
+## Этап 4 (Ksuha Run)
+В существующей базе выполните migrations/002_ksuha_run.sql (добавляет колонку best_ksuha_run).
+Настройки игры: src/config.ts, раздел КСЮХА_РАН.

@@ -52,3 +52,15 @@ export async function isAdmin(telegramId: number): Promise<boolean> {
   if (error) throw error;
   return !!data;
 }
+
+/** Глобальный рекорд Ksuha Run: максимум среди всех игроков. */
+export async function getGlobalBestKsuhaRun(): Promise<number> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("best_ksuha_run")
+    .order("best_ksuha_run", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.best_ksuha_run ?? 0;
+}
