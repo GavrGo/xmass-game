@@ -6,6 +6,7 @@ import Home from "./screens/Home";
 import Upgrades from "./screens/Upgrades";
 import MiniGames from "./screens/MiniGames";
 import KsuhaRun from "./screens/KsuhaRun";
+import Leaderboard from "./screens/Leaderboard";
 import Exchange from "./screens/Exchange";
 import AdminPage from "./admin/AdminPage";
 
@@ -23,12 +24,14 @@ function Game() {
 
   return (
     <Routes>
+      {/* Ksuha Run — на весь экран, без нижнего меню */}
+      <Route path="/games/ksuha-run" element={<KsuhaRun />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/upgrades" element={<Upgrades />} />
         <Route path="/games" element={<MiniGames />} />
-        <Route path="/games/ksuha-run" element={<KsuhaRun />} />
         <Route path="/exchange" element={<Exchange />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
       </Route>
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>

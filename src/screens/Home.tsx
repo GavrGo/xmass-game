@@ -1,41 +1,68 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import SlotReels from "../components/SlotReels";
+import { Конфетти, Взрыв } from "../components/SlotEffects";
 import { СИМВОЛЫ_СЛОТА, СЛОТ } from "../config";
 import { крутитьСлот, случайныйСимвол, текстНаграды } from "../game/slot";
 import { шансБесплатнойКрутки } from "../game/effects";
 
-export default function Home() {
-  const { user, change, isAdmin } = useUser();
+type Эффект = { вид: "конфетти"; эмодзи: string } | { вид: "взрыв" } | null;
 
-  // Барабаны: что сейчас показано и какие из них ещё крутятся
+// Блокировка слота хранится в памяти телефона, чтобы не пропадала при перезапуске игры
+const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
+const минСек = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(2, "0")}`;
+
+export default function Home() {
+  const { user, change, isAdmin, telegramId } = useUser();
+
   const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйСимвол().эмодзи, случайныйСимвол().эмодзи, случайныйСимвол().эмодзи]);
   const [крутятся, setКрутятся] = useState<boolean[]>([false, false, false]);
   const [идёт, setИдёт] = useState(false);
-  const [бесплатныеКрутки, setБесплатныеКрутки] = useState(0); // накопленные Free Spin
+  const [бесплатныеКрутки, setБесплатныеКрутки] = useState(0);
   const [сообщение, setСообщение] = useState("");
-  // Пока барабаны крутятся, показываем баланс «до результата», чтобы не спойлерить выигрыш
   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
-  const занято = useRef(false); // защита от двойного нажатия
+  const [эффект, setЭффект] = useState<Эффект>(null);
+  const [заблокированоДо, setЗаблокированоДо] = useState<number>(() => {
+    try { return Number(localStorage.getItem(ключБлока(telegramId))) || 0; } catch { return 0; }
+  });
+  const [сейчас, setСейчас] = useState(Date.now());
+  const занято = useRef(false);
+
+  // Тикаем раз в полсекунды, пока слот заблокирован
+  useEffect(() => {
+    if (заблокированоДо <= Date.now()) return;
+    setСейчас(Date.now());
+    const t = setInterval(() => {
+      setСейчас(Date.now());
+      if (Date.now() >= заблокированоДо) clearInterval(t);
+    }, 500);
+    return () => clearInterval(t);
+  }, [заблокированоДо]);
 
   if (!user) return null;
+
+  const осталосьБлок = Math.max(0, Math.ceil((заблокированоДо - сейчас) / 1000));
+  const заблокирован = осталосьБлок > 0;
 
   const баланс = заморозка ?? user;
   const бесплатная = бесплатныеКрутки > 0;
   const хватаетБилетов = user.tickets >= СЛОТ.билетовЗаКрутку;
-  const можноКрутить = !идёт && (бесплатная || хватаетБилетов);
+  const можноКрутить = !идёт && !заблокирован && (бесплатная || хватаетБилетов);
+
+  const показатьЭффект = (э: Эффект, секунд: number) => {
+    setЭффект(э);
+    setTimeout(() => setЭффект(null), секунд * 1000);
+  };
 
   /** Анимация: барабаны мелькают и по очереди останавливаются на итоговых символах. */
   const анимировать = (итог: string[]) =>
     new Promise<void>((готово) => {
       const остановлен = [false, false, false];
       setКрутятся([true, true, true]);
-
       const таймер = setInterval(() => {
         setБарабаны(() => итог.map((с, i) => (остановлен[i] ? с : случайныйСимвол().эмодзи)));
       }, СЛОТ.анимация.сменаКадраМс);
-
       итог.forEach((_, i) => {
         setTimeout(() => {
           остановлен[i] = true;
@@ -55,12 +82,10 @@ export default function Home() {
     const цена = бесплатная ? 0 : СЛОТ.билетовЗаКрутку;
     const итог = крутитьСлот(user.free_spin_level, бесплатная);
 
-    // Показываем баланс после списания билета, но без награды
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
 
     try {
-      // Сохраняем результат в базе и одновременно крутим анимацию
       await Promise.all([
         change({
           chips: итог.награда.chips,
@@ -69,10 +94,22 @@ export default function Home() {
         }),
         анимировать(итог.символы.map((с) => с.эмодзи)),
       ]);
-      if (итог.бесплатнаяКрутка) setБесплатныеКрутки((n) => n + 1);
-      setСообщение(итог.описание + (итог.бесплатнаяКрутка ? " 🎁 Выпал Free Spin — крутите ещё раз бесплатно!" : ""));
+
+      // Три одинаковых → эффекты
+      const бомба = итог.тройка && !!итог.символы[0].бомба;
+      if (бомба) {
+        const до = Date.now() + СЛОТ.блокировкаПослеБомбСекунд * 1000;
+        setЗаблокированоДо(до);
+        try { localStorage.setItem(ключБлока(telegramId), String(до)); } catch {}
+        показатьЭффект({ вид: "взрыв" }, СЛОТ.эффектыСекунд.взрыв);
+      } else if (итог.тройка) {
+        показатьЭффект({ вид: "конфетти", эмодзи: итог.символы[0].эмодзи }, СЛОТ.эффектыСекунд.конфетти);
+      }
+
+      if (итог.бесплатнаяКрутка && !бомба) setБесплатныеКрутки((n) => n + 1);
+      setСообщение(итог.описание + (итог.бесплатнаяКрутка && !бомба ? " 🎁 Выпал Free Spin — крутите ещё раз бесплатно!" : ""));
     } catch (e: any) {
-      if (бесплатная) setБесплатныеКрутки((n) => n + 1); // вернули бесплатную крутку
+      if (бесплатная) setБесплатныеКрутки((n) => n + 1);
       setСообщение("Ошибка сохранения: " + (e.message ?? "попробуйте ещё раз"));
       setКрутятся([false, false, false]);
     } finally {
@@ -84,16 +121,21 @@ export default function Home() {
 
   return (
     <div className="p-4">
-      {/* Шапка */}
+      {эффект?.вид === "конфетти" && <Конфетти эмодзи={эффект.эмодзи} />}
+      {эффект?.вид === "взрыв" && <Взрыв />}
+
+      {/* Шапка: аватар, ник, справа — Лидерборд и (для админов) значок админки */}
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-3xl">{user.emoji}</div>
-        <div className="font-bold">{user.nickname}</div>
-        {/* Кнопка видна только админам (id есть в таблице admins) */}
-        {isAdmin && (
-          <Link to="/admin" className="ml-auto rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-xmas-gold">
-            ⚙️ Админка
+        <div className="min-w-0 flex-1 truncate font-bold">{user.nickname}</div>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Link to="/admin" aria-label="Админка" className="rounded-xl bg-white/10 px-3 py-2 text-lg">⚙️</Link>
+          )}
+          <Link to="/leaderboard" className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-xmas-gold">
+            🏆 Лидерборд
           </Link>
-        )}
+        </div>
       </div>
 
       {/* Балансы */}
@@ -103,8 +145,20 @@ export default function Home() {
         <Баланс иконка="❤️" название="Хэпэшки" значение={баланс.hearts} />
       </div>
 
-      {/* Слот */}
-      <SlotReels символы={барабаны} крутятся={крутятся} />
+      {/* Слот (после бомб покрывается сажей) */}
+      <div
+        className="relative rounded-3xl"
+        style={заблокирован ? { background: "radial-gradient(circle at center, rgba(0,0,0,0.85) 0%, rgba(40,20,0,0.55) 60%, rgba(0,0,0,0) 100%)" } : undefined}
+      >
+        {заблокирован && (
+          <p className="pt-3 text-center text-sm font-bold text-orange-300">
+            💣 Слот закоптился — нельзя крутить {минСек(осталосьБлок)}
+          </p>
+        )}
+        <div className="p-2">
+          <SlotReels символы={барабаны} крутятся={крутятся} />
+        </div>
+      </div>
 
       <p className="mt-3 h-10 text-center text-sm text-xmas-gold">{сообщение}</p>
 
@@ -115,11 +169,13 @@ export default function Home() {
       >
         {идёт
           ? "Крутится…"
+          : заблокирован
+          ? `🔥 Нельзя крутить: ${минСек(осталосьБлок)}`
           : бесплатная
           ? `🎁 Бесплатная крутка (${бесплатныеКрутки})`
           : `Крутить · ${СЛОТ.билетовЗаКрутку} 🎟️`}
       </button>
-      {!идёт && !бесплатная && !хватаетБилетов && (
+      {!идёт && !заблокирован && !бесплатная && !хватаетБилетов && (
         <p className="mt-2 text-center text-xs text-white/50">Не хватает билетов — обменяйте фишки во вкладке «Обмен»</p>
       )}
       <p className="mt-2 text-center text-xs text-white/40">Шанс Free Spin: {шансБесплатнойКрутки(user)}%</p>
@@ -131,7 +187,7 @@ export default function Home() {
           {СИМВОЛЫ_СЛОТА.map((с) => (
             <div key={с.id} className="flex justify-between">
               <span>{с.эмодзи}{с.эмодзи}{с.эмодзи}</span>
-              <span>{текстНаграды(с.за3) || "—"}</span>
+              <span>{с.бомба ? `💥 блок ${СЛОТ.блокировкаПослеБомбСекунд} сек` : текстНаграды(с.за3) || "—"}</span>
             </div>
           ))}
           {СИМВОЛЫ_СЛОТА.filter((с) => текстНаграды(с.за2)).map((с) => (

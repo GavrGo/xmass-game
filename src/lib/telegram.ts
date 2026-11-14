@@ -43,3 +43,9 @@ export function getTelegramId(): number | null {
   }
   return null;
 }
+
+/** Верхний отступ в полноэкранном режиме (чтобы кнопки Telegram не перекрывали игру). */
+export function getSafeTop(): number {
+  if (!tg) return 0;
+  return (tg.safeAreaInset?.top ?? 0) + (tg.contentSafeAreaInset?.top ?? 0);
+}

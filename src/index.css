@@ -11,3 +11,19 @@ body {
   font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ---------- Эффекты слота ---------- */
+/* Падающие эмодзи (конфетти) */
+@keyframes confetti-fall {
+  from { transform: translateY(-12vh) rotate(0deg); opacity: 1; }
+  to   { transform: translateY(112vh) rotate(var(--rot, 360deg)); opacity: 0.9; }
+}
+.confetti { animation-name: confetti-fall; animation-timing-function: ease-in; animation-fill-mode: both; }
+
+/* Взрыв: белая вспышка, 💥 и сажа */
+@keyframes boom-flash { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+@keyframes boom-emoji { 0% { transform: scale(0.2); opacity: 1; } 60% { transform: scale(1.8); opacity: 1; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes soot-fade  { 0% { opacity: 0; } 25% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+.boom-flash { animation: boom-flash 0.6s ease-out forwards; }
+.boom-emoji { animation: boom-emoji 1.2s ease-out forwards; }
+.soot-fade  { animation: soot-fade 2.8s ease-in-out forwards; }

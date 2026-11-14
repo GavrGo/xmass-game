@@ -64,3 +64,33 @@ export async function getGlobalBestKsuhaRun(): Promise<number> {
   if (error) throw error;
   return data?.best_ksuha_run ?? 0;
 }
+
+// ---------- Лидерборд ----------
+export interface СтрокаЛидерборда {
+  telegram_id: number;
+  nickname: string;
+  emoji: string;
+  hearts: number;
+}
+
+/** Топ игроков по хэпэшкам (при равенстве выше тот, кто зарегистрировался раньше). */
+export async function getLeaderboard(limit: number): Promise<СтрокаЛидерборда[]> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("telegram_id, nickname, emoji, hearts")
+    .order("hearts", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Место игрока: 1 + количество игроков, у которых хэпэшек строго больше. */
+export async function getPlaceByHearts(hearts: number): Promise<number> {
+  const { count, error } = await supabase
+    .from("users")
+    .select("telegram_id", { count: "exact", head: true })
+    .gt("hearts", hearts);
+  if (error) throw error;
+  return (count ?? 0) + 1;
+}

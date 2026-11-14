@@ -63,7 +63,11 @@ export default function AdminPage() {
     try {
       // Только целые числа, не меньше нуля
       const patch: Partial<User> = {};
-      ПОЛЯ.forEach((п) => ((patch as any)[п.ключ] = Math.max(0, Math.floor(Number(u[п.ключ]) || 0))));
+      // Пропускаем поля, которых нет у игрока (например, если колонка ещё не создана в базе)
+      ПОЛЯ.forEach((п) => {
+        if (u[п.ключ] === undefined) return;
+        (patch as any)[п.ключ] = Math.max(0, Math.floor(Number(u[п.ключ]) || 0));
+      });
       const сохранён = await updateUser(u.telegram_id, patch);
       setИгроки((л) => л.map((x) => (x.telegram_id === u.telegram_id ? сохранён : x)));
       setСообщение(`✅ Сохранено: ${u.nickname}`);
