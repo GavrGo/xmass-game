@@ -15,7 +15,7 @@ export default function Layout() {
   useАссеты();
   const ключФона = ФОНЫ[pathname];
   return (
-    <div className="min-h-screen pb-28" style={pathname === "/" ? { backgroundColor: "#1B1515" } : ключФона ? стильФона(ключФона) : undefined}>
+    <div className={`min-h-screen ${pathname === "/" ? "pb-20" : "pb-28"}`} style={pathname === "/" ? { backgroundColor: "#1B1515" } : ключФона ? стильФона(ключФона) : undefined}>
       <ВерхняяПанель скрытьЛидерборд={pathname === "/"} />
       {/* На главном экране свои крупные балансы */}
       {pathname !== "/" && <БалансыПилюли />}

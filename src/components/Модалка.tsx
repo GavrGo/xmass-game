@@ -12,7 +12,7 @@ export default function Модалка({
 }: { children: ReactNode; onClose?: () => void; hero?: ReactNode; снизу?: boolean; режим?: "fixed" | "absolute" }) {
   return (
     <div
-      className={`${режим === "fixed" ? "fixed z-40" : "absolute z-10"} inset-0 flex justify-center overflow-y-auto bg-black/70 p-4 ${
+      className={`${режим === "fixed" ? "fixed z-[55]" : "absolute z-10"} inset-0 flex justify-center overflow-y-auto bg-black/70 p-4 ${
         снизу ? "items-end" : "items-center"
       }`}
     >

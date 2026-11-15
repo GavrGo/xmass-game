@@ -13,7 +13,7 @@ import { естьФайл, useАссеты } from "../lib/assets";
 import { звук } from "../lib/sound";
 import { Т } from "../texts";
 
-type Эффект = { вид: "конфетти"; эмодзи: string } | { вид: "взрыв" } | null;
+type Эффект = { вид: "конфетти"; эмодзи: string; id: string } | { вид: "взрыв" } | null;
 
 // Блокировка слота хранится в памяти телефона, чтобы не пропадала при перезапуске игры
 const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
@@ -56,6 +56,8 @@ export default function Home() {
   const [сейчас, setСейчас] = useState(Date.now());
   const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]); // выбранный x1/x3/x5/x10
   const занято = useRef(false);
+  const [плавающие, setПлавающие] = useState<{ id: number; имя: "фишки" | "билеты" | "хэпэшки"; n: number; смещение: number }[]>([]);
+  const счётПлавающих = useRef(0);
 
   // Ширина экрана → масштаб автомата (e = сколько пикселей в одной «единице рисунка»)
   const обёртка = useRef<HTMLDivElement>(null);
@@ -100,6 +102,17 @@ export default function Home() {
   const ставка = СЛОТ.билетовЗаКрутку * множитель; // сколько билетов спишется за обычную крутку
   const хватаетБилетов = user.tickets >= ставка;
   const можноКрутить = !идёт && !заблокирован && (бесплатная || хватаетБилетов);
+
+  // Короткая всплывающая награда: «+10» + значок валюты (вспышка, парит вверх, плавно гаснет)
+  const показатьНаграду = (н: { chips: number; tickets: number; hearts: number }) => {
+    const список: { имя: "фишки" | "билеты" | "хэпэшки"; n: number }[] = [];
+    if (н.chips > 0) список.push({ имя: "фишки", n: н.chips });
+    if (н.tickets > 0) список.push({ имя: "билеты", n: н.tickets });
+    if (н.hearts > 0) список.push({ имя: "хэпэшки", n: н.hearts });
+    const новые = список.map((х, i) => ({ id: ++счётПлавающих.current, ...х, смещение: (i - (список.length - 1) / 2) * S(190) }));
+    setПлавающие((п) => [...п, ...новые]);
+    setTimeout(() => setПлавающие((п) => п.filter((х) => !новые.some((y) => y.id === х.id))), 1800);
+  };
 
   const показатьЭффект = (э: Эффект, секунд: number) => {
     setЭффект(э);
@@ -157,14 +170,14 @@ export default function Home() {
         показатьЭффект({ вид: "взрыв" }, СЛОТ.эффектыСекунд.взрыв);
         звук.sfx("взрыв"); // ← звук взрыва бомб
       } else if (итог.тройка) {
-        показатьЭффект({ вид: "конфетти", эмодзи: итог.символы[0].эмодзи }, СЛОТ.эффектыСекунд.конфетти);
+        показатьЭффект({ вид: "конфетти", эмодзи: итог.символы[0].эмодзи, id: итог.символы[0].id }, СЛОТ.эффектыСекунд.конфетти);
         звук.sfx("победа"); // ← звук джекпота
       } else if (итог.награда.chips || итог.награда.tickets || итог.награда.hearts) {
         звук.sfx("бонус"); // ← звук небольшого выигрыша
       }
 
       if (итог.бесплатнаяКрутка && !бомба) setБесплатныеКрутки((n) => n + 1);
-      setСообщение(итог.описание + (итог.бесплатнаяКрутка && !бомба ? Т.слот.выпалFreeSpin : ""));
+      показатьНаграду(итог.награда);
     } catch (er: any) {
       if (бесплатная) setБесплатныеКрутки((n) => n + 1);
       setСообщение(Т.слот.ошибкаСохранения(er.message));
@@ -206,12 +219,12 @@ export default function Home() {
 
   return (
     <div>
-      {эффект?.вид === "конфетти" && <Конфетти эмодзи={эффект.эмодзи} />}
+      {эффект?.вид === "конфетти" && <Конфетти эмодзи={эффект.эмодзи} id={эффект.id} />}
       {эффект?.вид === "взрыв" && <Взрыв />}
       {колесоОткрыто && <КолесоФортуны onЗакрыть={() => setКолесоОткрыто(false)} />}
 
       {/* ================= АВТОМАТ ================= */}
-      <div ref={обёртка} className="relative mx-auto max-w-[520px] select-none overflow-hidden">
+      <div ref={обёртка} className="relative mx-auto max-w-[520px] select-none overflow-hidden" style={{ marginTop: -S(30) }}>
         {/* Экран автомата (фон) */}
         <div style={{ position: "absolute", left: X(A.экран.x), top: Y(A.экран.y), width: S(A.экран.w), height: S(A.экран.h), zIndex: 5 }}>
           <Картинка путь={ПУТЬ + АССЕТЫ.ui.экранАвтомата} fallback={<div className="h-full w-full rounded-2xl bg-black" />} className="h-full w-full" />
@@ -231,7 +244,7 @@ export default function Home() {
         />
 
         {/* Блик на стекле */}
-        <div style={{ position: "absolute", left: X(A.экран.x + A.экран.w - 472), top: Y(A.экран.y), width: S(472), height: S(A.экран.h), zIndex: 30, pointerEvents: "none", opacity: 0.75 }}>
+        <div style={{ position: "absolute", left: X(A.экран.x), top: Y(A.экран.y), width: S(472), height: S(A.экран.h), zIndex: 30, pointerEvents: "none" }}>
           <Картинка путь={ПУТЬ + АССЕТЫ.ui.бликЭкрана} fallback={null} className="h-full w-full" />
         </div>
 
@@ -255,15 +268,26 @@ export default function Home() {
           </div>
         )}
 
-        {/* Панели «Лидеры» и «Колесо» */}
-        <Link to="/leaderboard" style={панель(A.панели.лидеры)} className="flex flex-col items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm active:brightness-125">
-          <Иконка имя="лидерборд" размер={S(58)} />
-          <span style={{ fontSize: S(24), marginTop: S(4) }} className="font-semibold text-white/90">{Т.главная.лидеры}</span>
-        </Link>
-        <button onClick={() => { звук.sfx("клик"); setКолесоОткрыто(true); }} style={панель(A.панели.колесо)} className="flex flex-col items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm active:brightness-125">
-          <Иконка имя="колесо" размер={S(58)} />
-          <span style={{ fontSize: S(24), marginTop: S(4) }} className="font-semibold text-white/90">{Т.главная.колесо}</span>
-        </button>
+        {/* Панели «Лидеры» и «Колесо»: иконка наполовину выступает за верхнюю границу ячейки */}
+        {([
+          { ключ: "лидеры", иконка: "лидерборд" as const, текст: Т.главная.лидеры },
+          { ключ: "колесо", иконка: "колесо" as const, текст: Т.главная.колесо },
+        ]).map((п) => {
+          const содержимое = (
+            <>
+              <div style={{ position: "absolute", left: "50%", top: -S(46), transform: "translateX(-50%)", filter: "drop-shadow(0 0 8px rgba(255, 123, 0, 0.5))" }}>
+                <Иконка имя={п.иконка} размер={S(92)} />
+              </div>
+              <span style={{ fontSize: S(24), marginBottom: S(16) }} className="font-semibold text-white/90">{п.текст}</span>
+            </>
+          );
+          const класс = "flex flex-col items-center justify-end rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm active:brightness-125";
+          return п.ключ === "лидеры" ? (
+            <Link key={п.ключ} to="/leaderboard" style={панель(A.панели.лидеры)} className={класс}>{содержимое}</Link>
+          ) : (
+            <button key={п.ключ} onClick={() => { звук.sfx("клик"); setКолесоОткрыто(true); }} style={панель(A.панели.колесо)} className={класс}>{содержимое}</button>
+          );
+        })}
 
         {/* Баланс: хэпэшки крупно, фишки и билеты — «таблетками» */}
         <div style={{ position: "absolute", left: X(A.баланс.центрX - 220), width: S(440), top: Y(A.баланс.сердцеY), zIndex: 40 }} className="flex flex-col items-center">
@@ -277,6 +301,16 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Всплывающие награды (+N и значок) над экраном */}
+        {плавающие.map((п) => (
+          <div key={п.id} className="pointer-events-none" style={{ position: "absolute", left: X(A.экран.x + A.экран.w / 2) + п.смещение, top: Y(A.экран.y + A.экран.h / 2), zIndex: 45, transform: "translate(-50%, -50%)" }}>
+            <div className="reward-pop flex items-center gap-1 whitespace-nowrap font-extrabold text-white" style={{ fontSize: S(66), textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>
+              {Т.общее.плюс(п.n)}
+              <Иконка имя={п.имя} размер={S(78)} />
+            </div>
+          </div>
+        ))}
+
         {/* Кнопка Spin */}
         <div style={{ position: "absolute", left: X(A.кнопка.x), top: Y(A.кнопка.y), zIndex: 40 }}>
           <КнопкаСпин e={e} подпись={подписьКнопки} приглушена={!можноКрутить && !идёт} onНажатие={нажатиеКнопки} />
@@ -286,7 +320,7 @@ export default function Home() {
         <div style={{ height: S(A.высотаСцены) }} />
 
         {/* ===== Ниже кнопки: награда (множитель), подсказки, таблица ===== */}
-        <div className="relative z-40 px-4 pb-6">
+        <div className="relative z-40 px-4 pb-2">
           <p className="mb-2 text-center text-xs text-white/70">{Т.слот.наградаМножитель}</p>
           <div className="grid grid-cols-4 gap-2">
             {СЛОТ.множителиСтавки.map((м) => (
@@ -300,14 +334,7 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-center text-xs text-white/40">{Т.слот.ставка(бесплатная ? 0 : ставка, эфМножитель, СЛОТ.блокировкаПослеБомбСекунд)}</p>
-
-          <p className="mt-2 min-h-[2.5rem] text-center text-sm text-brand-yellow">{сообщение}</p>
-
-          {!идёт && !заблокирован && !бесплатная && !хватаетБилетов && (
-            <p className="text-center text-xs text-white/50">{Т.слот.нехватаетБилетов(множитель)}</p>
-          )}
-          <p className="mt-1 text-center text-xs text-white/40">{Т.слот.шансFreeSpin(шансБесплатнойКрутки(user))}</p>
+          {сообщение && <p className="mt-2 text-center text-xs text-red-300">{сообщение}</p>}
 
           {/* Таблица наград — строится из config.ts автоматически, значения умножаются на выбранный множитель */}
           <details className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-sm">

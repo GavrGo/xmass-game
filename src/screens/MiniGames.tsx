@@ -3,6 +3,7 @@ import { useUser } from "../store/UserContext";
 import { КСЮХА_РАН, ПЯТНАШКИ, ТРИ_В_РЯД, ДЖИРА_ФАЙТ, БАБКА_КРАШ, АССЕТЫ } from "../config";
 import { Картинка } from "../components/Иконка";
 import { Т } from "../texts";
+import Эм from "../components/Эм";
 
 // Список мини-игр: сетка карточек в 2 колонки (по макету).
 // Обложка: public/assets/ui/game-<id>.png. Нет файла — большой эмодзи.
@@ -34,7 +35,7 @@ export default function MiniGames() {
               />
             </div>
             <div className="mt-2 text-sm font-bold">{и.название}</div>
-            <div className="line-clamp-2 text-[11px] leading-snug text-muted">{и.описание}</div>
+            <div className="line-clamp-2 text-[11px] leading-snug text-muted"><Эм>{и.описание}</Эм></div>
             <div className="mt-1 text-[11px] font-semibold text-brand-yellow">{и.рекорд}</div>
           </Link>
         ))}

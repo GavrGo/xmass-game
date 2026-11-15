@@ -14,6 +14,10 @@ interface Монета { x: number; h: number; emoji: string; ценность: 
 interface Всплывашка { x: number; y: number; text: string; t: number }
 interface Снежинка { x: number; y: number; r: number; v: number }
 
+// Картинка фишки (assets/icons/slot-chip.png) для монет и счётчика на canvas
+const чипКартинка: HTMLImageElement | null = typeof Image !== "undefined" ? Object.assign(new Image(), { src: "/assets/icons/slot-chip.png" }) : null;
+const чипГотов = () => !!чипКартинка && чипКартинка.complete && чипКартинка.naturalWidth > 0;
+
 const случайно = (a: number, b: number) => a + Math.random() * (b - a);
 
 /** Рисует эмодзи. зеркало = true разворачивает его вправо (эмодзи бегут влево по умолчанию). */
@@ -282,7 +286,8 @@ export class КсюхаРанДвижок {
     // Монеты (слегка покачиваются)
     for (const м of this.монеты) {
       const кач = Math.sin(this.время * 6 + м.x * 0.05) * 3;
-      эмодзи(ctx, м.emoji, м.x + К.монеты.размер / 2, зем - м.h + К.монеты.размер / 2 + кач, К.монеты.размер);
+      if (м.emoji === "🪙" && чипГотов()) ctx.drawImage(чипКартинка!, м.x, зем - м.h - К.монеты.размер / 2 + кач, К.монеты.размер, К.монеты.размер);
+      else эмодзи(ctx, м.emoji, м.x + К.монеты.размер / 2, зем - м.h + К.монеты.размер / 2 + кач, К.монеты.размер);
     }
 
     // Героиня 🏃‍♀️ и преследователь 🏃‍♂️ (оба зеркально — бегут вправо)
@@ -313,7 +318,8 @@ export class КсюхаРанДвижок {
       ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 4;
       ctx.fillStyle = "#ffffff"; ctx.font = "bold 20px sans-serif"; ctx.textBaseline = "top";
       ctx.textAlign = "left"; ctx.fillText(Т.игры.ksuha.худ.препятствий(this.пройдено), 14, y0);
-      ctx.fillText(Т.игры.ksuha.худ.монет(this.монетСобрано), 14, y0 + 26);
+      if (чипГотов()) { ctx.drawImage(чипКартинка!, 14, y0 + 26, 24, 24); ctx.fillText(Т.игры.ksuha.худ.монет(this.монетСобрано), 44, y0 + 26); }
+      else ctx.fillText(Т.игры.ksuha.худ.монет(this.монетСобрано), 14, y0 + 26);
       if (this.лимит > 0) { ctx.textAlign = "right"; ctx.fillText(Т.игры.ksuha.худ.время(Math.ceil(this.осталось)), W - 14, y0); }
       ctx.shadowBlur = 0;
     }

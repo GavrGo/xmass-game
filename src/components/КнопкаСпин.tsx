@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { АВТОМАТ, АССЕТЫ, СЛОТ } from "../config";
 import { Картинка } from "./Иконка";
+import { естьФайл, useАссеты } from "../lib/assets";
 import { звук } from "../lib/sound";
 
 // Кнопка Spin из трёх частей (по макету):
@@ -12,7 +13,9 @@ import { звук } from "../lib/sound";
 export default function КнопкаСпин({
   e, подпись, приглушена, onНажатие,
 }: { e: number; подпись: ReactNode; приглушена: boolean; onНажатие: () => void }) {
+  useАссеты();
   const К = АВТОМАТ.кнопка;
+  const есть_выкл = естьФайл(АССЕТЫ.папки.ui + АССЕТЫ.ui.кнопкаКраснаяВыкл) === true; // есть ли картинка погасшей кнопки
   const ПУТЬ = АССЕТЫ.папки.ui;
   const [нажата, setНажата] = useState(false);
   const началоНажатия = useRef(0);
@@ -60,11 +63,18 @@ export default function КнопкаСпин({
           transition: нажата
             ? `transform ${СЛОТ.кнопка.нажатиеМс}ms cubic-bezier(0.5, 0, 1, 0.6)`
             : `transform ${СЛОТ.кнопка.отпусканиеМс}ms cubic-bezier(0.1, 0.9, 0.2, 1)`,
-          filter: приглушена ? `saturate(${СЛОТ.кнопка.насыщенностьБезБилетов})` : undefined,
+          transitionProperty: "transform, filter",
+          filter: приглушена && !есть_выкл ? `saturate(${СЛОТ.кнопка.насыщенностьБезБилетов})` : undefined,
           willChange: "transform",
         }}
       >
         <Картинка путь={ПУТЬ + АССЕТЫ.ui.кнопкаКрасная} fallback={<div className="h-full w-full rounded-3xl bg-red-600" />} className="h-full w-full" />
+        {/* Погасшая красная часть: плавно проявляется поверх обычной (через opacity), когда крутить нельзя */}
+        {есть_выкл && (
+          <div className="absolute inset-0" style={{ opacity: приглушена ? 1 : 0, transition: `opacity ${СЛОТ.кнопка.затуханиеМс}ms ease` }}>
+            <Картинка путь={ПУТЬ + АССЕТЫ.ui.кнопкаКраснаяВыкл} fallback={null} className="h-full w-full" />
+          </div>
+        )}
         <div
           className="absolute inset-x-0 flex items-center justify-center gap-1 whitespace-nowrap font-bold text-white"
           style={{ top: 10 * e, height: 110 * e, fontSize: 34 * e, textShadow: "0 1px 2px rgba(120,20,0,0.5)" }}

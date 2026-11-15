@@ -46,7 +46,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   if (!user) return null;
 
   const баланс = заморозка ?? { chips: user.chips, tickets: user.tickets, hearts: user.hearts };
-  const доступно = Math.max(0, Math.min(баланс[валюта], КОЛЕСО.максСтавка[валюта]));
+  const доступно = Math.max(0, баланс[валюта]); // верхнего лимита нет — можно поставить весь баланс
   const границаСтавки = Math.max(КОЛЕСО.минСтавка, доступно);
   const ставка = Math.max(КОЛЕСО.минСтавка, Math.min(ставкаВвод, границаСтавки)); // ставка не больше доступного
   const ставкаОК = доступно >= КОЛЕСО.минСтавка && ставка >= КОЛЕСО.минСтавка && ставка <= доступно;
@@ -58,7 +58,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   const выбратьВалюту = (в: ВалютаКолеса) => {
     if (идёт) return;
     setВалюта(в);
-    const макс = Math.max(КОЛЕСО.минСтавка, Math.min(баланс[в], КОЛЕСО.максСтавка[в]));
+    const макс = Math.max(КОЛЕСО.минСтавка, баланс[в]);
     setСтавка((с) => Math.max(КОЛЕСО.минСтавка, Math.min(макс, с)));
     setРезультат(null);
   };
@@ -105,7 +105,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   const размерКолеса = "min(76vw, 40vh, 340px)";
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-black/90">
+    <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-y-auto bg-black/90">
       {/* Свечение за колесом и искры для сердечек */}
       <div
         className="pointer-events-none absolute inset-0 transition-opacity duration-500"
@@ -118,7 +118,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
         onClick={onЗакрыть}
         disabled={идёт}
         aria-label={Т.общее.закрыть}
-        className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-lg text-white disabled:opacity-30"
+        className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-lg text-white disabled:opacity-30"
       >
         {Т.общее.крестик}
       </button>
@@ -198,7 +198,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
             </button>
           ))}
         </div>
-        <p className="mt-1 text-[11px] text-white/50">{ТК.валюты[валюта]} · {ТК.максимум(КОЛЕСО.максСтавка[валюта])}</p>
+        <p className="mt-1 text-[11px] text-white/50">{ТК.валюты[валюта]}</p>
 
         {/* Ставка: −10 −1 [поле] +1 +10 */}
         <div className="mt-3 flex w-full items-center justify-center gap-1.5">

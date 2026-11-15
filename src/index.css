@@ -92,3 +92,13 @@ body {
   100% { transform: translate3d(var(--dx, 0px), -105vh, 0) scale(1.1); opacity: 0; }
 }
 .spark { position: absolute; bottom: -12px; border-radius: 9999px; animation-name: spark-rise; animation-timing-function: ease-out; animation-iteration-count: infinite; }
+
+/* Всплывающая награда после выигрыша: вспышка → парит вверх → плавно гаснет и уменьшается */
+@keyframes reward-pop {
+  0%   { opacity: 0; transform: translateY(0) scale(0.4); filter: brightness(2.6) drop-shadow(0 0 18px rgba(255,220,120,0.95)); }
+  15%  { opacity: 1; transform: translateY(-8px) scale(1.25); filter: brightness(2) drop-shadow(0 0 22px rgba(255,220,120,1)); }
+  30%  { opacity: 1; transform: translateY(-22px) scale(1); filter: brightness(1) drop-shadow(0 0 8px rgba(255,200,80,0.6)); }
+  65%  { opacity: 1; transform: translateY(-55px) scale(1); filter: brightness(1); }
+  100% { opacity: 0; transform: translateY(-100px) scale(0.35); filter: brightness(1); }
+}
+.reward-pop { animation: reward-pop 1.6s ease-out forwards; }

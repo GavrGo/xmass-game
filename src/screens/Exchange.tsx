@@ -8,6 +8,7 @@ import AvatarSpinModal from "../components/AvatarSpinModal";
 import { Иконка, Картинка } from "../components/Иконка";
 import { звук } from "../lib/sound";
 import { Т } from "../texts";
+import Эм from "../components/Эм";
 
 export default function Exchange() {
   const { user, change, telegramId } = useUser();
@@ -162,7 +163,7 @@ export default function Exchange() {
         </div>
 
         <div className="mt-3 space-y-0.5 text-center text-xs text-muted">
-          <div>{ТО.курс(ОБМЕН.фишекЗаБилет)}</div>
+          <div><Эм>{ТО.курс(ОБМЕН.фишекЗаБилет)}</Эм></div>
           <div>{ТО.комиссия(комиссия)} · {ТО.спишется}: {спишется}</div>
         </div>
 
@@ -170,7 +171,7 @@ export default function Exchange() {
         {количество > 0 && получите < 1 && хватает && <p className="mt-2 text-center text-sm text-muted">{ТО.слишкомМало}</p>}
 
         <button onClick={подтвердить} disabled={!можно} className="btn btn-blue mt-3 w-full !py-3 text-lg">{ТО.кнопка}</button>
-        {сообщение && <p className="mt-3 text-center text-sm text-brand-yellow">{сообщение}</p>}
+        {сообщение && <p className="mt-3 text-center text-sm text-brand-yellow"><Эм>{сообщение}</Эм></p>}
       </div>
 
       {/* ================= МАГАЗИН ================= */}
@@ -179,7 +180,7 @@ export default function Exchange() {
       <div className="card mb-3 p-4">
         <div className="flex justify-between font-bold">
           <span>{ТО.магазин.ник.заголовок}</span>
-          <span className="text-brand-yellow">{Т.общее.фишки(цНик)}</span>
+          <span className="text-brand-yellow"><Эм>{Т.общее.фишки(цНик)}</Эм></span>
         </div>
         <p className="mb-2 text-sm text-muted">{ТО.магазин.ник.сейчас(user.nickname)}</p>
         <input
@@ -189,14 +190,14 @@ export default function Exchange() {
           placeholder={ТО.магазин.ник.подсказка}
           className="w-full rounded-xl bg-surface2 px-4 py-2.5 text-white outline-none placeholder:text-muted focus:ring-2 focus:ring-brand-blue"
         />
-        <button onClick={сменитьНик} disabled={занят || !ник_ок || user.chips < цНик} className="btn btn-blue mt-2 w-full">{ТО.магазин.ник.кнопка(цНик)}</button>
+        <button onClick={сменитьНик} disabled={занят || !ник_ок || user.chips < цНик} className="btn btn-blue mt-2 w-full"><Эм>{ТО.магазин.ник.кнопка(цНик)}</Эм></button>
         {user.chips < цНик && <p className="mt-1 text-xs text-red-400">{ТО.магазин.нехватаетФишек}</p>}
       </div>
 
       <div className="card p-4">
         <div className="flex justify-between font-bold">
           <span>{ТО.магазин.крутки.заголовок(user.emoji, колКруток)}</span>
-          <span className="text-brand-yellow">{Т.общее.фишки(цКрутки)}</span>
+          <span className="text-brand-yellow"><Эм>{Т.общее.фишки(цКрутки)}</Эм></span>
         </div>
         <p className="mb-2 text-sm text-muted">
           {ТО.магазин.крутки.описание}
@@ -205,7 +206,7 @@ export default function Exchange() {
         {крутки > 0 && (
           <button onClick={() => setОкноАватара(true)} className="btn btn-yellow mb-2 w-full">{ТО.магазин.крутки.крутить(крутки)}</button>
         )}
-        <button onClick={купитьКрутки} disabled={занят || user.chips < цКрутки} className="btn btn-blue w-full">{ТО.магазин.крутки.купить(колКруток, цКрутки)}</button>
+        <button onClick={купитьКрутки} disabled={занят || user.chips < цКрутки} className="btn btn-blue w-full"><Эм>{ТО.магазин.крутки.купить(колКруток, цКрутки)}</Эм></button>
         {user.chips < цКрутки && <p className="mt-1 text-xs text-red-400">{ТО.магазин.нехватаетФишек}</p>}
       </div>
 

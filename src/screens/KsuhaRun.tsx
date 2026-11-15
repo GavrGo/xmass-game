@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
+import Эм from "../components/Эм";
 import Модалка from "../components/Модалка";
 import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
 import { звук } from "../lib/sound";
@@ -254,7 +255,7 @@ export default function KsuhaRun() {
 
           <button onClick={старт} className="btn btn-yellow mt-5 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>
 
-          <p className="mt-4 text-center text-xs text-white/60">{ТК.условия(КСЮХА_РАН.препятствийЗаФишку, бонусПроц, лимит)}</p>
+          <p className="mt-4 text-center text-xs text-white/60"><Эм>{ТК.условия(КСЮХА_РАН.препятствийЗаФишку, бонусПроц, лимит)}</Эм></p>
           <p className="mt-1 text-xs text-brand-yellow">{ТК.вашРекорд(user.best_ksuha_run ?? 0)}</p>
         </div>
       )}

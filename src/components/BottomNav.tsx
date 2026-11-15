@@ -13,7 +13,7 @@ const ПУНКТЫ: { to: string; иконка: keyof typeof АССЕТЫ.ико
 
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-2 left-3 right-3 z-10 mb-[env(safe-area-inset-bottom)] flex rounded-3xl border border-white/10 bg-[#18191E]/95 p-1.5 backdrop-blur">
+    <nav className="fixed bottom-2 left-3 right-3 z-50 mb-[env(safe-area-inset-bottom)] flex rounded-3xl border border-white/10 bg-[#18191E]/95 p-1.5 backdrop-blur">
       {ПУНКТЫ.map((п) => (
         <NavLink
           key={п.to}

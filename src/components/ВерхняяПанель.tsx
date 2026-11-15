@@ -13,7 +13,7 @@ export default function ВерхняяПанель({ скрытьЛидербо�
   if (!user) return null;
 
   return (
-    <div className="flex items-center gap-2 px-4 pb-2 pt-3">
+    <div className="flex items-center gap-2 px-4 pb-2 pt-2">
       <div className="pill flex min-w-0 items-center gap-2 px-3 py-1.5">
         <span className="text-xl leading-none">{user.emoji}</span>
         <span className="max-w-[110px] truncate text-sm font-bold">{user.nickname}</span>

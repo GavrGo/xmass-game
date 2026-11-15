@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
+import Эм from "../components/Эм";
 import Модалка from "../components/Модалка";
 import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
 import { звук } from "../lib/sound";
@@ -214,7 +215,7 @@ export default function Babka() {
           <div className="flex w-full max-w-sm flex-col gap-2">
             <button onClick={() => setРежим("zen")} className={`opt p-3 text-left ${режим === "zen" ? "opt-on" : ""}`}>
               <div className="font-bold">{Т.общее.дзен}</div>
-              <div className="text-xs text-white/70">{ТБ.режимДзен(К.дзенМножитель)}</div>
+              <div className="text-xs text-white/70"><Эм>{ТБ.режимДзен(К.дзенМножитель)}</Эм></div>
             </button>
             <button onClick={() => setРежим("timed")} className={`opt p-3 text-left ${режим === "timed" ? "opt-on" : ""}`}>
               <div className="font-bold">{Т.общее.обычный}</div>
@@ -223,7 +224,7 @@ export default function Babka() {
           </div>
 
           <button onClick={старт} className="btn btn-yellow mt-5 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>
-          <p className="mt-3 text-center text-xs text-white/60">{ТБ.награда(число(К.награда.старт * м * К.персонажи[персонаж].множительНаграды))}</p>
+          <p className="mt-3 text-center text-xs text-white/60"><Эм>{ТБ.награда(число(К.награда.старт * м * К.персонажи[персонаж].множительНаграды))}</Эм></p>
           <p className="mt-1 text-xs text-brand-yellow">{ТБ.вашРекорд(user.best_babka_crash ?? 0)}</p>
         </div>
       )}

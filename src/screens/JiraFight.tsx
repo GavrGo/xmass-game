@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
+import Эм from "../components/Эм";
 import Модалка from "../components/Модалка";
 import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
 import { звук } from "../lib/sound";
@@ -272,7 +273,7 @@ export default function JiraFight() {
       {фаза !== "menu" && (
         <div className="mt-2 flex w-full max-w-md justify-between text-sm text-white/80">
           <span>{ТЖ.шапка(уровень, режимТекст)}</span>
-          <span>{ТЖ.заИгру} <b>{фишекСессии}</b> {Т.иконки.фишки}</span>
+          <span>{ТЖ.заИгру} <b>{фишекСессии}</b> <Эм>{Т.иконки.фишки}</Эм></span>
         </div>
       )}
 
@@ -313,7 +314,7 @@ export default function JiraFight() {
 
       {тост && (
         <div className="pointer-events-none fixed inset-x-0 top-20 z-20 text-center">
-          <span className="inline-block rounded-2xl bg-black/75 px-4 py-2 text-base font-bold text-brand-yellow ring-2 ring-brand-yellow">{тост}</span>
+          <span className="inline-block rounded-2xl bg-black/75 px-4 py-2 text-base font-bold text-brand-yellow ring-2 ring-brand-yellow"><Эм>{тост}</Эм></span>
         </div>
       )}
 
@@ -325,7 +326,7 @@ export default function JiraFight() {
           <div className="mt-4 flex w-full max-w-sm flex-col gap-2">
             <button onClick={() => setРежим("zen")} className={`opt p-4 text-left ${режим === "zen" ? "opt-on" : ""}`}>
               <div className="font-bold">{Т.общее.дзен}</div>
-              <div className="text-xs text-white/70">{ТЖ.режимДзен(К.дзенМножитель)}</div>
+              <div className="text-xs text-white/70"><Эм>{ТЖ.режимДзен(К.дзенМножитель)}</Эм></div>
             </button>
             <button onClick={() => setРежим("timed")} className={`opt p-4 text-left ${режим === "timed" ? "opt-on" : ""}`}>
               <div className="font-bold">{Т.общее.наВремя}</div>
@@ -333,7 +334,7 @@ export default function JiraFight() {
             </button>
           </div>
           <p className="mt-3 text-xs text-white/70">
-            {ТЖ.награды(наградаДжира(К.награды.заДоску, режим, user.salary_level), наградаДжира(К.награды.заУровень, режим, user.salary_level))}
+            <Эм>{ТЖ.награды(наградаДжира(К.награды.заДоску, режим, user.salary_level), наградаДжира(К.награды.заУровень, режим, user.salary_level))}</Эм>
           </p>
           <p className="mt-1 text-xs text-white/50">{ТЖ.первыйУровень(доскНаУровне(1))}</p>
           <button onClick={старт} className="btn btn-yellow mt-4 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>

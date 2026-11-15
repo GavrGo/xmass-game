@@ -1,9 +1,11 @@
+import Эм from "./Эм";
+
 // Строка в таблице итогов (слева подпись, справа значение) и разделитель.
 export default function СтрокаИтога({ л, п }: { л: string; п: string }) {
   return (
     <div className="flex justify-between gap-3 py-0.5">
-      <span className="text-white/60">{л}</span>
-      <span className="text-right font-bold">{п}</span>
+      <span className="text-white/60"><Эм>{л}</Эм></span>
+      <span className="text-right font-bold"><Эм>{п}</Эм></span>
     </div>
   );
 }

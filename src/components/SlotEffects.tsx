@@ -1,7 +1,8 @@
 import { useMemo } from "react";
+import { Картинка } from "./Иконка";
 
 // Падающие эмодзи по всему экрану (конфетти): сердечки, монетки, билетики, подарки.
-export function Конфетти({ эмодзи }: { эмодзи: string }) {
+export function Конфетти({ эмодзи, id }: { эмодзи: string; id: string }) {
   const частицы = useMemo(
     () =>
       Array.from({ length: 36 }, () => ({
@@ -22,12 +23,14 @@ export function Конфетти({ эмодзи }: { эмодзи: string }) {
           style={{
             left: `${ч.left}%`,
             fontSize: ч.size,
+            width: ч.size,
+            height: ч.size,
             animationDelay: `${ч.delay}s`,
             animationDuration: `${ч.dur}s`,
             ["--rot" as any]: `${ч.rot}deg`,
           }}
         >
-          {эмодзи}
+          <Картинка путь={`assets/icons/slot-${id}.png`} fallback={<span>{эмодзи}</span>} className="h-full w-full object-contain" />
         </span>
       ))}
     </div>

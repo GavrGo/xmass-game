@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
+import Эм from "../components/Эм";
 import Модалка from "../components/Модалка";
 import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
 import { звук } from "../lib/sound";
@@ -369,7 +370,7 @@ export default function Match3() {
             <div>{ТМ.правила.шесть}</div>
             <div>{ТМ.правила.много(К.ультиматумОтДлины)}</div>
           </div>
-          <p className="mt-3 text-sm text-white/70">{ТМ.этапПервый(цельЭтапа(1), ходовЭтапа(1), К.награда.старт)}</p>
+          <p className="mt-3 text-sm text-white/70"><Эм>{ТМ.этапПервый(цельЭтапа(1), ходовЭтапа(1), К.награда.старт)}</Эм></p>
           <button onClick={старт} disabled={!готово} className="btn btn-yellow mt-4 w-full max-w-sm !py-4 text-xl">
             {готово ? Т.общее.старт : Т.общее.загрузка}
           </button>
@@ -393,7 +394,7 @@ export default function Match3() {
           {!данныеЭтапа.сохранилось && <p className="mb-2 text-xs text-red-300">{ТМ.ошибкаНаграды}</p>}
           {данныеЭтапа.предупреждение && <p className="mb-2 text-xs text-orange-300">{данныеЭтапа.предупреждение}</p>}
           <p className="mb-3 text-xs text-white/60">
-            {ТМ.дальнейший(следующий, цельЭтапа(следующий), ходовЭтапа(следующий), К.награда.старт + К.награда.прирост * (следующий - 1))}
+            <Эм>{ТМ.дальнейший(следующий, цельЭтапа(следующий), ходовЭтапа(следующий), К.награда.старт + К.награда.прирост * (следующий - 1))}</Эм>
           </p>
           <div className="flex gap-2">
             <button onClick={() => начатьЭтап(следующий)} className="btn btn-blue flex-1">{Т.общее.дальше}</button>
