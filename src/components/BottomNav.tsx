@@ -25,8 +25,12 @@ export default function BottomNav() {
             }`
           }
         >
-          <Иконка имя={п.иконка} размер={26} />
-          {п.текст}
+          {({ isActive }) => (
+            <>
+              <Иконка имя={п.иконка} размер={26} className={isActive ? "" : "opacity-60"} />
+              {п.текст}
+            </>
+          )}
         </NavLink>
       ))}
     </nav>

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import SlotReels from "../components/SlotReels";
+import КнопкаСпин from "../components/КнопкаСпин";
+import КолесоФортуны from "../components/КолесоФортуны";
 import { Конфетти, Взрыв } from "../components/SlotEffects";
-import { Иконка } from "../components/Иконка";
-import { СИМВОЛЫ_СЛОТА, СЛОТ, АССЕТЫ } from "../config";
-import { крутитьСлот, случайныйСимвол, текстНаграды } from "../game/slot";
+import { Иконка, Картинка } from "../components/Иконка";
+import { СИМВОЛЫ_СЛОТА, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
+import { крутитьСлот, случайныйСимвол } from "../game/slot";
 import { шансБесплатнойКрутки } from "../game/effects";
 import { естьФайл, useАссеты } from "../lib/assets";
 import { звук } from "../lib/sound";
@@ -15,24 +18,57 @@ type Эффект = { вид: "конфетти"; эмодзи: string } | { в�
 // Блокировка слота хранится в памяти телефона, чтобы не пропадала при перезапуске игры
 const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
 const минСек = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(2, "0")}`;
+const случайныйЭмодзи = () => случайныйСимвол().эмодзи;
+
+// Награда в таблице: «+10 [значок]» для каждой валюты
+function ВыплатаСтрока({ н, м, e }: { н: Награда; м: number; e: number }) {
+  const части: { имя: "фишки" | "билеты" | "хэпэшки"; n: number }[] = [];
+  if (н.фишки) части.push({ имя: "фишки", n: н.фишки * м });
+  if (н.билеты) части.push({ имя: "билеты", n: н.билеты * м });
+  if (н.хэпэшки) части.push({ имя: "хэпэшки", n: н.хэпэшки * м });
+  return (
+    <div className="flex items-center justify-end gap-3">
+      {части.map((ч) => (
+        <span key={ч.имя} className="flex items-center gap-1.5 text-sm font-bold">
+          {Т.общее.плюс(ч.n)} <Иконка имя={ч.имя} размер={Math.max(22, 26 * e)} />
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export default function Home() {
   const { user, change, telegramId } = useUser();
   useАссеты();
 
-  const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйСимвол().эмодзи, случайныйСимвол().эмодзи, случайныйСимвол().эмодзи]);
+  const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйЭмодзи(), случайныйЭмодзи(), случайныйЭмодзи()]);
+  const [соседи, setСоседи] = useState<[string, string][]>(() => [0, 1, 2].map(() => [случайныйЭмодзи(), случайныйЭмодзи()] as [string, string]));
   const [крутятся, setКрутятся] = useState<boolean[]>([false, false, false]);
   const [идёт, setИдёт] = useState(false);
   const [бесплатныеКрутки, setБесплатныеКрутки] = useState(0);
   const [сообщение, setСообщение] = useState("");
   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
   const [эффект, setЭффект] = useState<Эффект>(null);
+  const [колесоОткрыто, setКолесоОткрыто] = useState(false);
   const [заблокированоДо, setЗаблокированоДо] = useState<number>(() => {
     try { return Number(localStorage.getItem(ключБлока(telegramId))) || 0; } catch { return 0; }
   });
   const [сейчас, setСейчас] = useState(Date.now());
   const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]); // выбранный x1/x3/x5/x10
   const занято = useRef(false);
+
+  // Ширина экрана → масштаб автомата (e = сколько пикселей в одной «единице рисунка»)
+  const обёртка = useRef<HTMLDivElement>(null);
+  const [ширина, setШирина] = useState(390);
+  useEffect(() => {
+    const el = обёртка.current;
+    if (!el) return;
+    const f = () => setШирина(el.clientWidth || 390);
+    f();
+    const ro = new ResizeObserver(f);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Тикаем раз в полсекунды, пока слот заблокирован
   useEffect(() => {
@@ -47,6 +83,13 @@ export default function Home() {
 
   if (!user) return null;
 
+  const A = АВТОМАТ;
+  const e = ширина / A.видимаяШирина;
+  const X = (x: number) => (x - A.сдвигСлева) * e;
+  const Y = (y: number) => y * e;
+  const S = (n: number) => n * e;
+  const ПУТЬ = АССЕТЫ.папки.ui;
+
   const осталосьБлок = Math.max(0, Math.ceil((заблокированоДо - сейчас) / 1000));
   const заблокирован = осталосьБлок > 0;
 
@@ -57,10 +100,6 @@ export default function Home() {
   const ставка = СЛОТ.билетовЗаКрутку * множитель; // сколько билетов спишется за обычную крутку
   const хватаетБилетов = user.tickets >= ставка;
   const можноКрутить = !идёт && !заблокирован && (бесплатная || хватаетБилетов);
-
-  // Своя картинка кнопки: public/assets/ui/spin-button.png
-  const картинкаКнопки = АССЕТЫ.папки.ui + АССЕТЫ.ui.кнопкаСпин;
-  const своиКнопка = естьФайл(картинкаКнопки) === true;
 
   const показатьЭффект = (э: Эффект, секунд: number) => {
     setЭффект(э);
@@ -73,7 +112,8 @@ export default function Home() {
       const остановлен = [false, false, false];
       setКрутятся([true, true, true]);
       const таймер = setInterval(() => {
-        setБарабаны(() => итог.map((с, i) => (остановлен[i] ? с : случайныйСимвол().эмодзи)));
+        setБарабаны(() => итог.map((с, i) => (остановлен[i] ? с : случайныйЭмодзи())));
+        setСоседи((п) => п.map((с, i) => (остановлен[i] ? с : ([случайныйЭмодзи(), случайныйЭмодзи()] as [string, string]))));
       }, СЛОТ.анимация.сменаКадраМс);
       итог.forEach((_, i) => {
         setTimeout(() => {
@@ -125,9 +165,9 @@ export default function Home() {
 
       if (итог.бесплатнаяКрутка && !бомба) setБесплатныеКрутки((n) => n + 1);
       setСообщение(итог.описание + (итог.бесплатнаяКрутка && !бомба ? Т.слот.выпалFreeSpin : ""));
-    } catch (e: any) {
+    } catch (er: any) {
       if (бесплатная) setБесплатныеКрутки((n) => n + 1);
-      setСообщение(Т.слот.ошибкаСохранения(e.message));
+      setСообщение(Т.слот.ошибкаСохранения(er.message));
       setКрутятся([false, false, false]);
       звук.sfx("ошибка");
     } finally {
@@ -137,95 +177,172 @@ export default function Home() {
     }
   };
 
-  const подпись = идёт
-    ? Т.слот.крутится
-    : заблокирован
-    ? Т.слот.нельзяКрутить(минСек(осталосьБлок))
-    : бесплатная
-    ? Т.слот.бесплатная(бесплатныеКрутки)
-    : Т.слот.крутить(ставка);
+  // Нажатие на кнопку: анимация идёт всегда, а крутится слот только если хватает билетов
+  const нажатиеКнопки = () => {
+    if (можноКрутить) крутить();
+    else if (!идёт) звук.sfx("ошибка");
+  };
+
+  const подписьКнопки = идёт ? (
+    Т.слот.кнопка.крутится
+  ) : заблокирован ? (
+    Т.слот.кнопка.блок(минСек(осталосьБлок))
+  ) : бесплатная ? (
+    Т.слот.кнопка.бесплатная(бесплатныеКрутки)
+  ) : (
+    <>
+      {Т.слот.кнопка.крутить} • {ставка}
+      <Иконка имя="билеты" размер={S(32)} className="brightness-0 invert" />
+    </>
+  );
+
+  const градиентЕсть = естьФайл(ПУТЬ + АССЕТЫ.ui.градиентНиз) === true;
+  const высотаГрадиента = S(A.видимаяШирина * 926 / 786); // пропорции slot-gradient.png (786×926)
+
+  const панель = (р: { x: number; y: number; w: number; h: number }) => ({
+    position: "absolute" as const, left: X(р.x), top: Y(р.y), width: S(р.w), height: S(р.h), zIndex: 40,
+  });
+  const пилюля = { display: "flex", alignItems: "center", gap: S(10), height: S(A.баланс.фишкиВысота), padding: `0 ${S(18)}px`, borderRadius: 9999, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", fontSize: S(28), fontWeight: 700 } as const;
 
   return (
-    <div className="px-4 pb-6">
+    <div>
       {эффект?.вид === "конфетти" && <Конфетти эмодзи={эффект.эмодзи} />}
       {эффект?.вид === "взрыв" && <Взрыв />}
+      {колесоОткрыто && <КолесоФортуны onЗакрыть={() => setКолесоОткрыто(false)} />}
 
-      {/* Крупный баланс: хэпэшки и фишки */}
-      <div className="mt-1 flex flex-col items-center">
-        <div className="flex items-center gap-2 text-5xl font-extrabold">
-          <Иконка имя="хэпэшки" размер={44} /> {баланс.hearts}
+      {/* ================= АВТОМАТ ================= */}
+      <div ref={обёртка} className="relative mx-auto max-w-[520px] select-none overflow-hidden">
+        {/* Экран автомата (фон) */}
+        <div style={{ position: "absolute", left: X(A.экран.x), top: Y(A.экран.y), width: S(A.экран.w), height: S(A.экран.h), zIndex: 5 }}>
+          <Картинка путь={ПУТЬ + АССЕТЫ.ui.экранАвтомата} fallback={<div className="h-full w-full rounded-2xl bg-black" />} className="h-full w-full" />
         </div>
-        <div className="mt-1 flex items-center gap-2 text-xl font-bold text-brand-yellow">
-          <Иконка имя="фишки" размер={24} /> {баланс.chips}
+
+        {/* Барабаны */}
+        <div style={{ position: "absolute", left: X(A.экран.x), top: Y(A.экран.y), width: S(A.экран.w), height: S(A.экран.h), zIndex: 10, overflow: "hidden" }}>
+          <SlotReels символы={барабаны} соседи={соседи} крутятся={крутятся} e={e} />
         </div>
-      </div>
 
-      {/* Слот (после бомб покрывается сажей) */}
-      <div
-        className="relative mt-4 rounded-3xl"
-        style={заблокирован ? { background: "radial-gradient(circle at center, rgba(0,0,0,0.85) 0%, rgba(40,20,0,0.55) 60%, rgba(0,0,0,0) 100%)" } : undefined}
-      >
-        {заблокирован && <p className="pt-3 text-center text-sm font-bold text-orange-300">{Т.слот.закоптился(минСек(осталосьБлок))}</p>}
-        <div className="p-1">
-          <SlotReels символы={барабаны} крутятся={крутятся} />
+        {/* Корпус автомата */}
+        <Картинка
+          путь={ПУТЬ + АССЕТЫ.ui.автомат}
+          fallback={<div className="absolute inset-x-2 top-2 rounded-[32px] border border-white/10 bg-[#181920]" style={{ height: S(A.высотаСцены), zIndex: 20 }} />}
+          className="pointer-events-none"
+          style={{ position: "absolute", left: X(0), top: 0, width: S(A.ширинаКорпуса), maxWidth: "none", zIndex: 20 }}
+        />
+
+        {/* Блик на стекле */}
+        <div style={{ position: "absolute", left: X(A.экран.x + A.экран.w - 472), top: Y(A.экран.y), width: S(472), height: S(A.экран.h), zIndex: 30, pointerEvents: "none", opacity: 0.75 }}>
+          <Картинка путь={ПУТЬ + АССЕТЫ.ui.бликЭкрана} fallback={null} className="h-full w-full" />
         </div>
-      </div>
 
-      <p className="mt-3 min-h-[2.5rem] text-center text-sm text-brand-yellow">{сообщение}</p>
+        {/* Тёмная нижняя часть: плавный градиент под экраном и сплошной фон ниже */}
+        {градиентЕсть ? (
+          <>
+            <div style={{ position: "absolute", left: 0, right: 0, top: Y(A.низГрадиентаY), height: высотаГрадиента, zIndex: 25, backgroundImage: `url(/${ПУТЬ + АССЕТЫ.ui.градиентНиз})`, backgroundSize: "100% 100%" }} />
+            <div style={{ position: "absolute", left: 0, right: 0, top: Y(A.низГрадиентаY) + высотаГрадиента - 1, bottom: 0, zIndex: 25, background: "#1B1515" }} />
+          </>
+        ) : (
+          <div style={{ position: "absolute", left: 0, right: 0, top: Y(A.низГрадиентаY), bottom: 0, zIndex: 25, background: `linear-gradient(rgba(27,21,21,0), #1B1515 ${S(300)}px)` }} />
+        )}
 
-      {/* Большая кнопка и билеты */}
-      <div className="mt-3 flex flex-col items-center">
-        <button
-          onClick={крутить}
-          disabled={!можноКрутить}
-          className={`btn-spin ${своиКнопка ? "btn-spin-image" : ""}`}
-          style={своиКнопка ? { backgroundImage: `url(/${картинкаКнопки})` } : undefined}
-        >
-          {подпись}
-        </button>
-        <div className="pill mt-6 inline-flex items-center gap-2 px-4 py-1.5 text-sm font-bold">
-          <Иконка имя="билеты" размер={18} /> {баланс.tickets}
-        </div>
-      </div>
-
-      {/* Переключатель множителя ставки */}
-      <div className="mt-4 grid grid-cols-4 gap-2">
-        {СЛОТ.множителиСтавки.map((м) => (
-          <button
-            key={м}
-            onClick={() => setМножитель(м)}
-            disabled={идёт || (бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем)}
-            className={`btn !px-0 !py-2 ${м === эфМножитель ? "btn-yellow" : "btn-ghost"}`}
+        {/* Блокировка после бомб: сажа на экране и таймер */}
+        {заблокирован && (
+          <div
+            className="flex items-center justify-center text-center font-bold text-orange-300"
+            style={{ position: "absolute", left: X(A.экран.x), top: Y(A.экран.y), width: S(A.экран.w), height: S(A.экран.h), zIndex: 35, fontSize: S(34), background: "radial-gradient(circle at center, rgba(0,0,0,0.88) 0%, rgba(40,20,0,0.7) 60%, rgba(0,0,0,0.35) 100%)", borderRadius: S(30) }}
           >
-            x{м}
-          </button>
-        ))}
-      </div>
-      <p className="mt-1 text-center text-xs text-white/40">{Т.слот.ставка(бесплатная ? 0 : ставка, эфМножитель, СЛОТ.блокировкаПослеБомбСекунд)}</p>
+            {Т.слот.закоптился(минСек(осталосьБлок))}
+          </div>
+        )}
 
-      {!идёт && !заблокирован && !бесплатная && !хватаетБилетов && (
-        <p className="mt-2 text-center text-xs text-white/50">{Т.слот.нехватаетБилетов(множитель)}</p>
-      )}
-      <p className="mt-2 text-center text-xs text-white/40">{Т.слот.шансFreeSpin(шансБесплатнойКрутки(user))}</p>
+        {/* Панели «Лидеры» и «Колесо» */}
+        <Link to="/leaderboard" style={панель(A.панели.лидеры)} className="flex flex-col items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm active:brightness-125">
+          <Иконка имя="лидерборд" размер={S(58)} />
+          <span style={{ fontSize: S(24), marginTop: S(4) }} className="font-semibold text-white/90">{Т.главная.лидеры}</span>
+        </Link>
+        <button onClick={() => { звук.sfx("клик"); setКолесоОткрыто(true); }} style={панель(A.панели.колесо)} className="flex flex-col items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm active:brightness-125">
+          <Иконка имя="колесо" размер={S(58)} />
+          <span style={{ fontSize: S(24), marginTop: S(4) }} className="font-semibold text-white/90">{Т.главная.колесо}</span>
+        </button>
 
-      {/* Таблица выплат — строится из config.ts автоматически */}
-      <details className="card mt-4 p-3 text-sm">
-        <summary className="cursor-pointer text-white/70">{Т.слот.таблицаВыплат}</summary>
-        <div className="mt-2 flex flex-col gap-1">
-          {СИМВОЛЫ_СЛОТА.map((с) => (
-            <div key={с.id} className="flex justify-between">
-              <span>{с.эмодзи}{с.эмодзи}{с.эмодзи}</span>
-              <span>{с.бомба ? Т.слот.блокВыплата(СЛОТ.блокировкаПослеБомбСекунд) : текстНаграды(с.за3) || "—"}</span>
-            </div>
-          ))}
-          {СИМВОЛЫ_СЛОТА.filter((с) => текстНаграды(с.за2)).map((с) => (
-            <div key={"2" + с.id} className="flex justify-between text-white/60">
-              <span>{Т.слот.дваСимвола(с.эмодзи)}</span>
-              <span>{текстНаграды(с.за2)}</span>
-            </div>
-          ))}
+        {/* Баланс: хэпэшки крупно, фишки и билеты — «таблетками» */}
+        <div style={{ position: "absolute", left: X(A.баланс.центрX - 220), width: S(440), top: Y(A.баланс.сердцеY), zIndex: 40 }} className="flex flex-col items-center">
+          <div className="flex items-center justify-center" style={{ height: S(A.баланс.сердцеВысота), gap: S(22) }}>
+            <Иконка имя="хэпэшки" размер={S(92)} />
+            <span style={{ fontSize: S(70), lineHeight: 1 }} className="font-bold text-white">{баланс.hearts}</span>
+          </div>
+          <div className="flex items-center" style={{ marginTop: S(A.баланс.фишкиY - A.баланс.сердцеY - A.баланс.сердцеВысота), gap: S(20) }}>
+            <div style={пилюля}><Иконка имя="фишки" размер={S(34)} />{баланс.chips}</div>
+            <div style={пилюля}><Иконка имя="билеты" размер={S(34)} />{баланс.tickets}</div>
+          </div>
         </div>
-      </details>
+
+        {/* Кнопка Spin */}
+        <div style={{ position: "absolute", left: X(A.кнопка.x), top: Y(A.кнопка.y), zIndex: 40 }}>
+          <КнопкаСпин e={e} подпись={подписьКнопки} приглушена={!можноКрутить && !идёт} onНажатие={нажатиеКнопки} />
+        </div>
+
+        {/* Место под экран и кнопку */}
+        <div style={{ height: S(A.высотаСцены) }} />
+
+        {/* ===== Ниже кнопки: награда (множитель), подсказки, таблица ===== */}
+        <div className="relative z-40 px-4 pb-6">
+          <p className="mb-2 text-center text-xs text-white/70">{Т.слот.наградаМножитель}</p>
+          <div className="grid grid-cols-4 gap-2">
+            {СЛОТ.множителиСтавки.map((м) => (
+              <button
+                key={м}
+                onClick={() => setМножитель(м)}
+                disabled={идёт || (бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем)}
+                className={`btn !rounded-xl !px-0 !py-2.5 ${м === эфМножитель ? "!bg-[#F26B3A] text-white" : "!bg-[#26272D] text-white/90"}`}
+              >
+                x{м}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-center text-xs text-white/40">{Т.слот.ставка(бесплатная ? 0 : ставка, эфМножитель, СЛОТ.блокировкаПослеБомбСекунд)}</p>
+
+          <p className="mt-2 min-h-[2.5rem] text-center text-sm text-brand-yellow">{сообщение}</p>
+
+          {!идёт && !заблокирован && !бесплатная && !хватаетБилетов && (
+            <p className="text-center text-xs text-white/50">{Т.слот.нехватаетБилетов(множитель)}</p>
+          )}
+          <p className="mt-1 text-center text-xs text-white/40">{Т.слот.шансFreeSpin(шансБесплатнойКрутки(user))}</p>
+
+          {/* Таблица наград — строится из config.ts автоматически, значения умножаются на выбранный множитель */}
+          <details className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-sm">
+            <summary className="cursor-pointer text-xs font-semibold text-white/80">{Т.слот.таблица.заголовок}</summary>
+            <div className="mt-3 flex flex-col gap-2.5">
+              {СИМВОЛЫ_СЛОТА.map((с) => (
+                <div key={с.id} className="flex items-center justify-between gap-2">
+                  <div className="flex gap-1">{[0, 1, 2].map((k) => <Символ key={k} id={с.id} эм={с.эмодзи} />)}</div>
+                  {с.бомба ? (
+                    <span className="flex items-center gap-2 text-sm font-bold">{Т.слот.таблица.бан(СЛОТ.блокировкаПослеБомбСекунд)} <Символ id={с.id} эм={с.эмодзи} /></span>
+                  ) : (
+                    <ВыплатаСтрока н={с.за3} м={эфМножитель} e={e} />
+                  )}
+                </div>
+              ))}
+              <div className="my-1 border-t border-white/10" />
+              {СИМВОЛЫ_СЛОТА.filter((с) => с.за2.фишки || с.за2.билеты || с.за2.хэпэшки).map((с) => (
+                <div key={"2" + с.id} className="flex items-center justify-between gap-2 opacity-70">
+                  <div className="flex gap-1">{[0, 1].map((k) => <Символ key={k} id={с.id} эм={с.эмодзи} />)}</div>
+                  <ВыплатаСтрока н={с.за2} м={эфМножитель} e={e} />
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      </div>
     </div>
+  );
+}
+
+// Маленькая картинка символа для таблицы наград
+function Символ({ id, эм }: { id: string; эм: string }) {
+  return (
+    <span className="inline-flex h-8 w-8 items-center justify-center text-2xl">
+      <Картинка путь={`assets/icons/slot-${id}.png`} fallback={<span>{эм}</span>} className="h-full w-full object-contain" />
+    </span>
   );
 }

@@ -27,7 +27,7 @@ export function Иконка({
   return (
     <Картинка
       путь={АССЕТЫ.папки.иконки + АССЕТЫ.иконки[имя]}
-      fallback={<span className={`inline-block text-center ${className}`} style={{ fontSize: размер * 0.85, lineHeight: 1, width: размер }}>{эмодзи}</span>}
+      fallback={<span className={`inline-block text-center ${className}`} style={{ fontSize: размер * 0.85, lineHeight: 1, width: размер, height: размер }}>{эмодзи}</span>}
       className={`inline-block object-contain ${className}`}
       style={{ width: размер, height: размер }}
     />

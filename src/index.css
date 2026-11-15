@@ -80,3 +80,15 @@ body {
 .btn-spin:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #8E0F20, 0 0 0 7px #D1D3D9, 0 9px 0 7px #9AA0AB, 0 14px 18px rgba(0,0,0,.55); }
 .btn-spin:disabled { background: linear-gradient(#4a4b52, #34353b); color: #8a8b92; box-shadow: 0 4px 0 #26272c, 0 0 0 7px #3b3c42, 0 11px 0 7px #2c2d32, 0 18px 22px rgba(0,0,0,.5); }
 .btn-spin-image { background-color: transparent !important; box-shadow: none !important; background-size: 100% 100%; background-repeat: no-repeat; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.6); min-height: 84px; }
+
+/* ---------- Автомат и колесо ---------- */
+@keyframes reel-shake { 0%, 100% { transform: translateY(-1.5%); } 50% { transform: translateY(1.5%); } }
+.reel-shake { animation: reel-shake 0.09s linear infinite; filter: blur(1.5px); }
+
+/* Фиолетовые искры, поднимающиеся вверх (колесо на сердечки) */
+@keyframes spark-rise {
+  0%   { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0px), -105vh, 0) scale(1.1); opacity: 0; }
+}
+.spark { position: absolute; bottom: -12px; border-radius: 9999px; animation-name: spark-rise; animation-timing-function: ease-out; animation-iteration-count: infinite; }
