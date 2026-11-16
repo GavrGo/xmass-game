@@ -1,6 +1,5 @@
 // Тактильная отдача (вибрация) через Telegram Mini Apps API.
-// На iPhone даёт приятные «тики» как в будильнике, на Android — обычную вибрацию.
-// Если Telegram API недоступен — молча ничего не делает.
+// Уважает настройку «вибрация выкл» из localStorage.
 
 type Стиль = "light" | "medium" | "heavy" | "rigid" | "soft";
 
@@ -8,24 +7,28 @@ function tg(): any {
   try { return (window as any).Telegram?.WebApp; } catch { return null; }
 }
 
-/** Короткий удар (impact). Стили: light / medium / heavy / rigid / soft */
+function вибрацияВключена(): boolean {
+  try { return localStorage.getItem("100hp_haptic_on") !== "0"; } catch { return true; }
+}
+
 export function хаптик(стиль: Стиль = "light") {
+  if (!вибрацияВключена()) return;
   try {
     const h = tg()?.HapticFeedback;
     if (h?.impactOccurred) h.impactOccurred(стиль);
   } catch {}
 }
 
-/** Щелчок выбора (как прокрутка пикера). */
 export function хаптикВыбор() {
+  if (!вибрацияВключена()) return;
   try {
     const h = tg()?.HapticFeedback;
     if (h?.selectionChanged) h.selectionChanged();
   } catch {}
 }
 
-/** Уведомление: success / warning / error */
 export function хаптикУведомление(тип: "success" | "warning" | "error") {
+  if (!вибрацияВключена()) return;
   try {
     const h = tg()?.HapticFeedback;
     if (h?.notificationOccurred) h.notificationOccurred(тип);

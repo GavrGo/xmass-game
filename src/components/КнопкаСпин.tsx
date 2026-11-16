@@ -11,23 +11,31 @@ import { звук } from "../lib/sound";
 //   3) передняя металлическая рамка (стоит на месте, поверх красной — красная «заезжает» под неё).
 // e — масштаб: сколько пикселей экрана в одной единице рисунка.
 export default function КнопкаСпин({
-  e, подпись, приглушена, onНажатие,
-}: { e: number; подпись: ReactNode; приглушена: boolean; onНажатие: () => void }) {
+  e, подпись, приглушена, onНажатие, onДолгоеНажатие,
+}: { e: number; подпись: ReactNode; приглушена: boolean; onНажатие: () => void; onДолгоеНажатие?: () => void }) {
   useАссеты();
   const К = АВТОМАТ.кнопка;
-  const есть_выкл = естьФайл(АССЕТЫ.папки.ui + АССЕТЫ.ui.кнопкаКраснаяВыкл) === true; // есть ли картинка погасшей кнопки
+  const есть_выкл = естьФайл(АССЕТЫ.папки.ui + АССЕТЫ.ui.кнопкаКраснаяВыкл) === true;
   const ПУТЬ = АССЕТЫ.папки.ui;
   const [нажата, setНажата] = useState(false);
   const началоНажатия = useRef(0);
   const таймер = useRef<ReturnType<typeof setTimeout>>();
+  const таймерДолгий = useRef<ReturnType<typeof setTimeout>>();
 
   const вжать = () => {
     clearTimeout(таймер.current);
+    clearTimeout(таймерДолгий.current);
     началоНажатия.current = performance.now();
     setНажата(true);
+    // Долгое нажатие 3 сек → автоспин
+    if (onДолгоеНажатие) {
+      таймерДолгий.current = setTimeout(() => {
+        onДолгоеНажатие();
+      }, 3000);
+    }
   };
-  // Отпускаем не раньше минимального времени «в нажатом состоянии» — иначе при быстром тапе анимации не видно
   const отпустить = () => {
+    clearTimeout(таймерДолгий.current);
     const осталось = Math.max(0, СЛОТ.кнопка.минУдержаниеМс - (performance.now() - началоНажатия.current));
     clearTimeout(таймер.current);
     таймер.current = setTimeout(() => setНажата(false), осталось);

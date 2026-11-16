@@ -55,7 +55,8 @@ export default function Home() {
     try { return Number(localStorage.getItem(ключБлока(telegramId))) || 0; } catch { return 0; }
   });
   const [сейчас, setСейчас] = useState(Date.now());
-  const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]); // выбранный x1/x3/x5/x10
+  const [автоспин, setАвтоспин] = useState(false);
+  const автоспинRef = useRef(false);
   const занято = useRef(false);
   const [плавающие, setПлавающие] = useState<{ id: number; имя: "фишки" | "билеты" | "хэпэшки"; n: number; смещение: number; текст?: string }[]>([]);
   const счётПлавающих = useRef(0);
@@ -205,9 +206,31 @@ export default function Home() {
 
   // Нажатие на кнопку: анимация идёт всегда, а крутится слот только если хватает билетов
   const нажатиеКнопки = () => {
-    хаптик("light"); // лёгкий тап при нажатии
+    хаптик("light");
+    if (автоспинRef.current) {
+      // Повторное нажатие останавливает автоспин
+      автоспинRef.current = false;
+      setАвтоспин(false);
+      return;
+    }
     if (можноКрутить) крутить();
     else if (!идёт) звук.sfx("ошибка");
+  };
+
+  const запуститьАвтоспин = () => {
+    if (!можноКрутить || автоспинRef.current) return;
+    автоспинRef.current = true;
+    setАвтоспин(true);
+    const цикл = async () => {
+      while (автоспинRef.current) {
+        if (!можноКрутить && !бесплатная) break;
+        await крутить();
+        await new Promise((r) => setTimeout(r, 400));
+      }
+      автоспинRef.current = false;
+      setАвтоспин(false);
+    };
+    цикл();
   };
 
   const подписьКнопки = идёт ? (
@@ -333,7 +356,7 @@ export default function Home() {
 
         {/* Кнопка Spin */}
         <div style={{ position: "absolute", left: X(A.кнопка.x), top: Y(A.кнопка.y), zIndex: 40 }}>
-          <КнопкаСпин e={e} подпись={подписьКнопки} приглушена={!можноКрутить && !идёт} onНажатие={нажатиеКнопки} />
+          <КнопкаСпин e={e} подпись={подписьКнопки} приглушена={!можноКрутить && !идёт} onНажатие={нажатиеКнопки} onДолгоеНажатие={запуститьАвтоспин} />
         </div>
 
         {/* Место под экран и кнопку */}

@@ -5,11 +5,14 @@ import { Т } from "../texts";
 import { Иконка } from "./Иконка";
 import { звук } from "../lib/sound";
 
-// Верхняя панель всех основных экранов: игрок слева; звук, админка (для админов) и лидерборд справа.
 export default function ВерхняяПанель({ скрытьЛидерборд = false }: { скрытьЛидерборд?: boolean }) {
   const { user, isAdmin } = useUser();
   const [музыка, setМузыка] = useState(звук.музыкаВкл);
-  useEffect(() => звук.подписаться(() => setМузыка(звук.музыкаВкл)), []);
+  const [вибрация, setВибрация] = useState(звук.вибрацияВкл);
+  useEffect(() => звук.подписаться(() => {
+    setМузыка(звук.музыкаВкл);
+    setВибрация(звук.вибрацияВкл);
+  }), []);
   if (!user) return null;
 
   return (
@@ -19,6 +22,9 @@ export default function ВерхняяПанель({ скрытьЛидербо�
         <span className="max-w-[110px] truncate text-sm font-bold">{user.nickname}</span>
       </div>
       <div className="ml-auto flex items-center gap-2">
+        <button onClick={() => звук.переключитьВибрацию()} aria-label="Вибрация" className="pill flex h-9 w-9 items-center justify-center">
+          <img src="/assets/icons/vibration-on.svg" alt="" className={`h-5 w-5 ${вибрация ? "" : "opacity-35"}`} />
+        </button>
         <button onClick={() => звук.переключитьМузыку()} aria-label={Т.панель.звук} className="pill flex h-9 w-9 items-center justify-center">
           <Иконка имя="звукВкл" размер={18} className={музыка ? "" : "opacity-35"} />
         </button>
