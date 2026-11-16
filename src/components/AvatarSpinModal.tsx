@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { СПИСОК_ЭМОДЗИ, анимироватьЭмодзи } from "../game/emoji";
+import { хаптик, хаптикВыбор } from "../lib/haptic";
 import Модалка from "./Модалка";
 import { Т } from "../texts";
 
@@ -26,7 +27,10 @@ export default function AvatarSpinModal({ текущий, осталось, onК
     setКрутили(true);
     setКрутится(true);
     onКрутка();
-    await анимироватьЭмодзи(setПревью, итогЭмодзи); // эмодзи мелькают, потом останавливаются
+    хаптик("light");
+    const тик = setInterval(() => хаптикВыбор(), 120);
+    await анимироватьЭмодзи(setПревью, итогЭмодзи);
+    clearInterval(тик);
     setКрутится(false);
   };
 

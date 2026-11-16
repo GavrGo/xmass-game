@@ -99,8 +99,6 @@ export default function Onboarding() {
             {эмодзи}
           </div>
 
-          <p className="mt-2 text-xs text-white/50">{Т.онбординг.аватар.счётчик(крутки, ОНБОРДИНГ.максКрутокЭмодзи)}</p>
-
           <button onClick={крутить} disabled={кончились || крутится} className="btn btn-yellow mt-3 w-full">{Т.онбординг.аватар.крутить}</button>
           <button onClick={подтвердить} disabled={!выбрано || крутится || сохраняем} className="btn btn-blue mt-2 w-full">
             {сохраняем ? Т.онбординг.аватар.сохраняем : Т.онбординг.аватар.продолжить}

@@ -7,6 +7,7 @@ import { Иконка } from "./Иконка";
 import { естьФайл, useАссеты } from "../lib/assets";
 import Искры from "./Искры";
 import { звук } from "../lib/sound";
+import { хаптик, хаптикВыбор } from "../lib/haptic";
 import { собратьСектора, выбратьСектор, новыйПоворот, выплата } from "../game/колесо";
 
 const ВАЛЮТЫ: { ключ: ВалютаКолеса; иконка: "фишки" | "билеты" | "хэпэшки" }[] = [
@@ -78,6 +79,11 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     setЗаморозка({ chips: user.chips, tickets: user.tickets, hearts: user.hearts, [валюта]: баланс[валюта] - ставка });
     setПоворот((п) => новыйПоворот(п, с));
     звук.sfx("спин");
+    хаптик("light");
+
+    // Тики во время вращения
+    const тикИнтервал = setInterval(() => хаптикВыбор(), 180);
+    setTimeout(() => clearInterval(тикИнтервал), КОЛЕСО.вращение.секунд * 1000);
 
     try {
       const дельта: Изменение = {};
