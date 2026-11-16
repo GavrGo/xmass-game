@@ -80,7 +80,7 @@ export default function Leaderboard() {
       {/* Таймер до финала */}
       <div className="relative mb-4 overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-900/40 to-black/60 p-4 text-center shadow-[0_0_24px_rgba(255,180,50,0.35)]">
         <div className="pointer-events-none absolute inset-0 opacity-60" style={{ background: "radial-gradient(circle at 50% 0%, rgba(255,200,80,0.4), transparent 70%)" }} />
-        <div className="relative text-xs font-semibold uppercase tracking-wider text-amber-200/80">Победителя узнаем</div>
+        <div className="relative text-xs font-semibold uppercase tracking-wider text-amber-200/80">Победителя узнаем через:</div>
         <div className="relative mt-1 text-2xl font-black text-amber-300">{форматТаймера(осталось)}</div>
         {/* Простые искорки */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 overflow-hidden">

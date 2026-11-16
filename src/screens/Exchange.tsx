@@ -114,13 +114,19 @@ export default function Exchange() {
 
   return (
     <div className="px-4">
-      {/* Персонаж: public/assets/characters/exchange.png */}
-      <div className="mb-2 flex justify-center">
+      {/* Персонаж + процент комиссии */}
+      <div className="relative mb-4 flex justify-center">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[#0F0F11] to-[#2B0A0F]" />
         <Картинка
           путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обмен}
           fallback={<div className="text-8xl leading-none">🧑‍🎄</div>}
-          className="max-h-40 object-contain"
+          className="max-h-48 object-contain"
         />
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
+          <div className="text-[200px] font-black leading-none text-white/90 drop-shadow-lg" style={{ fontSize: "clamp(80px, 22vw, 160px)" }}>
+            {комиссия}%
+          </div>
+        </div>
       </div>
 
       {/* Панель обмена */}
@@ -178,10 +184,7 @@ export default function Exchange() {
       <h3 className="mb-3 mt-6 text-lg font-bold">{ТО.магазин.заголовок}</h3>
 
       <div className="card mb-3 p-4">
-        <div className="flex justify-between font-bold">
-          <span>{ТО.магазин.ник.заголовок}</span>
-          <span className="text-brand-yellow"><Эм>{Т.общее.фишки(цНик)}</Эм></span>
-        </div>
+        <div className="font-bold">{ТО.магазин.ник.заголовок}</div>
         <p className="mb-2 text-sm text-muted">{ТО.магазин.ник.сейчас(user.nickname)}</p>
         <input
           value={новыйНик}
@@ -195,10 +198,7 @@ export default function Exchange() {
       </div>
 
       <div className="card p-4">
-        <div className="flex justify-between font-bold">
-          <span>{ТО.магазин.крутки.заголовок(user.emoji, колКруток)}</span>
-          <span className="text-brand-yellow"><Эм>{Т.общее.фишки(цКрутки)}</Эм></span>
-        </div>
+        <div className="font-bold">{ТО.магазин.крутки.заголовок(user.emoji, колКруток)}</div>
         <p className="mb-2 text-sm text-muted">
           {ТО.магазин.крутки.описание}
           {крутки > 0 && ТО.магазин.крутки.осталось(крутки)}

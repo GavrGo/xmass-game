@@ -480,7 +480,7 @@ export const АССЕТЫ = {
     колесо: "wheel.png",
   },
   фоны: {
-    прелоадер: "preloader.jpg",
+    прелоадер: "preloader.png",
     онбординг: "onboarding.jpg",
     главная: "main.jpg",
     игры: "games.jpg",
@@ -501,7 +501,7 @@ export const АССЕТЫ = {
   },
   персонажи: {
     прелоадер: "preloader.png",
-    обмен: "exchange.png",
+    обмен: "exchange_character.png",
     лидерборд: "leaderboard.png",
   },
   // Остальное подхватывается по соглашению об именах:
