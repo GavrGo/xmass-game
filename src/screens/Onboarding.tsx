@@ -55,7 +55,7 @@ export default function Onboarding() {
 
   const hero = (
     <Картинка
-      путь={АССЕТЫ.папки.ui + АССЕТЫ.ui.приветствие}
+      путь={АССЕТЫ.папки.иконки + АССЕТЫ.иконки.хэпэшки}
       fallback={<span className="text-7xl leading-none drop-shadow-lg">❤️</span>}
       className="h-24 w-24 object-contain drop-shadow-lg"
     />

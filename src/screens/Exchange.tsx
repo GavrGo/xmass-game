@@ -114,19 +114,31 @@ export default function Exchange() {
 
   return (
     <div className="px-4">
-      {/* Персонаж + процент комиссии */}
-      <div className="relative mb-4 flex justify-center">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[#0F0F11] to-[#2B0A0F]" />
+      {/* Персонаж + процент комиссии на фоне */}
+      <div className="relative mb-2 flex h-64 items-center justify-center overflow-hidden">
+        {/* Большой процент с градиентом на тексте, заходит за края */}
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          style={{ fontSize: "clamp(140px, 48vw, 220px)", fontWeight: 900, lineHeight: 0.8 }}
+        >
+          <span
+            className="select-none"
+            style={{
+              background: "linear-gradient(to bottom, #0F0F11 0%, #2B0A0F 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            {комиссия}%
+          </span>
+        </div>
+        {/* Персонаж поверх */}
         <Картинка
           путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обмен}
-          fallback={<div className="text-8xl leading-none">🧑‍🎄</div>}
-          className="max-h-48 object-contain"
+          fallback={<div className="text-8xl">🧑‍🎄</div>}
+          className="relative z-10 max-h-56 object-contain"
         />
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
-          <div className="text-[200px] font-black leading-none text-white/90 drop-shadow-lg" style={{ fontSize: "clamp(80px, 22vw, 160px)" }}>
-            {комиссия}%
-          </div>
-        </div>
       </div>
 
       {/* Панель обмена */}

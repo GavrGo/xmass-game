@@ -489,7 +489,7 @@ export const АССЕТЫ = {
     лидерборд: "leaderboard.jpg",
   },
   ui: {
-    приветствие: "welcome-heart.png",
+    приветствие: "slot-heart.png",
     автомат: "slot-machine.png",
     экранАвтомата: "slot-screen.png",
     бликЭкрана: "slot-glance.png",
