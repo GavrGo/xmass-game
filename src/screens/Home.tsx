@@ -11,6 +11,7 @@ import { крутитьСлот, случайныйСимвол } from "../game/
 import { шансБесплатнойКрутки } from "../game/effects";
 import { естьФайл, useАссеты } from "../lib/assets";
 import { звук } from "../lib/sound";
+import { хаптик, хаптикВыбор } from "../lib/haptic";
 import { Т } from "../texts";
 
 type Эффект = { вид: "конфетти"; эмодзи: string; id: string } | { вид: "взрыв" } | null;
@@ -56,7 +57,7 @@ export default function Home() {
   const [сейчас, setСейчас] = useState(Date.now());
   const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]); // выбранный x1/x3/x5/x10
   const занято = useRef(false);
-  const [плавающие, setПлавающие] = useState<{ id: number; имя: "фишки" | "билеты" | "хэпэшки"; n: number; смещение: number }[]>([]);
+  const [плавающие, setПлавающие] = useState<{ id: number; имя: "фишки" | "билеты" | "хэпэшки"; n: number; смещение: number; текст?: string }[]>([]);
   const счётПлавающих = useRef(0);
 
   // Ширина экрана → масштаб автомата (e = сколько пикселей в одной «единице рисунка»)
@@ -125,12 +126,14 @@ export default function Home() {
       const остановлен = [false, false, false];
       setКрутятся([true, true, true]);
       const таймер = setInterval(() => {
+        хаптикВыбор(); // тик на каждый кадр прокрутки
         setБарабаны(() => итог.map((с, i) => (остановлен[i] ? с : случайныйЭмодзи())));
         setСоседи((п) => п.map((с, i) => (остановлен[i] ? с : ([случайныйЭмодзи(), случайныйЭмодзи()] as [string, string]))));
       }, СЛОТ.анимация.сменаКадраМс);
       итог.forEach((_, i) => {
         setTimeout(() => {
           остановлен[i] = true;
+          хаптик("medium"); // удар при остановке барабана
           setКрутятся((п) => п.map((x, j) => (j === i ? false : x)));
           setБарабаны((п) => п.map((с, j) => (j === i ? итог[i] : с)));
           if (остановлен.every(Boolean)) { clearInterval(таймер); готово(); }
@@ -176,7 +179,13 @@ export default function Home() {
         звук.sfx("бонус"); // ← звук небольшого выигрыша
       }
 
-      if (итог.бесплатнаяКрутка && !бомба) setБесплатныеКрутки((n) => n + 1);
+      if (итог.бесплатнаяКрутка && !бомба) {
+        setБесплатныеКрутки((n) => n + 1);
+        // Показать надпись FREE SPIN
+        const id = ++счётПлавающих.current;
+        setПлавающие((п) => [...п, { id, имя: "билеты" as const, n: 0, смещение: 0, текст: "FREE SPIN" }]);
+        setTimeout(() => setПлавающие((п) => п.filter((х) => х.id !== id)), 1800);
+      }
       показатьНаграду(итог.награда);
     } catch (er: any) {
       if (бесплатная) setБесплатныеКрутки((n) => n + 1);
@@ -192,6 +201,7 @@ export default function Home() {
 
   // Нажатие на кнопку: анимация идёт всегда, а крутится слот только если хватает билетов
   const нажатиеКнопки = () => {
+    хаптик("light"); // лёгкий тап при нажатии
     if (можноКрутить) крутить();
     else if (!идёт) звук.sfx("ошибка");
   };
@@ -305,8 +315,14 @@ export default function Home() {
         {плавающие.map((п) => (
           <div key={п.id} className="pointer-events-none" style={{ position: "absolute", left: X(A.экран.x + A.экран.w / 2) + п.смещение, top: Y(A.экран.y + A.экран.h / 2), zIndex: 45, transform: "translate(-50%, -50%)" }}>
             <div className="reward-pop flex items-center gap-1 whitespace-nowrap font-extrabold text-white" style={{ fontSize: S(66), textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>
-              {Т.общее.плюс(п.n)}
-              <Иконка имя={п.имя} размер={S(78)} />
+              {п.текст ? (
+                <span className="text-brand-yellow drop-shadow-lg">{п.текст}</span>
+              ) : (
+                <>
+                  {Т.общее.плюс(п.n)}
+                  <Иконка имя={п.имя} размер={S(78)} />
+                </>
+              )}
             </div>
           </div>
         ))}

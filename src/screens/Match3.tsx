@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
 import Эм from "../components/Эм";
+import { хаптик } from "../lib/haptic";
 import Модалка from "../components/Модалка";
 import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
 import { звук } from "../lib/sound";
@@ -190,6 +191,7 @@ export default function Match3() {
     if (занято.current || фаза !== "playing" || !соседи(a, b)) return;
     занято.current = true;
     setВыбранная(null);
+    хаптик("light");
     try {
       let п = поменять(полеRef.current, a, b);
       полеRef.current = п; setПоле(п);
@@ -329,8 +331,15 @@ export default function Match3() {
                 style={{
                   width: `${100 / N}%`, height: `${100 / N}%`,
                   transform: `translate(${c * 100}%, ${(новая ? r - N : r) * 100}%)`,
-                  transition: новая ? "none" : `transform ${К.анимацияМс}ms ease-in-out`,
-                  zIndex: выбрана ? 2 : 1,
+                  transition: новая ? "none" : `transform ${К.анимацияМс}ms ease-out`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (фаза !== "playing" || занято.current) return;
+                  if (выбранная === null) setВыбранная(i);
+                  else if (выбранная === i) setВыбранная(null);
+                  else if (соседи(выбранная, i)) сделатьХод(выбранная, i);
+                  else setВыбранная(i);
                 }}
               >
                 <div className={`h-full w-full p-[4%] transition-all duration-200 ${удал ? "scale-0 opacity-0" : ""} ${выбрана ? "scale-110" : ""}`}>
