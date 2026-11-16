@@ -10,19 +10,20 @@ export interface User {
   salary_level: number;
   exchange_level: number;
   time_level: number;
-  best_ksuha_run: number; // личный рекорд Ksuha Run (препятствий)
-  puzzles_solved: number; // всего собрано пазлов в Пятнашках
-  best_match3: number; // рекорд «3 в ряд»: максимум пройденных этапов
-  best_jira_level: number; // рекорд Jira Fight: лучший пройденный уровень
-  best_babka_crash: number; // рекорд Babka Crash: максимум пройденных дорог
+  trash_level: number; // уровень прокачки «Убрать мусор»
+  best_ksuha_run: number;
+  puzzles_solved: number;
+  best_match3: number;
+  best_jira_level: number;
+  best_babka_crash: number;
   created_at: string;
   updated_at: string;
 }
 
-// Соответствие ключа прокачки и колонки в базе
 export const КОЛОНКА_УРОВНЯ = {
   freeSpin: "free_spin_level",
   salary: "salary_level",
   exchange: "exchange_level",
   timeBonus: "time_level",
+  trash: "trash_level",
 } as const;
