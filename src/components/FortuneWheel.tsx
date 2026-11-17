@@ -3,6 +3,7 @@ import { useUser } from "../store/UserContext";
 import type { Изменение } from "../store/UserContext";
 import { КОЛЕСО, ВалютаКолеса } from "../config";
 import { Т } from "../texts";
+import { стат } from "../lib/stats";
 import { Иконка } from "./Icon";
 import { естьФайл, useАссеты } from "../lib/assets";
 import Искры from "./Sparks";
@@ -90,6 +91,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     setЗаморозка({ chips: user.chips, tickets: user.tickets, hearts: user.hearts, [валюта]: баланс[валюта] - ставка });
     setПоворот((п) => новыйПоворот(п, с));
     звук.sfx("спин");
+    стат("wheel_spins");
     хаптик("light");
 
     // Тики по границам секторов: часто в начале, реже к концу

@@ -19,6 +19,8 @@ import { ПРЕЛОАДЕР } from "./config";
 import { Т } from "./texts";
 import { загрузитьСписокФайлов } from "./lib/assets";
 import { звук } from "./lib/sound";
+import { запуститьУчётВремени } from "./lib/stats";
+import { обработатьПросроченные } from "./api/duels";
 
 const Центр = ({ children }: { children: React.ReactNode }) => (
   <div className="flex h-screen items-center justify-center p-6 text-center">{children}</div>
@@ -33,6 +35,13 @@ function Game() {
     const t = setTimeout(() => setЗаставкаПоказана(true), ПРЕЛОАДЕР.минМс);
     return () => clearTimeout(t);
   }, []);
+
+  const игрокЕсть = !!user;
+  useEffect(() => {
+    if (!игрокЕсть) return;
+    запуститьУчётВремени();
+    обработатьПросроченные();
+  }, [игрокЕсть]);
 
   if (loading || !заставкаПоказана) return <Прелоадер />;
   if (error) return <Центр>{Т.общее.ошибка(error)}</Центр>;

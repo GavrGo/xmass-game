@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
 import { хаптик } from "../lib/haptic";
+import { стат } from "../lib/stats";
 import Модалка from "../components/Modal";
 import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
@@ -129,6 +130,7 @@ export default function Match3() {
   };
 
   const старт = () => {
+    стат("plays_match3");
     сессия.current = { пройдено: 0, фишек: 0 };
     setИтог(null);
     начатьЭтап(1);

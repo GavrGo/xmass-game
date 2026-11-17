@@ -5,6 +5,7 @@ import Эм from "../components/Emoji";
 import Модалка from "../components/Modal";
 import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
+import { стат } from "../lib/stats";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ПЯТНАШКИ } from "../config";
@@ -59,6 +60,7 @@ export default function Puzzle() {
 
   /** Кнопка «Старт»: выбираем картинку, перемешиваем, запускаем таймер. */
   const старт = async () => {
+    стат("plays_puzzle");
     setФаза("loading");
     const src = await выбратьКартинку(прошлаяКартинка.current);
     прошлаяКартинка.current = src;

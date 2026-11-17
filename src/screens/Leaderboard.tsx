@@ -7,6 +7,10 @@ import { ЛИДЕРБОРД, АССЕТЫ } from "../config";
 import { Иконка, Картинка } from "../components/Icon";
 import { коротко } from "../lib/format";
 import { Т } from "../texts";
+import DuelModal from "../components/DuelModal";
+import type { РежимДуэли } from "../components/DuelModal";
+import { моиДуэли, обработатьПросроченные } from "../api/duels";
+import type { Дуэль } from "../api/duels";
 
 const метка = (м: number) => (м === 1 ? "🥇" : м === 2 ? "🥈" : м === 3 ? "🥉" : String(м));
 
@@ -33,6 +37,14 @@ export default function Leaderboard() {
   const [загрузка, setЗагрузка] = useState(true);
   const [осталось, setОсталось] = useState(ФИНАЛ - Date.now());
   const таймер = useRef<ReturnType<typeof setTimeout>>();
+  const [дуэли, setДуэли] = useState<Дуэль[]>([]);
+  const [окно, setОкно] = useState<РежимДуэли | null>(null);
+
+  const загрузитьДуэли = async () => {
+    if (!telegramId) return;
+    await обработатьПросроченные();
+    try { setДуэли(await моиДуэли(telegramId)); } catch {}
+  };
 
   useEffect(() => {
     const t = setInterval(() => setОсталось(ФИНАЛ - Date.now()), 1000);
@@ -51,6 +63,11 @@ export default function Leaderboard() {
 
   useEffect(() => {
     загрузить();
+    загрузитьДуэли();
+    const chD = supabase
+      .channel("duels-board")
+      .on("postgres_changes", { event: "*", schema: "public", table: "duels" }, () => загрузитьДуэли())
+      .subscribe();
     const ch = supabase
       .channel("leaderboard")
       .on("postgres_changes", { event: "*", schema: "public", table: "users" }, () => {
@@ -58,7 +75,7 @@ export default function Leaderboard() {
         таймер.current = setTimeout(загрузить, 400);
       })
       .subscribe();
-    return () => { clearTimeout(таймер.current); supabase.removeChannel(ch); };
+    return () => { clearTimeout(таймер.current); supabase.removeChannel(ch); supabase.removeChannel(chD); };
   }, []);
 
   useEffect(() => {
@@ -120,6 +137,30 @@ export default function Leaderboard() {
               <div className="text-2xl">{с.emoji}</div>
               <div className="min-w-0 flex-1 truncate font-bold">{с.nickname}</div>
               <div className="flex items-center gap-1 font-bold"><Иконка имя="хэпэшки" размер={16} />{коротко(с.hearts)}</div>
+              {!я && (() => {
+                const соперник = { id: с.telegram_id, nickname: с.nickname, emoji: с.emoji };
+                const входящая = дуэли.find((д) => д.challenger_id === с.telegram_id && д.target_id === telegramId);
+                const исходящая = дуэли.find((д) => д.target_id === с.telegram_id && д.challenger_id === telegramId);
+                if (входящая) {
+                  return (
+                    <button onClick={() => setОкно({ вид: "reply", дуэль: входящая, соперник })} className="btn-duel-reply relative shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold">
+                      {[0, 1, 2, 3].map((k) => (
+                        <span key={k} className="duel-spark" style={{ left: `${15 + k * 22}%`, ["--sx" as any]: `${(k % 2 ? 1 : -1) * (4 + k * 3)}px`, animationDelay: `${k * 0.27}s` }} />
+                      ))}
+                      {Т.дуэль.ответить}
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    onClick={() => setОкно({ вид: "send", соперник })}
+                    disabled={!!исходящая}
+                    className="btn btn-ghost shrink-0 !rounded-lg !px-2.5 !py-1.5 text-xs"
+                  >
+                    {исходящая ? Т.дуэль.ждём : Т.дуэль.кнопка}
+                  </button>
+                );
+              })()}
             </div>
           );
         })}
@@ -132,6 +173,7 @@ export default function Leaderboard() {
           100% { transform: translateY(-40px); opacity: 0; }
         }
       `}</style>
+      {окно && <DuelModal режим={окно} onClose={() => setОкно(null)} onChange={загрузитьДуэли} />}
     </div>
   );
 }

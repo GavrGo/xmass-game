@@ -5,6 +5,7 @@ import Эм from "../components/Emoji";
 import Модалка from "../components/Modal";
 import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
+import { стат } from "../lib/stats";
 import { useUser } from "../store/UserContext";
 import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
 import { Рекорд } from "../api/users";
@@ -67,6 +68,7 @@ export default function Babka() {
   };
 
   const старт = () => {
+    стат("plays_babka");
     движок.current!.сброс(лимитВремени(режим), персонаж);
     setИтог(null);
     setФаза("playing");

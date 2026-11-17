@@ -5,6 +5,7 @@ import Эм from "../components/Emoji";
 import Модалка from "../components/Modal";
 import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
+import { стат } from "../lib/stats";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ДЖИРА_ФАЙТ as К } from "../config";
@@ -131,6 +132,7 @@ export default function JiraFight() {
   };
 
   const старт = () => {
+    стат("plays_jira");
     сессия.current = { уровней: 0, фишек: 0 };
     setФишекСессии(0);
     предупреждение.current = undefined;

@@ -13,6 +13,7 @@ import { естьФайл, useАссеты } from "../lib/assets";
 import { звук } from "../lib/sound";
 import { хаптик, хаптикВыбор } from "../lib/haptic";
 import { Т } from "../texts";
+import { стат } from "../lib/stats";
 
 type Эффект = { вид: "конфетти"; эмодзи: string; id: string } | { вид: "взрыв" } | null;
 
@@ -156,6 +157,7 @@ export default function Home() {
     setИдёт(true);
     setСообщение("");
     звук.sfx("спин"); // ← звук начала крутки
+    стат("slot_spins");
 
     const цена = бесплатная ? 0 : ставка;
     const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0);

@@ -4,12 +4,28 @@ import { useUser } from "../store/UserContext";
 import { listUsers, updateUser, deleteUser } from "../api/users";
 import type { User } from "../types";
 import { Т } from "../texts";
+import { загрузитьСтатистику } from "../lib/stats";
+import type { СтрокаСтатистики } from "../lib/stats";
 
 // Поля, которые админ может править (названия подписей — в src/texts.ts, раздел админка.поля)
 const ПОЛЯ: (keyof User)[] = [
   "chips", "tickets", "hearts", "free_spin_level", "salary_level", "exchange_level", "time_level", "trash_level",
   "best_ksuha_run", "puzzles_solved", "best_match3", "best_jira_level", "best_babka_crash",
 ];
+
+type КлючСтат = Exclude<keyof СтрокаСтатистики, "telegram_id">;
+const КОЛОНКИ_СТАТ: { k: КлючСтат; t: string }[] = [
+  { k: "seconds_in_game", t: "Время" },
+  { k: "slot_spins", t: "Слот" },
+  { k: "wheel_spins", t: "Колесо" },
+  { k: "plays_ksuha", t: "Ksuha Run" },
+  { k: "plays_match3", t: "3 в ряд" },
+  { k: "plays_puzzle", t: "Пятнашки" },
+  { k: "plays_jira", t: "Jira Fight" },
+  { k: "plays_babka", t: "Babka Crash" },
+  { k: "duels_sent", t: "Дуэли" },
+];
+const времяТекст = (с: number) => `${Math.floor(с / 3600)}ч ${Math.floor((с % 3600) / 60)}м`;
 
 export default function AdminPage() {
   const { isAdmin } = useUser();
@@ -19,12 +35,14 @@ export default function AdminPage() {
   const [ошибка, setОшибка] = useState("");
   const [сообщение, setСообщение] = useState("");
   const [сохраняется, setСохраняется] = useState<number | null>(null);
+  const [статистика, setСтатистика] = useState<СтрокаСтатистики[]>([]);
 
   const загрузить = async () => {
     setЗагрузка(true);
     setОшибка("");
     try {
       setИгроки(await listUsers());
+      setСтатистика(await загрузитьСтатистику().catch(() => []));
     } catch (e: any) {
       setОшибка(Т.админка.ошибкиЗагрузки(e.message ?? ""));
     }
@@ -106,6 +124,42 @@ export default function AdminPage() {
       </p>
       {сообщение && <p className="mb-2 text-sm text-brand-yellow">{сообщение}</p>}
       {ошибка && <p className="mb-2 text-sm text-red-400">{ошибка}</p>}
+
+      <details className="card mb-3 p-3">
+        <summary className="cursor-pointer font-bold">Статистика игроков</summary>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full whitespace-nowrap text-left text-xs">
+            <thead className="text-white/50">
+              <tr>
+                <th className="pr-3 pb-2">Игрок</th>
+                {КОЛОНКИ_СТАТ.map((c) => <th key={c.k} className="px-2 pb-2 text-right">{c.t}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {[...игроки]
+                .map((u) => ({ u, s: статистика.find((x) => x.telegram_id === u.telegram_id) }))
+                .sort((a, b) => (b.s?.seconds_in_game ?? 0) - (a.s?.seconds_in_game ?? 0))
+                .map(({ u, s }) => (
+                  <tr key={u.telegram_id} className="border-t border-white/10">
+                    <td className="py-1.5 pr-3 font-bold">{u.emoji} {u.nickname}</td>
+                    {КОЛОНКИ_СТАТ.map((c) => (
+                      <td key={c.k} className="px-2 text-right">{c.k === "seconds_in_game" ? времяТекст(s?.[c.k] ?? 0) : s?.[c.k] ?? 0}</td>
+                    ))}
+                  </tr>
+                ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-white/30 font-bold text-brand-yellow">
+                <td className="pt-2 pr-3">Всего</td>
+                {КОЛОНКИ_СТАТ.map((c) => {
+                  const сумма = статистика.reduce((a, x) => a + (x[c.k] ?? 0), 0);
+                  return <td key={c.k} className="px-2 pt-2 text-right">{c.k === "seconds_in_game" ? времяТекст(сумма) : сумма}</td>;
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </details>
 
       <div className="flex flex-col gap-3">
         {найденные.map((u) => (

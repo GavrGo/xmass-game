@@ -5,6 +5,7 @@ import Эм from "../components/Emoji";
 import Модалка from "../components/Modal";
 import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
+import { стат } from "../lib/stats";
 import { useUser } from "../store/UserContext";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
@@ -64,6 +65,7 @@ export default function KsuhaRun() {
 
   /** Кнопка «Старт» в меню. */
   const старт = () => {
+    стат("plays_ksuha");
     движок.current!.сброс(лимитВремени(сложность), сложность);
     setИтог(null);
     setФаза("playing");
