@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { АВТОМАТ, АССЕТЫ, СЛОТ } from "../config";
-import { Картинка } from "./Иконка";
+import { Картинка } from "./Icon";
 import { естьФайл, useАссеты } from "../lib/assets";
 import { звук } from "../lib/sound";
 
@@ -31,7 +31,7 @@ export default function КнопкаСпин({
     if (onДолгоеНажатие) {
       таймерДолгий.current = setTimeout(() => {
         onДолгоеНажатие();
-      }, 2000);
+      }, 1000);
     }
   };
   const отпустить = () => {

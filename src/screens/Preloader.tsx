@@ -1,4 +1,4 @@
-import { Картинка } from "../components/Иконка";
+import { Картинка } from "../components/Icon";
 import { АССЕТЫ } from "../config";
 import { Т } from "../texts";
 import { useАссеты } from "../lib/assets";

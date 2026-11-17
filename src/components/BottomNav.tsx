@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { Т } from "../texts";
-import { Иконка } from "./Иконка";
+import { Иконка } from "./Icon";
 import { АССЕТЫ } from "../config";
 
 // Порядок как на макете: Прокачка / Главная / Мини-игры / Обмен

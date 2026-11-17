@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useUser } from "./store/UserContext";
 import Onboarding from "./screens/Onboarding";
-import Прелоадер from "./screens/Прелоадер";
+import Прелоадер from "./screens/Preloader";
 import Layout from "./components/Layout";
 import Home from "./screens/Home";
 import Upgrades from "./screens/Upgrades";

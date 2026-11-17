@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import Эм from "../components/Эм";
+import Эм from "../components/Emoji";
 import { хаптик } from "../lib/haptic";
-import Модалка from "../components/Модалка";
-import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
+import Модалка from "../components/Modal";
+import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { ТРИ_В_РЯД as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
-import РекордыБлок from "../components/РекордыБлок";
+import РекордыБлок from "../components/RecordsBlock";
 import { глобальныйРекорд } from "../game/records";
-import ВспышкиCanvas, { Вспышка } from "../components/ВспышкиCanvas";
+import ВспышкиCanvas, { Вспышка } from "../components/FlashesCanvas";
 import {
   N, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
   очкиЗаШаг, цельЭтапа, ходовЭтапа, наградаЭтапа, ТЕКСТ_ЭФФЕКТА,

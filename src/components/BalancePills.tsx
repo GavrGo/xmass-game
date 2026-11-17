@@ -1,5 +1,5 @@
 import { useUser } from "../store/UserContext";
-import { Иконка } from "./Иконка";
+import { Иконка } from "./Icon";
 import { коротко } from "../lib/format";
 
 // Три «таблетки» с балансами (фишки, билеты, хэпэшки). Обновляются в реальном времени.

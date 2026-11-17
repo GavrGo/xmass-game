@@ -1,4 +1,4 @@
-import { Иконка } from "./Иконка";
+import { Иконка } from "./Icon";
 import type { АССЕТЫ } from "../config";
 
 const ЗНАКИ: Record<string, keyof typeof АССЕТЫ.иконки> = {

@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import BottomNav from "./BottomNav";
-import ВерхняяПанель from "./ВерхняяПанель";
-import БалансыПилюли from "./БалансыПилюли";
+import ВерхняяПанель from "./TopBar";
+import БалансыПилюли from "./BalancePills";
 import { стильФона, useАссеты } from "../lib/assets";
 import { АССЕТЫ } from "../config";
 

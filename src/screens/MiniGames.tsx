@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import { КСЮХА_РАН, ПЯТНАШКИ, ТРИ_В_РЯД, ДЖИРА_ФАЙТ, БАБКА_КРАШ, АССЕТЫ } from "../config";
-import { Картинка } from "../components/Иконка";
+import { Картинка } from "../components/Icon";
 import { Т } from "../texts";
-import Эм from "../components/Эм";
+import Эм from "../components/Emoji";
 
 // Список мини-игр: сетка карточек в 2 колонки (по макету).
 // Обложка: public/assets/ui/game-<id>.png. Нет файла — большой эмодзи.

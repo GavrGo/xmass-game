@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import Эм from "../components/Эм";
-import Модалка from "../components/Модалка";
-import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
+import Эм from "../components/Emoji";
+import Модалка from "../components/Modal";
+import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
 import { useUser } from "../store/UserContext";
 import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
 import { Рекорд } from "../api/users";
-import РекордыБлок from "../components/РекордыБлок";
+import РекордыБлок from "../components/RecordsBlock";
 import { глобальныйРекорд } from "../game/records";
 import { бонусВремениСек } from "../game/effects";
 import { БабкаДвижок, ФазаБабки, РежимБабки, посчитатьНаградуБабки } from "../game/babka";

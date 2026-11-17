@@ -1,4 +1,4 @@
-import Эм from "./Эм";
+import Эм from "./Emoji";
 
 // Строка в таблице итогов (слева подпись, справа значение) и разделитель.
 export default function СтрокаИтога({ л, п }: { л: string; п: string }) {

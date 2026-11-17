@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import Эм from "../components/Эм";
-import Модалка from "../components/Модалка";
-import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
+import Эм from "../components/Emoji";
+import Модалка from "../components/Modal";
+import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
@@ -12,7 +12,7 @@ import { бонусВремениСек } from "../game/effects";
 import { перемешать, сдвинуть, собрана, наградаЗаПазл, ПУСТАЯ, Режим } from "../game/puzzle";
 import { выбратьКартинку } from "../game/puzzleImages";
 import { getPuzzleLeader, ЛидерПазлов } from "../api/users";
-import РекордыБлок from "../components/РекордыБлок";
+import РекордыБлок from "../components/RecordsBlock";
 
 type Фаза = "menu" | "loading" | "playing" | "ending" | "won" | "lost";
 

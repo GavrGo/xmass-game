@@ -4,7 +4,7 @@ import { useUser } from "../store/UserContext";
 import { supabase } from "../lib/supabase";
 import { getLeaderboard, getPlaceByHearts, СтрокаЛидерборда } from "../api/users";
 import { ЛИДЕРБОРД, АССЕТЫ } from "../config";
-import { Иконка, Картинка } from "../components/Иконка";
+import { Иконка, Картинка } from "../components/Icon";
 import { коротко } from "../lib/format";
 import { Т } from "../texts";
 

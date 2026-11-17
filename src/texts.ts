@@ -495,6 +495,7 @@ export const Т = {
       salary_level: "Повышение ЗП (ур.)",
       exchange_level: "Договоримся (ур.)",
       time_level: "Сдвинуть сроки (ур.)",
+      trash_level: "Убрать мусор (ур.)",
       best_ksuha_run: "Рекорд Ksuha Run",
       puzzles_solved: "Собрано пазлов",
       best_match3: "Рекорд 3 в ряд (этап)",

@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import SlotReels from "../components/SlotReels";
-import КнопкаСпин from "../components/КнопкаСпин";
-import КолесоФортуны from "../components/КолесоФортуны";
+import КнопкаСпин from "../components/SpinButton";
+import КолесоФортуны from "../components/FortuneWheel";
 import { Конфетти, Взрыв } from "../components/SlotEffects";
-import { Иконка, Картинка } from "../components/Иконка";
+import { Иконка, Картинка } from "../components/Icon";
 import { СИМВОЛЫ_СЛОТА, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
 import { крутитьСлот, случайныйСимвол } from "../game/slot";
 import { шансБесплатнойКрутки } from "../game/effects";
@@ -19,7 +19,8 @@ type Эффект = { вид: "конфетти"; эмодзи: string; id: stri
 // Блокировка слота хранится в памяти телефона, чтобы не пропадала при перезапуске игры
 const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
 const минСек = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(2, "0")}`;
-const случайныйЭмодзи = () => случайныйСимвол().эмодзи;
+let уровеньМусора = 0;
+const случайныйЭмодзи = () => случайныйСимвол(уровеньМусора).эмодзи;
 
 // Награда в таблице: «+10 [значок]» для каждой валюты
 function ВыплатаСтрока({ н, м, e }: { н: Награда; м: number; e: number }) {
@@ -58,6 +59,8 @@ export default function Home() {
   const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]);
   const [автоспин, setАвтоспин] = useState(false);
   const автоспинRef = useRef(false);
+  const крутитьRef = useRef<() => Promise<void>>();
+  const можноКрутитьRef = useRef(false);
   const занято = useRef(false);
   const [плавающие, setПлавающие] = useState<{ id: number; имя: "фишки" | "билеты" | "хэпэшки"; n: number; смещение: number; текст?: string }[]>([]);
   const счётПлавающих = useRef(0);
@@ -87,6 +90,7 @@ export default function Home() {
   }, [заблокированоДо]);
 
   if (!user) return null;
+  уровеньМусора = user.trash_level ?? 0;
 
   const A = АВТОМАТ;
   const e = ширина / A.видимаяШирина;
@@ -205,6 +209,9 @@ export default function Home() {
     }
   };
 
+  крутитьRef.current = крутить;
+  можноКрутитьRef.current = можноКрутить;
+
   // Нажатие на кнопку: анимация идёт всегда, а крутится слот только если хватает билетов
   const нажатиеКнопки = () => {
     хаптик("light");
@@ -224,9 +231,9 @@ export default function Home() {
     setАвтоспин(true);
     const цикл = async () => {
       while (автоспинRef.current) {
-        if (!можноКрутить && !бесплатная) break;
-        await крутить();
+        await крутитьRef.current?.();
         await new Promise((r) => setTimeout(r, 400));
+        if (!можноКрутитьRef.current) break;
       }
       автоспинRef.current = false;
       setАвтоспин(false);
@@ -344,7 +351,7 @@ export default function Home() {
           <div key={п.id} className="pointer-events-none" style={{ position: "absolute", left: X(A.экран.x + A.экран.w / 2) + п.смещение, top: Y(A.экран.y + A.экран.h / 2), zIndex: 45, transform: "translate(-50%, -50%)" }}>
             <div className="reward-pop flex items-center gap-1 whitespace-nowrap font-extrabold text-white" style={{ fontSize: S(66), textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>
               {п.текст ? (
-                <span className="mt-6 block text-brand-yellow drop-shadow-lg">{п.текст}</span>
+                <span className="block text-brand-yellow drop-shadow-lg" style={{ marginTop: "3.6em" }}>{п.текст}</span>
               ) : (
                 <>
                   {Т.общее.плюс(п.n)}

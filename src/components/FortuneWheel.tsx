@@ -3,12 +3,12 @@ import { useUser } from "../store/UserContext";
 import type { Изменение } from "../store/UserContext";
 import { КОЛЕСО, ВалютаКолеса } from "../config";
 import { Т } from "../texts";
-import { Иконка } from "./Иконка";
+import { Иконка } from "./Icon";
 import { естьФайл, useАссеты } from "../lib/assets";
-import Искры from "./Искры";
+import Искры from "./Sparks";
 import { звук } from "../lib/sound";
-import { хаптик, хаптикВыбор } from "../lib/haptic";
-import { собратьСектора, выбратьСектор, новыйПоворот, выплата } from "../game/колесо";
+import { хаптик } from "../lib/haptic";
+import { собратьСектора, выбратьСектор, новыйПоворот, выплата } from "../game/wheel";
 
 const ВАЛЮТЫ: { ключ: ВалютаКолеса; иконка: "фишки" | "билеты" | "хэпэшки" }[] = [
   { ключ: "chips", иконка: "фишки" },
@@ -27,6 +27,17 @@ const путьСектора = (от: number, до: number, r: number) => {
   const [x1, y1] = точка(от, r), [x2, y2] = точка(до, r);
   return `M100,100 L${x1},${y1} A${r},${r} 0 ${до - от > 180 ? 1 : 0} 1 ${x2},${y2} Z`;
 };
+
+// Время (0..1), когда колесо с easing cubic-bezier(0.12, 0.72, 0.1, 1) проходит долю пути y (0..1)
+function временнаяТочкаПути(y: number): number {
+  const bz = (a: number, b: number, u: number) => 3 * a * u * (1 - u) * (1 - u) + 3 * b * u * u * (1 - u) + u * u * u;
+  let lo = 0, hi = 1;
+  for (let k = 0; k < 24; k++) {
+    const m = (lo + hi) / 2;
+    if (bz(0.72, 1, m) < y) lo = m; else hi = m;
+  }
+  return bz(0.12, 0.1, (lo + hi) / 2);
+}
 
 type Результат = { вид: "выигрыш" | "частично" | "проигрыш"; текст: string };
 
@@ -86,11 +97,12 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     const длительность = КОЛЕСО.вращение.секунд * 1000;
     const оборотов = КОЛЕСО.вращение.оборотов;
     const всегоГраниц = Math.floor(оборотов * всегоСекторов);
+    let последнийТик = -100;
     for (let i = 1; i <= всегоГраниц; i++) {
-      // Замедление: t = 1 - (1 - progress)^2
-      const progress = i / всегоГраниц;
-      const t = длительность * Math.pow(progress, 1.8);
-      setTimeout(() => хаптикВыбор(), t);
+      const t = временнаяТочкаПути(i / всегоГраниц) * длительность;
+      if (t - последнийТик < 38) continue;
+      последнийТик = t;
+      setTimeout(() => хаптик("light"), t);
     }
 
     try {

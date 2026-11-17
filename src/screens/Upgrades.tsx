@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ПРОКАЧКИ, КлючПрокачки, ценаСледующегоУровня, АССЕТЫ } from "../config";
 import { КОЛОНКА_УРОВНЯ } from "../types";
 import { useUser } from "../store/UserContext";
-import { Иконка, Картинка } from "../components/Иконка";
+import { Иконка, Картинка } from "../components/Icon";
 import { шансБесплатнойКрутки, комиссияОбменаПроц, бонусВремениСек } from "../game/effects";
 import { звук } from "../lib/sound";
 import { Т } from "../texts";

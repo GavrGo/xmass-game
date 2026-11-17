@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Картинка } from "./Иконка";
+import { Картинка } from "./Icon";
 
 // Падающие эмодзи по всему экрану (конфетти): сердечки, монетки, билетики, подарки.
 export function Конфетти({ эмодзи, id }: { эмодзи: string; id: string }) {

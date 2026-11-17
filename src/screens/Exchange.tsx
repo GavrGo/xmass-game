@@ -5,10 +5,10 @@ import { комиссияОбменаПроц } from "../game/effects";
 import { посчитатьОбмен, Направление } from "../game/exchange";
 import { прочитатьКрутки, записатьКрутки } from "../game/emoji";
 import AvatarSpinModal from "../components/AvatarSpinModal";
-import { Иконка, Картинка } from "../components/Иконка";
+import { Иконка, Картинка } from "../components/Icon";
 import { звук } from "../lib/sound";
 import { Т } from "../texts";
-import Эм from "../components/Эм";
+import Эм from "../components/Emoji";
 
 export default function Exchange() {
   const { user, change, telegramId } = useUser();

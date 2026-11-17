@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import { Т } from "../texts";
-import { Иконка } from "./Иконка";
+import { Иконка } from "./Icon";
 import { звук } from "../lib/sound";
 
 export default function ВерхняяПанель({ скрытьЛидерборд = false }: { скрытьЛидерборд?: boolean }) {

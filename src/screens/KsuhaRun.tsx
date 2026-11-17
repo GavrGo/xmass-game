@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import Эм from "../components/Эм";
-import Модалка from "../components/Модалка";
-import СтрокаИтога, { Разделитель } from "../components/СтрокаИтога";
+import Эм from "../components/Emoji";
+import Модалка from "../components/Modal";
+import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
 import { useUser } from "../store/UserContext";
 import { getGlobalRecord, Рекорд } from "../api/users";
-import РекордыБлок from "../components/РекордыБлок";
+import РекордыБлок from "../components/RecordsBlock";
 import { КСЮХА_РАН, КлючСложности } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { КсюхаРанДвижок, Фаза, посчитатьНаграду } from "../game/ksuhaRun";

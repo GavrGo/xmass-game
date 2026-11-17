@@ -7,7 +7,7 @@ import { Т } from "../texts";
 
 // Поля, которые админ может править (названия подписей — в src/texts.ts, раздел админка.поля)
 const ПОЛЯ: (keyof User)[] = [
-  "chips", "tickets", "hearts", "free_spin_level", "salary_level", "exchange_level", "time_level",
+  "chips", "tickets", "hearts", "free_spin_level", "salary_level", "exchange_level", "time_level", "trash_level",
   "best_ksuha_run", "puzzles_solved", "best_match3", "best_jira_level", "best_babka_crash",
 ];
 

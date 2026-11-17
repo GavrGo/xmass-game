@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { СПИСОК_ЭМОДЗИ, анимироватьЭмодзи } from "../game/emoji";
 import { хаптик, хаптикВыбор } from "../lib/haptic";
-import Модалка from "./Модалка";
+import Модалка from "./Modal";
 import { Т } from "../texts";
 
 interface Props {

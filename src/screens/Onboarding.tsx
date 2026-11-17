@@ -1,8 +1,9 @@
+import { хаптик, хаптикВыбор } from "../lib/haptic";
 import { useState } from "react";
 import { useUser } from "../store/UserContext";
 import SpeechBubble from "../components/SpeechBubble";
-import Модалка from "../components/Модалка";
-import { Картинка } from "../components/Иконка";
+import Модалка from "../components/Modal";
+import { Картинка } from "../components/Icon";
 import { ОНБОРДИНГ, АССЕТЫ } from "../config";
 import { СПИСОК_ЭМОДЗИ, анимироватьЭмодзи } from "../game/emoji";
 import { стильФона, useАссеты } from "../lib/assets";
@@ -33,7 +34,10 @@ export default function Onboarding() {
     const итогЭмодзи = СПИСОК_ЭМОДЗИ[Math.floor(Math.random() * СПИСОК_ЭМОДЗИ.length)];
     setКрутки(номер);
     setКрутится(true);
-    await анимироватьЭмодзи(setЭмодзи, итогЭмодзи); // эмодзи мелькают, потом останавливаются
+    хаптик("light");
+    const тик = setInterval(() => хаптикВыбор(), 120);
+    await анимироватьЭмодзи(setЭмодзи, итогЭмодзи);
+    clearInterval(тик);
     setКрутится(false);
     setВыбрано(true);
     setПоказаноКруток(номер);
