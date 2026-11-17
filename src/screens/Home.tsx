@@ -55,6 +55,7 @@ export default function Home() {
     try { return Number(localStorage.getItem(ключБлока(telegramId))) || 0; } catch { return 0; }
   });
   const [сейчас, setСейчас] = useState(Date.now());
+  const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]);
   const [автоспин, setАвтоспин] = useState(false);
   const автоспинRef = useRef(false);
   const занято = useRef(false);
