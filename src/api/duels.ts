@@ -27,7 +27,9 @@ export function уведомить(kind: ВидСообщения, to: number, n
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ kind, to, name, amount }),
-  }).catch(() => {});
+  })
+    .then((r) => r.json().then((j) => { if (!j.ok) console.warn("notify:", r.status, j.error); }))
+    .catch((e) => console.warn("notify:", e));
 }
 
 async function вызов(имя: string, args: Record<string, unknown>): Promise<Дуэль> {

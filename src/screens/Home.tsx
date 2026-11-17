@@ -14,6 +14,7 @@ import { звук } from "../lib/sound";
 import { хаптик, хаптикВыбор } from "../lib/haptic";
 import { Т } from "../texts";
 import { стат } from "../lib/stats";
+import { useIncomingDuels } from "../lib/useIncomingDuels";
 
 type Эффект = { вид: "конфетти"; эмодзи: string; id: string } | { вид: "взрыв" } | null;
 
@@ -42,6 +43,7 @@ function ВыплатаСтрока({ н, м, e }: { н: Награда; м: num
 
 export default function Home() {
   const { user, change, telegramId } = useUser();
+  const входящиеДуэли = useIncomingDuels();
   useАссеты();
 
   const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйЭмодзи(), случайныйЭмодзи(), случайныйЭмодзи()]);
@@ -324,6 +326,11 @@ export default function Home() {
             <>
               <div style={{ position: "absolute", left: "50%", top: -S(46), transform: "translateX(-50%)", filter: "drop-shadow(0 0 8px rgba(255, 123, 0, 0.5))" }}>
                 <Иконка имя={п.иконка} размер={S(92)} />
+                {п.ключ === "лидеры" && входящиеДуэли > 0 && (
+                  <span className="duel-badge" style={{ top: S(2), right: S(2), minWidth: S(38), height: S(38), fontSize: S(24) }}>
+                    {входящиеДуэли}
+                  </span>
+                )}
               </div>
               <span style={{ fontSize: S(24), marginBottom: S(16) }} className="font-semibold text-white/90">{п.текст}</span>
             </>

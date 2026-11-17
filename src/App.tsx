@@ -41,6 +41,11 @@ function Game() {
     if (!игрокЕсть) return;
     запуститьУчётВремени();
     обработатьПросроченные();
+    // Без разрешения бот не может писать игроку в личку (уведомления о дуэлях)
+    const w = (window as any).Telegram?.WebApp;
+    if (w?.initDataUnsafe?.user?.allows_write_to_pm === false && typeof w.requestWriteAccess === "function") {
+      try { w.requestWriteAccess(); } catch {}
+    }
   }, [игрокЕсть]);
 
   if (loading || !заставкаПоказана) return <Прелоадер />;
