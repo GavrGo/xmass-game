@@ -343,9 +343,7 @@ export default function Home() {
         {плавающие.map((п) => (
           <div key={п.id} className="pointer-events-none" style={{ position: "absolute", left: X(A.экран.x + A.экран.w / 2) + п.смещение, top: Y(A.экран.y + A.экран.h / 2), zIndex: 45, transform: "translate(-50%, -50%)" }}>
             <div className="reward-pop flex items-center gap-1 whitespace-nowrap font-extrabold text-white" style={{ fontSize: S(66), textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>
-              {
-                <span className="mt-4 block">{п.текст}</span>
-              ) : п.текст === "FREE SPIN" ? (
+              {п.текст ? (
                 <span className="mt-6 block text-brand-yellow drop-shadow-lg">{п.текст}</span>
               ) : (
                 <>
