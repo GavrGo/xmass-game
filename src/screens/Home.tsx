@@ -154,7 +154,7 @@ export default function Home() {
     звук.sfx("спин"); // ← звук начала крутки
 
     const цена = бесплатная ? 0 : ставка;
-    const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель);
+    const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0);
 
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
@@ -343,8 +343,10 @@ export default function Home() {
         {плавающие.map((п) => (
           <div key={п.id} className="pointer-events-none" style={{ position: "absolute", left: X(A.экран.x + A.экран.w / 2) + п.смещение, top: Y(A.экран.y + A.экран.h / 2), zIndex: 45, transform: "translate(-50%, -50%)" }}>
             <div className="reward-pop flex items-center gap-1 whitespace-nowrap font-extrabold text-white" style={{ fontSize: S(66), textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>
-              {п.текст ? (
-                <span className="text-brand-yellow drop-shadow-lg">{п.текст}</span>
+              {
+                <span className="mt-4 block">{п.текст}</span>
+              ) : п.текст === "FREE SPIN" ? (
+                <span className="mt-6 block text-brand-yellow drop-shadow-lg">{п.текст}</span>
               ) : (
                 <>
                   {Т.общее.плюс(п.n)}
@@ -384,7 +386,7 @@ export default function Home() {
           <details className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-sm">
             <summary className="cursor-pointer text-xs font-semibold text-white/80">{Т.слот.таблица.заголовок}</summary>
             <div className="mt-3 flex flex-col gap-2.5">
-              {СИМВОЛЫ_СЛОТА.map((с) => (
+              {СИМВОЛЫ_СЛОТА.filter(с => !с.мусор).map((с) => (
                 <div key={с.id} className="flex items-center justify-between gap-2">
                   <div className="flex gap-1">{[0, 1, 2].map((k) => <Символ key={k} id={с.id} эм={с.эмодзи} />)}</div>
                   {с.бомба ? (
@@ -395,7 +397,7 @@ export default function Home() {
                 </div>
               ))}
               <div className="my-1 border-t border-white/10" />
-              {СИМВОЛЫ_СЛОТА.filter((с) => с.за2.фишки || с.за2.билеты || с.за2.хэпэшки).map((с) => (
+              {СИМВОЛЫ_СЛОТА.filter((с) => !с.мусор && (с.за2.фишки || с.за2.билеты || с.за2.хэпэшки)).map((с) => (
                 <div key={"2" + с.id} className="flex items-center justify-between gap-2 opacity-70">
                   <div className="flex gap-1">{[0, 1].map((k) => <Символ key={k} id={с.id} эм={с.эмодзи} />)}</div>
                   <ВыплатаСтрока н={с.за2} м={эфМножитель} e={e} />

@@ -115,11 +115,11 @@ export default function Exchange() {
   return (
     <div className="px-4">
       {/* Персонаж + процент комиссии на фоне */}
-      <div className="relative mb-2 flex h-64 items-center justify-center overflow-hidden">
-        {/* Большой процент с градиентом на тексте, заходит за края */}
+      <div className="relative mb-2 flex h-72 items-end justify-center overflow-visible">
+        {/* Большой процент с градиентом на тексте, во всю ширину, основание на середине персонажа */}
         <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center"
-          style={{ fontSize: "clamp(140px, 48vw, 220px)", fontWeight: 900, lineHeight: 0.8 }}
+          className="pointer-events-none absolute left-1/2 top-0 w-screen -translate-x-1/2 text-center"
+          style={{ fontSize: "clamp(160px, 55vw, 260px)", fontWeight: 900, lineHeight: 0.75 }}
         >
           <span
             className="select-none"

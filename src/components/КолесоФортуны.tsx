@@ -89,7 +89,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     for (let i = 1; i <= всегоГраниц; i++) {
       // Замедление: t = 1 - (1 - progress)^2
       const progress = i / всегоГраниц;
-      const t = длительность * (1 - Math.pow(1 - progress, 1.6));
+      const t = длительность * Math.pow(progress, 1.8);
       setTimeout(() => хаптикВыбор(), t);
     }
 
@@ -214,10 +214,10 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
         </div>
         <p className="mt-1 text-[11px] text-white/50">{ТК.валюты[валюта]}</p>
 
-        {/* Ставка: −10 −1 [поле] +1 +10 */}
-        <div className="mt-3 flex w-full items-center justify-center gap-1.5">
-          {[[ТК.минус10, -10], [ТК.минус1, -1]].map(([подпись, шаг]) => (
-            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-ghost !rounded-xl !px-0 w-11 !py-3 text-sm">{подпись}</button>
+        {/* Ставка: −100 −10 −1 [поле] +1 +10 +100 */}
+        <div className="mt-3 flex w-full items-center justify-center gap-1">
+          {[["-100", -100], [ТК.минус10, -10], [ТК.минус1, -1]].map(([подпись, шаг]) => (
+            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-ghost !rounded-lg !px-0 w-9 !py-2 text-xs">{подпись}</button>
           ))}
           <div className="flex h-12 w-24 items-center justify-center gap-1 rounded-xl border border-white/15 bg-black/40">
             <input
@@ -231,8 +231,8 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
             />
             <Иконка имя={иконкаВалюты} размер={18} />
           </div>
-          {[[ТК.плюс1, 1], [ТК.плюс10, 10]].map(([подпись, шаг]) => (
-            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-ghost !rounded-xl !px-0 w-11 !py-3 text-sm">{подпись}</button>
+          {[[ТК.плюс1, 1], [ТК.плюс10, 10], ["+100", 100]].map(([подпись, шаг]) => (
+            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-ghost !rounded-lg !px-0 w-9 !py-2 text-xs">{подпись}</button>
           ))}
         </div>
 
