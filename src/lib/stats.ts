@@ -3,7 +3,7 @@ import { getTelegramId } from "./telegram";
 
 export type ПолеСтатистики =
   | "seconds_in_game" | "slot_spins" | "wheel_spins"
-  | "plays_ksuha" | "plays_match3" | "plays_puzzle" | "plays_jira" | "plays_babka";
+  | "plays_ksuha" | "plays_match3" | "plays_puzzle" | "plays_jira" | "plays_babka" | "plays_blackjack";
 
 export function стат(поле: ПолеСтатистики, n = 1) {
   const id = getTelegramId();
@@ -37,6 +37,7 @@ export interface СтрокаСтатистики {
   plays_puzzle: number;
   plays_jira: number;
   plays_babka: number;
+  plays_blackjack: number;
   duels_sent: number;
 }
 

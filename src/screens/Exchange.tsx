@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import { ОБМЕН, МАГАЗИН_ОБМЕННИКА, ОНБОРДИНГ, АССЕТЫ } from "../config";
 import { комиссияОбменаПроц } from "../game/effects";
@@ -9,9 +10,11 @@ import { Иконка, Картинка } from "../components/Icon";
 import { звук } from "../lib/sound";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
+import MerchantStage from "../components/MerchantStage";
 
 export default function Exchange() {
   const { user, change, telegramId } = useUser();
+  const navigate = useNavigate();
   const [направление, setНаправление] = useState<Направление>("chipsToTickets");
   const [ввод, setВвод] = useState("");
   const [сообщение, setСообщение] = useState("");
@@ -114,32 +117,9 @@ export default function Exchange() {
 
   return (
     <div className="px-4">
-      {/* Персонаж + процент комиссии на фоне */}
-      <div className="relative mb-2 flex h-72 items-end justify-center overflow-visible">
-        {/* Большой процент с градиентом на тексте, во всю ширину, основание на середине персонажа */}
-        <div
-          className="pointer-events-none absolute left-1/2 top-0 w-screen -translate-x-1/2 text-center"
-          style={{ fontSize: "clamp(160px, 55vw, 260px)", fontWeight: 900, lineHeight: 0.75 }}
-        >
-          <span
-            className="select-none"
-            style={{
-              background: "linear-gradient(to bottom, #0F0F11 0%, #2B0A0F 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            {комиссия}%
-          </span>
-        </div>
-        {/* Персонаж поверх */}
-        <Картинка
-          путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обмен}
-          fallback={<div className="text-8xl">🧑‍🎄</div>}
-          className="relative z-10 max-h-56 object-contain"
-        />
-      </div>
+      <MerchantStage процент={комиссия} высота={250} диск />
+      <button onClick={() => { звук.sfx("клик"); navigate("/blackjack"); }} className="btn btn-blue mt-3 w-full">{Т.блэкджек.кнопка}</button>
+      <p className="mb-4 mt-2 px-6 text-center text-[11px] leading-snug text-muted">{Т.блэкджек.подпись}</p>
 
       {/* Панель обмена */}
       <div className="card p-4">

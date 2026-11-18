@@ -1,7 +1,7 @@
 // Все запросы к базе про игроков и админов — только здесь.
 // Позже сюда же добавим функции слота, обмена и т.д.
 import { supabase } from "../lib/supabase";
-import { СТАРТ } from "../config";
+import { СТАРТ, ОБМЕН } from "../config";
 import type { User } from "../types";
 
 export async function getUser(telegramId: number): Promise<User | null> {
@@ -21,6 +21,7 @@ export async function createUser(telegramId: number, nickname: string, emoji: st
       chips: СТАРТ.фишки,
       tickets: СТАРТ.билеты,
       hearts: СТАРТ.хэпэшки,
+      exchange_fee: ОБМЕН.базоваяКомиссияПроцентов,
     })
     .select().single();
   if (error) throw error;

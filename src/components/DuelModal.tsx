@@ -90,7 +90,7 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
       await создатьДуэль(telegramId, соперник.id, выбор, ставка);
       уведомить("challenge", соперник.id, user.nickname);
       onChange(); onClose();
-    } catch (e: any) { setОшибка(e.message ?? "Ошибка"); setЗанято(false); }
+    } catch (e: any) { setОшибка(e.message ?? ТД.ошибка); setЗанято(false); }
   };
 
   const отказать = async () => {
@@ -100,7 +100,7 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
       await отказатьсяОтДуэли(режим.дуэль.id, telegramId);
       уведомить("declined", соперник.id, user.nickname);
       onChange(); onClose();
-    } catch (e: any) { setОшибка(e.message ?? "Ошибка"); setЗанято(false); onChange(); }
+    } catch (e: any) { setОшибка(e.message ?? ТД.ошибка); setЗанято(false); onChange(); }
   };
 
   const сыграть = async () => {
@@ -116,7 +116,7 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
       for (const n of [3, 2, 1]) { setЧисло(n); хаптик("heavy"); await пауза(1000); }
       setЭтап("result");
       хаптикУведомление(вид === "won" ? "error" : вид === "lost" ? "success" : "warning");
-    } catch (e: any) { setОшибка(e.message ?? "Ошибка"); setЗанято(false); onChange(); }
+    } catch (e: any) { setОшибка(e.message ?? ТД.ошибка); setЗанято(false); onChange(); }
   };
 
   if (этап === "count") {

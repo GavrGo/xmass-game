@@ -14,6 +14,7 @@ import Puzzle from "./screens/Puzzle";
 import Match3 from "./screens/Match3";
 import JiraFight from "./screens/JiraFight";
 import Babka from "./screens/Babka";
+import Blackjack from "./screens/Blackjack";
 import AdminPage from "./admin/AdminPage";
 import { ПРЕЛОАДЕР } from "./config";
 import { Т } from "./texts";
@@ -61,6 +62,7 @@ function Game() {
       <Route path="/games/match3" element={<Match3 />} />
       <Route path="/games/jira" element={<JiraFight />} />
       <Route path="/games/babka" element={<Babka />} />
+      <Route path="/blackjack" element={<Blackjack />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/upgrades" element={<Upgrades />} />

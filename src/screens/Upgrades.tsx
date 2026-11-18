@@ -3,7 +3,7 @@ import { ПРОКАЧКИ, КлючПрокачки, ценаСледующег�
 import { КОЛОНКА_УРОВНЯ } from "../types";
 import { useUser } from "../store/UserContext";
 import { Иконка, Картинка } from "../components/Icon";
-import { шансБесплатнойКрутки, комиссияОбменаПроц, бонусВремениСек } from "../game/effects";
+import { шансБесплатнойКрутки, бонусВремениСек } from "../game/effects";
 import { звук } from "../lib/sound";
 import { Т } from "../texts";
 
@@ -38,9 +38,8 @@ export default function Upgrades() {
   return (
     <div className="px-4">
       {/* Сводка: что даёт текущая прокачка */}
-      <div className="mb-4 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+      <div className="mb-4 grid grid-cols-2 gap-2 text-center text-xs font-bold">
         <div className="pill px-2 py-2">{ТП.пилюли.freeSpin(шансБесплатнойКрутки(user))}</div>
-        <div className="pill px-2 py-2">{ТП.пилюли.комиссия(комиссияОбменаПроц(user))}</div>
         <div className="pill px-2 py-2">{ТП.пилюли.время(бонусВремениСек(user))}</div>
       </div>
 

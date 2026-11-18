@@ -14,19 +14,19 @@ import type { Дуэль } from "../api/duels";
 
 const метка = (м: number) => (м === 1 ? "🥇" : м === 2 ? "🥈" : м === 3 ? "🥉" : String(м));
 
-// Финал: 30 декабря 2026, 15:00 МСК (UTC+3)
-const ФИНАЛ = new Date("2026-12-30T12:00:00Z").getTime();
+const ФИНАЛ = new Date(ЛИДЕРБОРД.финал).getTime();
 
 function форматТаймера(мс: number): string {
-  if (мс <= 0) return "Финал!";
+  const Е = Т.лидерборд.единицы;
+  if (мс <= 0) return Т.лидерборд.финал;
   const с = Math.floor(мс / 1000);
   const д = Math.floor(с / 86400);
   const ч = Math.floor((с % 86400) / 3600);
   const м = Math.floor((с % 3600) / 60);
   const сек = с % 60;
-  if (д > 0) return `${д}д ${ч}ч ${м}м ${сек}с`;
-  if (ч > 0) return `${ч}ч ${м}м ${сек}с`;
-  return `${м}м ${сек}с`;
+  if (д > 0) return `${д}${Е.дни} ${ч}${Е.часы} ${м}${Е.минуты} ${сек}${Е.секунды}`;
+  if (ч > 0) return `${ч}${Е.часы} ${м}${Е.минуты} ${сек}${Е.секунды}`;
+  return `${м}${Е.минуты} ${сек}${Е.секунды}`;
 }
 
 export default function Leaderboard() {
@@ -97,7 +97,7 @@ export default function Leaderboard() {
       {/* Таймер до финала */}
       <div className="relative mb-4 overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-900/40 to-black/60 p-4 text-center shadow-[0_0_24px_rgba(255,180,50,0.35)]">
         <div className="pointer-events-none absolute inset-0 opacity-60" style={{ background: "radial-gradient(circle at 50% 0%, rgba(255,200,80,0.4), transparent 70%)" }} />
-        <div className="relative text-xs font-semibold uppercase tracking-wider text-amber-200/80">Победителя узнаем через:</div>
+        <div className="relative text-xs font-semibold uppercase tracking-wider text-amber-200/80">{Т.лидерборд.дедлайнПодпись}</div>
         <div className="relative mt-1 text-2xl font-black text-amber-300">{форматТаймера(осталось)}</div>
         {/* Простые искорки */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 overflow-hidden">

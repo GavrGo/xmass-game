@@ -9,10 +9,10 @@ export function шансБесплатнойКрутки(user: Pick<User, "free_
   return Math.min(шанс, СЛОТ.максШансБесплатнойКрутки);
 }
 
-/** Текущая комиссия обмена в % (с учётом прокачки «Договоримся»). */
-export function комиссияОбменаПроц(user: Pick<User, "exchange_level">): number {
-  const к = ОБМЕН.базоваяКомиссияПроцентов - user.exchange_level * ПРОКАЧКИ.exchange.эффектЗаУровень;
-  return Math.max(к, ОБМЕН.минимальнаяКомиссияПроцентов);
+/** Текущая комиссия обмена в % (игрок двигает её в Black Jack с торговцем). */
+export function комиссияОбменаПроц(user: Pick<User, "exchange_fee">): number {
+  const к = user.exchange_fee ?? ОБМЕН.базоваяКомиссияПроцентов;
+  return Math.min(99, Math.max(0, к));
 }
 
 /** Бонус к награде фишками из мини-игр, в %. (Понадобится на этапе мини-игр.) */

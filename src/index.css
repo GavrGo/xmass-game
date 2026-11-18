@@ -125,3 +125,20 @@ body {
 
 @keyframes duel-badge-glow { 0%,100% { box-shadow: 0 0 6px 2px rgba(255,50,40,.8), 0 0 14px 4px rgba(255,90,30,.5); transform: scale(1); } 50% { box-shadow: 0 0 12px 4px rgba(255,60,40,1), 0 0 26px 8px rgba(255,100,30,.7); transform: scale(1.12); } }
 .duel-badge { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 9999px; padding: 0 6px; background: radial-gradient(circle at 35% 30%, #ff6b5a, #e01b2f 70%); border: 2px solid #fff; color: #fff; font-weight: 900; line-height: 1; animation: duel-badge-glow 1.3s ease-in-out infinite; }
+
+/* ---------- Black Jack с торговцем ---------- */
+@keyframes bj-flame { 0%,100% { opacity: .55; transform: scale(1); } 18% { opacity: .9; transform: scale(1.04); } 37% { opacity: .62; } 61% { opacity: 1; transform: scale(1.06); } 83% { opacity: .7; } }
+.bj-flame { animation: bj-flame 3.1s ease-in-out infinite; }
+.bj-flame-b { animation-duration: 4.3s; animation-delay: -1.4s; }
+@keyframes bj-spark { 0% { transform: translate(0,0) scale(1); opacity: 0; } 12% { opacity: .95; } 100% { transform: translate(var(--drift), calc(var(--rise) * -1)) scale(.3); opacity: 0; } }
+.bj-spark { position: absolute; bottom: 6%; border-radius: 50%; background: #ff4a3d; box-shadow: 0 0 6px 1px rgba(255,50,40,.8); animation: bj-spark var(--dur) linear var(--delay) infinite; }
+@keyframes bj-pct { 0% { transform: scale(1.07); filter: brightness(2.4); } 100% { transform: scale(1); filter: brightness(1); } }
+.bj-pct { animation: bj-pct .6s ease-out; }
+@keyframes bj-delta { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 20% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: 0; transform: translateY(-34px) scale(1); } }
+.bj-delta { animation: bj-delta 1.5s ease-out forwards; }
+@keyframes bj-deal { 0% { opacity: 0; transform: translate(var(--fx), var(--fy)) rotate(-14deg) scale(.82); } 20% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.bj-deal { animation: bj-deal .42s cubic-bezier(.2,.8,.25,1) both; }
+@keyframes bj-pop { 0% { opacity: 0; transform: scale(.8); } 100% { opacity: 1; transform: scale(1); } }
+.bj-pop { animation: bj-pop .32s cubic-bezier(.2,.9,.3,1.3) both; }
+@keyframes bj-bubble { 0% { opacity: 0; transform: translateY(8px) scale(.9); } 10% { opacity: 1; transform: none; } 88% { opacity: 1; } 100% { opacity: 0; transform: translateY(-4px); } }
+.bj-bubble { animation: bj-bubble var(--show, 3.4s) ease-out forwards; }

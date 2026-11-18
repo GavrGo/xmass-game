@@ -8,7 +8,7 @@ export interface User {
   hearts: number;
   free_spin_level: number;
   salary_level: number;
-  exchange_level: number;
+  exchange_fee: number; // комиссия обмена в % (меняется в Black Jack с торговцем)
   time_level: number;
   trash_level: number; // уровень прокачки «Убрать мусор»
   best_ksuha_run: number;
@@ -23,7 +23,6 @@ export interface User {
 export const КОЛОНКА_УРОВНЯ = {
   freeSpin: "free_spin_level",
   salary: "salary_level",
-  exchange: "exchange_level",
   timeBonus: "time_level",
   trash: "trash_level",
 } as const;
