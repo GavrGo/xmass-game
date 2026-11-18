@@ -6,8 +6,9 @@ import КнопкаСпин from "../components/SpinButton";
 import КолесоФортуны from "../components/FortuneWheel";
 import { Конфетти, Взрыв } from "../components/SlotEffects";
 import { Иконка, Картинка } from "../components/Icon";
-import { СИМВОЛЫ_СЛОТА, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
+import { СИМВОЛЫ_СЛОТА, СИМВОЛ_WILD, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
 import { крутитьСлот, случайныйСимвол } from "../game/slot";
+import { естьАртефакт } from "../game/artifacts";
 import { шансБесплатнойКрутки } from "../game/effects";
 import { естьФайл, useАссеты } from "../lib/assets";
 import { звук } from "../lib/sound";
@@ -22,7 +23,8 @@ type Эффект = { вид: "конфетти"; эмодзи: string; id: stri
 const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
 const минСек = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(2, "0")}`;
 let уровеньМусора = 0;
-const случайныйЭмодзи = () => случайныйСимвол(уровеньМусора).эмодзи;
+let сWildВСлоте = false;
+const случайныйЭмодзи = () => случайныйСимвол(уровеньМусора, сWildВСлоте).эмодзи;
 
 // Награда в таблице: «+10 [значок]» для каждой валюты
 function ВыплатаСтрока({ н, м, e }: { н: Награда; м: number; e: number }) {
@@ -94,6 +96,7 @@ export default function Home() {
 
   if (!user) return null;
   уровеньМусора = user.trash_level ?? 0;
+  сWildВСлоте = естьАртефакт(user, "wild");
 
   const A = АВТОМАТ;
   const e = ширина / A.видимаяШирина;
@@ -162,7 +165,7 @@ export default function Home() {
     стат("slot_spins");
 
     const цена = бесплатная ? 0 : ставка;
-    const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0);
+    const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте);
 
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
@@ -187,7 +190,7 @@ export default function Home() {
         звук.sfx("взрыв");
         хаптик("heavy"); // мощная вибрация при взрыве
       } else if (итог.тройка) {
-        показатьЭффект({ вид: "конфетти", эмодзи: итог.символы[0].эмодзи, id: итог.символы[0].id }, СЛОТ.эффектыСекунд.конфетти);
+        показатьЭффект({ вид: "конфетти", эмодзи: (итог.символТройки ?? итог.символы[0]).эмодзи, id: (итог.символТройки ?? итог.символы[0]).id }, СЛОТ.эффектыСекунд.конфетти);
         звук.sfx("победа"); // ← звук джекпота
       } else if (итог.награда.chips || итог.награда.tickets || итог.награда.hearts) {
         звук.sfx("бонус"); // ← звук небольшого выигрыша
@@ -326,12 +329,12 @@ export default function Home() {
             <>
               <div style={{ position: "absolute", left: "50%", top: -S(46), transform: "translateX(-50%)", filter: "drop-shadow(0 0 8px rgba(255, 123, 0, 0.5))" }}>
                 <Иконка имя={п.иконка} размер={S(92)} />
-                {п.ключ === "лидеры" && входящиеДуэли > 0 && (
-                  <span className="duel-badge" style={{ top: S(2), right: S(2), minWidth: S(38), height: S(38), fontSize: S(24) }}>
-                    {входящиеДуэли}
-                  </span>
-                )}
               </div>
+              {п.ключ === "лидеры" && входящиеДуэли > 0 && (
+                <span className="duel-badge" style={{ top: -S(42), left: -S(7), minWidth: S(38), height: S(38), fontSize: S(24) }}>
+                  {входящиеДуэли}
+                </span>
+              )}
               <span style={{ fontSize: S(24), marginBottom: S(16) }} className="font-semibold text-white/90">{п.текст}</span>
             </>
           );
@@ -410,6 +413,12 @@ export default function Home() {
                   )}
                 </div>
               ))}
+              {сWildВСлоте && (
+                <div className="flex items-center justify-between gap-2">
+                  <Символ id={СИМВОЛ_WILD.id} эм={СИМВОЛ_WILD.эмодзи} />
+                  <span className="text-right text-xs font-bold text-amber-300">{Т.слот.таблица.wild}</span>
+                </div>
+              )}
               <div className="my-1 border-t border-white/10" />
               {СИМВОЛЫ_СЛОТА.filter((с) => !с.мусор && (с.за2.фишки || с.за2.билеты || с.за2.хэпэшки)).map((с) => (
                 <div key={"2" + с.id} className="flex items-center justify-between gap-2 opacity-70">

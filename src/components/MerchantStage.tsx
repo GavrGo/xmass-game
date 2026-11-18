@@ -8,9 +8,9 @@ import { Картинка } from "./Icon";
  * высота — высота сцены в px; выступ — на сколько px торговец «вылезает» за нижнюю границу (поверх стола).
  */
 export default function MerchantStage({
-  процент, высота, выступ = 0, диск = false, дельта, children,
+  процент, высота, выступ = 0, диск = false, картинка = "обмен", дельта, children,
 }: {
-  процент: number; высота: number; выступ?: number; диск?: boolean;
+  процент: number; высота: number; выступ?: number; диск?: boolean; картинка?: "обмен" | "обменБлэкджек";
   дельта?: { id: number; v: number } | null; children?: ReactNode;
 }) {
   const искры = useMemo(
@@ -48,12 +48,21 @@ export default function MerchantStage({
         ))}
       </div>
 
-      <Картинка
-        путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обмен}
-        fallback={<div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-8xl">🎩</div>}
-        className="pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 select-none object-contain"
-        style={{ bottom: -выступ, height: высота + выступ, maxWidth: "92%", filter: "drop-shadow(0 10px 22px rgba(0,0,0,.55))" }}
-      />
+      {(() => {
+        const стиль = { bottom: -выступ, height: высота + выступ, maxWidth: "92%", filter: "drop-shadow(0 10px 22px rgba(0,0,0,.55))" };
+        const класс = "pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 select-none object-contain";
+        const обычный = (
+          <Картинка
+            путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обмен}
+            fallback={<div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-8xl">🎩</div>}
+            className={класс} style={стиль}
+          />
+        );
+        // Нет картинки «за столом» — показываем обычного торговца
+        return картинка === "обменБлэкджек" ? (
+          <Картинка путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обменБлэкджек} fallback={обычный} className={класс} style={стиль} />
+        ) : обычный;
+      })()}
 
       {дельта && (
         <span key={дельта.id} className="bj-delta pointer-events-none absolute z-20 text-3xl font-black"

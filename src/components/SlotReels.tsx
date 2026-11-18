@@ -1,4 +1,4 @@
-import { АВТОМАТ, СИМВОЛЫ_СЛОТА } from "../config";
+import { АВТОМАТ, СИМВОЛЫ_СЛОТА, СИМВОЛ_WILD } from "../config";
 import { Картинка } from "./Icon";
 
 // Три барабана внутри экрана автомата. Каждый барабан показывает 3 символа: сверху и снизу — тусклые «соседи».
@@ -11,7 +11,7 @@ export default function SlotReels({
   const колонка = экран.w / 3;
 
   const ячейка = (эм: string, центрY: number, тусклый: boolean) => {
-    const id = СИМВОЛЫ_СЛОТА.find((с) => с.эмодзи === эм)?.id;
+    const id = (СИМВОЛЫ_СЛОТА.find((с) => с.эмодзи === эм) ?? (эм === СИМВОЛ_WILD.эмодзи ? СИМВОЛ_WILD : undefined))?.id;
     return (
       <div
         style={{

@@ -240,7 +240,7 @@ export default function Blackjack() {
       <div style={{ height: отступ }} />
 
       <div className="relative z-10">
-        <MerchantStage процент={комиссия} высота={высотаСцены} выступ={выступ} дельта={дельта}>
+        <MerchantStage процент={комиссия} высота={высотаСцены} выступ={выступ} дельта={дельта} картинка="обменБлэкджек">
           <button onClick={() => { звук.sfx("клик"); navigate("/exchange"); }}
             className="absolute right-3.5 top-3 z-30 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white/90 backdrop-blur">
             {ТБ.назад}

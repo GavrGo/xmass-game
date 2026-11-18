@@ -8,6 +8,7 @@ export interface User {
   hearts: number;
   free_spin_level: number;
   salary_level: number;
+  artifacts?: string[]; // купленные артефакты чёрного рынка (ключи из ЧЁРНЫЙ_РЫНОК.артефакты)
   exchange_fee: number; // комиссия обмена в % (меняется в Black Jack с торговцем)
   time_level: number;
   trash_level: number; // уровень прокачки «Убрать мусор»

@@ -1,15 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "../store/UserContext";
 import type { Изменение } from "../store/UserContext";
 import { КОЛЕСО, ВалютаКолеса } from "../config";
 import { Т } from "../texts";
 import { стат } from "../lib/stats";
 import { Иконка } from "./Icon";
-import { естьФайл, useАссеты } from "../lib/assets";
+import { useАссеты } from "../lib/assets";
+import { естьАртефакт } from "../game/artifacts";
+import { Колесо, ЛегендаКолеса } from "./WheelParts";
 import Искры from "./Sparks";
 import { звук } from "../lib/sound";
 import { хаптик } from "../lib/haptic";
-import { собратьСектора, выбратьСектор, новыйПоворот, выплата } from "../game/wheel";
+import { собратьСектора, выбратьСектор, новыйПоворот, выплата, уголДиска, границПройдено } from "../game/wheel";
 
 const ВАЛЮТЫ: { ключ: ВалютаКолеса; иконка: "фишки" | "билеты" | "хэпэшки" }[] = [
   { ключ: "chips", иконка: "фишки" },
@@ -18,16 +20,6 @@ const ВАЛЮТЫ: { ключ: ВалютаКолеса; иконка: "фиш�
 ];
 
 const пауза = (мс: number) => new Promise<void>((r) => setTimeout(r, мс));
-
-// Точка на окружности: угол в градусах по часовой стрелке от верхней точки
-const точка = (угол: number, r: number) => {
-  const a = (угол * Math.PI) / 180;
-  return [100 + r * Math.sin(a), 100 - r * Math.cos(a)] as const;
-};
-const путьСектора = (от: number, до: number, r: number) => {
-  const [x1, y1] = точка(от, r), [x2, y2] = точка(до, r);
-  return `M100,100 L${x1},${y1} A${r},${r} 0 ${до - от > 180 ? 1 : 0} 1 ${x2},${y2} Z`;
-};
 
 // Время (0..1), когда колесо с easing cubic-bezier(0.12, 0.72, 0.1, 1) проходит долю пути y (0..1)
 function временнаяТочкаПути(y: number): number {
@@ -46,7 +38,10 @@ type Результат = { вид: "выигрыш" | "частично" | "п�
 export default function КолесоФортуны({ onЗакрыть }: { onЗакрыть: () => void }) {
   const { user, change } = useUser();
   useАссеты();
-  const свойЧереп = естьФайл("assets/icons/wheel-skull.png") === true; // своя картинка черепа, если положили
+  const указатель = useRef<HTMLDivElement>(null);
+  const дискRef = useRef<HTMLDivElement>(null);
+  const живо = useRef(true);
+  useEffect(() => () => { живо.current = false; }, []);
   const [валюта, setВалюта] = useState<ВалютаКолеса>("chips");
   const [ставкаВвод, setСтавка] = useState<number>(КОЛЕСО.минСтавка);
   const [поворот, setПоворот] = useState(0);
@@ -55,7 +50,8 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
   const [ошибка, setОшибка] = useState("");
 
-  const секторы = useMemo(() => собратьСектора(валюта), [валюта]);
+  const сX100 = естьАртефакт(user, "x100");
+  const секторы = useMemo(() => собратьСектора(валюта, сX100), [валюта, сX100]);
   if (!user) return null;
 
   const баланс = заморозка ?? { chips: user.chips, tickets: user.tickets, hearts: user.hearts };
@@ -89,22 +85,41 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
 
     // Показываем баланс «до результата», пока колесо крутится
     setЗаморозка({ chips: user.chips, tickets: user.tickets, hearts: user.hearts, [валюта]: баланс[валюта] - ставка });
-    setПоворот((п) => новыйПоворот(п, с));
+    const было = поворот;
+    const стало = новыйПоворот(было, с);
+    setПоворот(стало);
     звук.sfx("спин");
     стат("wheel_spins");
     хаптик("light");
 
-    // Тики по границам секторов: часто в начале, реже к концу
-    const всегоСекторов = КОЛЕСО.сектора.length;
-    const длительность = КОЛЕСО.вращение.секунд * 1000;
-    const оборотов = КОЛЕСО.вращение.оборотов;
-    const всегоГраниц = Math.floor(оборотов * всегоСекторов);
-    let последнийТик = -100;
-    for (let i = 1; i <= всегоГраниц; i++) {
-      const t = временнаяТочкаПути(i / всегоГраниц) * длительность;
-      if (t - последнийТик < 38) continue;
-      последнийТик = t;
-      setTimeout(() => хаптик("light"), t);
+    // Щелчки: читаем реальный угол диска каждый кадр; когда граница сектора проходит под указателем —
+    // указатель отклоняется и дрожит телефон
+    const диск = дискRef.current;
+    if (диск) {
+      const старт = performance.now();
+      let A = уголДиска(диск) ?? 0;
+      let последнийТик = -100;
+      const кадр = () => {
+        const угол = уголДиска(диск);
+        if (угол !== null) {
+          const прошлый = ((A % 360) + 360) % 360;
+          let дельта = (угол - прошлый + 360) % 360;
+          if (дельта > 340) дельта = 0; // дрожание округления, колесо назад не вращается
+          const A1 = A + дельта;
+          const t = performance.now() - старт;
+          if (границПройдено(секторы, A, A1) > 0 && t - последнийТик >= 45) {
+            последнийТик = t;
+            хаптик("light");
+            указатель.current?.animate?.(
+              [{ transform: "rotate(0deg)" }, { transform: "rotate(-30deg)", offset: 0.22 }, { transform: "rotate(0deg)" }],
+              { duration: 240, easing: "ease-out" }
+            );
+          }
+          A = A1;
+        }
+        if (живо.current && performance.now() - старт < КОЛЕСО.вращение.секунд * 1000 + 300) requestAnimationFrame(кадр);
+      };
+      requestAnimationFrame(кадр);
     }
 
     try {
@@ -130,7 +145,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     }
   };
 
-  const размерКолеса = "min(76vw, 40vh, 340px)";
+  const размерКолеса = "min(74vw, 36vh, 320px)";
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-y-auto bg-black/90">
@@ -154,52 +169,9 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center px-4 pb-6 pt-12">
         {/* Колесо с указателем */}
         <div className="relative" style={{ width: размерКолеса, height: размерКолеса }}>
-          <div className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/3 drop-shadow-lg">
-            <svg width="34" height="40" viewBox="0 0 34 40"><path d="M17 40 L2 6 Q17 -4 32 6 Z" fill="#FFD000" stroke="#7A5B00" strokeWidth="2" /></svg>
-          </div>
-          <div
-            className="h-full w-full"
-            style={{
-              transform: `rotate(${поворот}deg)`,
-              transition: идёт ? `transform ${КОЛЕСО.вращение.секунд}s cubic-bezier(0.12, 0.72, 0.1, 1)` : "none",
-            }}
-          >
-            <svg viewBox="0 0 200 200" className="h-full w-full drop-shadow-2xl">
-              <circle cx="100" cy="100" r="99" fill="#2A2B32" />
-              {секторы.map((с, i) => {
-                const середина = (с.от + с.до) / 2;
-                const череп = с.множитель === 0;
-                return (
-                  <g key={i}>
-                    <path d={путьСектора(с.от, с.до, 94)} fill={череп ? КОЛЕСО.цветЧерепа : КОЛЕСО.цветаСекторов[String(с.множитель)] ?? "#666"} stroke="#0F0F11" strokeWidth="1.2" />
-                    <g transform={`rotate(${середина} 100 100)`}>
-                      {череп ? (
-                        свойЧереп ? (
-                          <image href="/assets/icons/wheel-skull.png" x="86" y="16" width="28" height="28" />
-                        ) : (
-                          // Нарисованный череп (не зависит от шрифта эмодзи)
-                          <g transform="translate(100 32)">
-                            <path d="M-10,2 C-12,-12 12,-12 10,2 L10,6 C10,8 8,9 6,9 L6,12 L-6,12 L-6,9 C-8,9 -10,8 -10,6 Z" fill="#F4F4F5" />
-                            <circle cx="-4" cy="0" r="2.8" fill="#1B1B22" />
-                            <circle cx="4" cy="0" r="2.8" fill="#1B1B22" />
-                            <path d="M0,3 L-1.5,6 L1.5,6 Z" fill="#1B1B22" />
-                            <path d="M-3,9 V12 M0,9 V12 M3,9 V12" stroke="#1B1B22" strokeWidth="0.8" />
-                          </g>
-                        )
-                      ) : (
-                        <text x="100" y="40" textAnchor="middle" fontSize="15" fontWeight="800" fill="#fff" stroke="rgba(0,0,0,0.35)" strokeWidth="0.6">
-                          {ТК.множитель(с.множитель)}
-                        </text>
-                      )}
-                    </g>
-                  </g>
-                );
-              })}
-              <circle cx="100" cy="100" r="17" fill="#FFD000" stroke="#7A5B00" strokeWidth="3" />
-              <circle cx="100" cy="100" r="6" fill="#7A5B00" />
-            </svg>
-          </div>
+          <Колесо секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
         </div>
+        <ЛегендаКолеса сX100={сX100} />
 
         {/* Результат */}
         <div className="mt-3 h-8 text-center text-lg font-extrabold">

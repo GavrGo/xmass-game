@@ -11,6 +11,7 @@ import { звук } from "../lib/sound";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
 import MerchantStage from "../components/MerchantStage";
+import ЧёрныйРынок from "../components/BlackMarket";
 
 export default function Exchange() {
   const { user, change, telegramId } = useUser();
@@ -203,6 +204,8 @@ export default function Exchange() {
       </div>
 
       {сообщениеМагазина && <p className="mt-3 text-center text-sm text-brand-yellow">{сообщениеМагазина}</p>}
+
+      <ЧёрныйРынок />
 
       {окноАватара && (
         <AvatarSpinModal
