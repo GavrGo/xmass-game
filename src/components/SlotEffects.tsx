@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Картинка } from "./Icon";
+import { путьКартинкиСимвола } from "../config";
 
 // Падающие эмодзи по всему экрану (конфетти): сердечки, монетки, билетики, подарки.
 export function Конфетти({ эмодзи, id }: { эмодзи: string; id: string }) {
@@ -30,7 +31,7 @@ export function Конфетти({ эмодзи, id }: { эмодзи: string; i
             ["--rot" as any]: `${ч.rot}deg`,
           }}
         >
-          <Картинка путь={`assets/icons/slot-${id}.png`} fallback={<span>{эмодзи}</span>} className="h-full w-full object-contain" />
+          <Картинка путь={путьКартинкиСимвола(id)} fallback={<span>{эмодзи}</span>} className="h-full w-full object-contain" />
         </span>
       ))}
     </div>

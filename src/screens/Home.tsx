@@ -6,7 +6,7 @@ import КнопкаСпин from "../components/SpinButton";
 import КолесоФортуны from "../components/FortuneWheel";
 import { Конфетти, Взрыв } from "../components/SlotEffects";
 import { Иконка, Картинка } from "../components/Icon";
-import { СИМВОЛЫ_СЛОТА, СИМВОЛ_WILD, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
+import { СИМВОЛЫ_СЛОТА, СИМВОЛ_WILD, путьКартинкиСимвола, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
 import { крутитьСлот, случайныйСимвол } from "../game/slot";
 import { естьАртефакт } from "../game/artifacts";
 import { шансБесплатнойКрутки } from "../game/effects";
@@ -24,7 +24,7 @@ const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
 const минСек = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(2, "0")}`;
 let уровеньМусора = 0;
 let сWildВСлоте = false;
-const случайныйЭмодзи = () => случайныйСимвол(уровеньМусора, сWildВСлоте).эмодзи;
+const случайныйId = () => случайныйСимвол(уровеньМусора, сWildВСлоте).id;
 
 // Награда в таблице: «+10 [значок]» для каждой валюты
 function ВыплатаСтрока({ н, м, e }: { н: Награда; м: number; e: number }) {
@@ -48,8 +48,8 @@ export default function Home() {
   const входящиеДуэли = useIncomingDuels();
   useАссеты();
 
-  const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйЭмодзи(), случайныйЭмодзи(), случайныйЭмодзи()]);
-  const [соседи, setСоседи] = useState<[string, string][]>(() => [0, 1, 2].map(() => [случайныйЭмодзи(), случайныйЭмодзи()] as [string, string]));
+  const [барабаны, setБарабаны] = useState<string[]>(() => [случайныйId(), случайныйId(), случайныйId()]);
+  const [соседи, setСоседи] = useState<[string, string][]>(() => [0, 1, 2].map(() => [случайныйId(), случайныйId()] as [string, string]));
   const [крутятся, setКрутятся] = useState<boolean[]>([false, false, false]);
   const [идёт, setИдёт] = useState(false);
   const [бесплатныеКрутки, setБесплатныеКрутки] = useState(0);
@@ -142,8 +142,8 @@ export default function Home() {
       setКрутятся([true, true, true]);
       const таймер = setInterval(() => {
         хаптикВыбор(); // тик на каждый кадр прокрутки
-        setБарабаны(() => итог.map((с, i) => (остановлен[i] ? с : случайныйЭмодзи())));
-        setСоседи((п) => п.map((с, i) => (остановлен[i] ? с : ([случайныйЭмодзи(), случайныйЭмодзи()] as [string, string]))));
+        setБарабаны(() => итог.map((с, i) => (остановлен[i] ? с : случайныйId())));
+        setСоседи((п) => п.map((с, i) => (остановлен[i] ? с : ([случайныйId(), случайныйId()] as [string, string]))));
       }, СЛОТ.анимация.сменаКадраМс);
       итог.forEach((_, i) => {
         setTimeout(() => {
@@ -177,7 +177,7 @@ export default function Home() {
           tickets: итог.награда.tickets - цена,
           hearts: итог.награда.hearts,
         }),
-        анимировать(итог.символы.map((с) => с.эмодзи)),
+        анимировать(итог.символы.map((с) => с.id)),
       ]);
 
       // Три одинаковых → эффекты
@@ -438,7 +438,7 @@ export default function Home() {
 function Символ({ id, эм }: { id: string; эм: string }) {
   return (
     <span className="inline-flex h-8 w-8 items-center justify-center text-2xl">
-      <Картинка путь={`assets/icons/slot-${id}.png`} fallback={<span>{эм}</span>} className="h-full w-full object-contain" />
+      <Картинка путь={путьКартинкиСимвола(id)} fallback={<span>{эм}</span>} className="h-full w-full object-contain" />
     </span>
   );
 }

@@ -169,3 +169,7 @@ body {
 .bm-buy { background: linear-gradient(180deg, #9B4DFF 0%, #5B1FC4 100%); color: #fff; box-shadow: 0 4px 14px rgba(120,50,230,.35); }
 @keyframes bm-bought { 0% { box-shadow: 0 0 0 rgba(255,210,80,0); } 40% { box-shadow: 0 0 22px rgba(255,210,80,.8); } 100% { box-shadow: 0 0 8px rgba(255,210,80,.3); } }
 .bm-bought { animation: bm-bought 1.6s ease-out both; }
+
+/* ---------- Плашки о дуэлях ---------- */
+@keyframes duel-toast-in { 0% { opacity: 0; transform: translateY(-28px) scale(.96); } 60% { opacity: 1; transform: translateY(3px) scale(1.01); } 100% { opacity: 1; transform: none; } }
+.duel-toast { animation: duel-toast-in .42s cubic-bezier(.2,.9,.3,1.2) both; }

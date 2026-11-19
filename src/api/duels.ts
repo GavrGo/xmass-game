@@ -15,6 +15,8 @@ export interface Дуэль {
   bet: number;
   challenger_pick: Выбор;
   target_pick: Выбор | null;
+  created_at?: string;
+  finished_at?: string | null;
   status: "pending" | "declined" | "expired" | "finished";
   winner_id: number | null;
   expires_at: string;
@@ -43,6 +45,25 @@ export const создатьДуэль = (я: number, цель: number, выбо�
 export const отказатьсяОтДуэли = (id: string, я: number) => вызов("duel_decline", { p_id: id, p_user: я });
 export const принятьДуэль = (id: string, я: number, выбор: Выбор) =>
   вызов("duel_accept", { p_id: id, p_user: я, p_pick: выбор });
+
+/** Дуэли игрока за последние часы — по ним строятся всплывающие плашки (входящие и итоги). */
+export async function дуэлиДляПлашек(я: number, часовНазад = 72): Promise<Дуэль[]> {
+  const с = new Date(Date.now() - часовНазад * 3600_000).toISOString();
+  const { data, error } = await supabase
+    .from("duels").select("*").gte("created_at", с)
+    .or(`challenger_id.eq.${я},target_id.eq.${я}`)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Дуэль[];
+}
+
+/** Имена игроков по их telegram_id (для плашек и списков). */
+export async function именаИгроков(ids: number[]): Promise<Record<number, string>> {
+  const уник = [...new Set(ids)];
+  if (!уник.length) return {};
+  const { data } = await supabase.from("users").select("telegram_id, nickname").in("telegram_id", уник);
+  return Object.fromEntries((data ?? []).map((u: { telegram_id: number; nickname: string }) => [u.telegram_id, u.nickname]));
+}
 
 export async function моиДуэли(я: number): Promise<Дуэль[]> {
   const { data, error } = await supabase

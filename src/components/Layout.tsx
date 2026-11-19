@@ -1,5 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import BottomNav from "./BottomNav";
+import ДуэльнаяПлашка from "./DuelToast";
+import { useFinalFreeze } from "../lib/useFinalFreeze";
 import ВерхняяПанель from "./TopBar";
 import БалансыПилюли from "./BalancePills";
 import { стильФона, useАссеты } from "../lib/assets";
@@ -13,6 +15,7 @@ const ФОНЫ: Record<string, keyof typeof АССЕТЫ.фоны> = {
 export default function Layout() {
   const { pathname } = useLocation();
   useАссеты();
+  useFinalFreeze();
   const ключФона = ФОНЫ[pathname];
   return (
     <div className={`min-h-screen ${pathname === "/" ? "pb-20" : "pb-28"}`} style={pathname === "/" ? { backgroundColor: "#1B1515" } : ключФона ? стильФона(ключФона) : undefined}>
@@ -22,6 +25,7 @@ export default function Layout() {
       {pathname !== "/" && <БалансыПилюли />}
       <Outlet />
       <BottomNav />
+      <ДуэльнаяПлашка />
     </div>
   );
 }

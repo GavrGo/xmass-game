@@ -118,3 +118,12 @@ export async function getPuzzleLeader(): Promise<ЛидерПазлов | null> 
   if (!data) return null;
   return { telegram_id: data.telegram_id, nickname: data.nickname, count: data.puzzles_solved ?? 0 };
 }
+
+export interface Победитель { telegram_id: number | null; nickname: string; emoji: string; hearts: number }
+
+/** Замороженный победитель лидерборда (migrations/010). До дедлайна или без записи — null. */
+export async function getFinalWinner(финалМс: number): Promise<Победитель | null> {
+  const { data, error } = await supabase.rpc("leaderboard_final", { p_final: new Date(финалМс).toISOString() });
+  if (error) throw error;
+  return data && (data as Победитель).nickname ? (data as Победитель) : null;
+}

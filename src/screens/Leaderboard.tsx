@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import { supabase } from "../lib/supabase";
-import { getLeaderboard, getPlaceByHearts, СтрокаЛидерборда } from "../api/users";
+import { getLeaderboard, getPlaceByHearts, getFinalWinner, СтрокаЛидерборда } from "../api/users";
+import type { Победитель } from "../api/users";
 import { ЛИДЕРБОРД, АССЕТЫ } from "../config";
 import { Иконка, Картинка } from "../components/Icon";
 import { коротко } from "../lib/format";
+import { ФИНАЛ_МС as ФИНАЛ } from "../lib/final";
+import Fireworks from "../components/Fireworks";
 import { Т } from "../texts";
 import DuelModal from "../components/DuelModal";
 import type { РежимДуэли } from "../components/DuelModal";
@@ -14,10 +17,10 @@ import type { Дуэль } from "../api/duels";
 
 const метка = (м: number) => (м === 1 ? "🥇" : м === 2 ? "🥈" : м === 3 ? "🥉" : String(м));
 
-const ФИНАЛ = new Date(ЛИДЕРБОРД.финал).getTime();
 
 function форматТаймера(мс: number): string {
   const Е = Т.лидерборд.единицы;
+  if (Number.isNaN(мс)) return Т.лидерборд.датаНеверна;
   if (мс <= 0) return Т.лидерборд.финал;
   const с = Math.floor(мс / 1000);
   const д = Math.floor(с / 86400);
@@ -37,6 +40,7 @@ export default function Leaderboard() {
   const [загрузка, setЗагрузка] = useState(true);
   const [осталось, setОсталось] = useState(ФИНАЛ - Date.now());
   const таймер = useRef<ReturnType<typeof setTimeout>>();
+  const [победитель, setПобедитель] = useState<Победитель | null>(null);
   const [дуэли, setДуэли] = useState<Дуэль[]>([]);
   const [окно, setОкно] = useState<РежимДуэли | null>(null);
 
@@ -50,6 +54,20 @@ export default function Leaderboard() {
     const t = setInterval(() => setОсталось(ФИНАЛ - Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  const финалНаступил = осталось <= 0;
+  useEffect(() => {
+    if (!финалНаступил || победитель) return;
+    let актуально = true;
+    getFinalWinner(ФИНАЛ)
+      .then((в) => { if (актуально && в) setПобедитель(в); })
+      .catch((e) => {
+        // нет миграции 010 или база недоступна — показываем текущего лидера, но он уже не «замороженный»
+        console.warn("leaderboard_final:", e?.message ?? e);
+        if (актуально && строки[0]) setПобедитель({ telegram_id: строки[0].telegram_id, nickname: строки[0].nickname, emoji: строки[0].emoji, hearts: строки[0].hearts });
+      });
+    return () => { актуально = false; };
+  }, [финалНаступил, победитель, строки.length]);
 
   const загрузить = async () => {
     try {
@@ -94,16 +112,38 @@ export default function Leaderboard() {
         <Link to="/" className="pill px-3 py-2 text-sm font-bold">{Т.лидерборд.назад}</Link>
       </div>
 
-      {/* Таймер до финала */}
-      <div className="relative mb-4 overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-900/40 to-black/60 p-4 text-center shadow-[0_0_24px_rgba(255,180,50,0.35)]">
-        <div className="pointer-events-none absolute inset-0 opacity-60" style={{ background: "radial-gradient(circle at 50% 0%, rgba(255,200,80,0.4), transparent 70%)" }} />
-        <div className="relative text-xs font-semibold uppercase tracking-wider text-amber-200/80">{Т.лидерборд.дедлайнПодпись}</div>
-        <div className="relative mt-1 text-2xl font-black text-amber-300">{форматТаймера(осталось)}</div>
-        {/* Простые искорки */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 overflow-hidden">
-          {[...Array(6)].map((_, i) => (
-            <span key={i} className="absolute bottom-0 h-1 w-1 rounded-full bg-amber-300" style={{ left: `${15 + i * 14}%`, animation: `float-up ${2 + i * 0.3}s ease-in infinite`, animationDelay: `${i * 0.2}s`, opacity: 0.7 }} />
-          ))}
+      {/* Таймер до финала; когда время вышло — тут же победитель и салют */}
+      <div className="relative mb-4">
+        {финалНаступил && <div className="pointer-events-none absolute -inset-x-3 -top-6 bottom-0"><Fireworks /></div>}
+        <div className="relative overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-900/40 to-black/60 p-4 text-center shadow-[0_0_24px_rgba(255,180,50,0.35)]">
+          <div className="pointer-events-none absolute inset-0 opacity-60" style={{ background: "radial-gradient(circle at 50% 0%, rgba(255,200,80,0.4), transparent 70%)" }} />
+          {финалНаступил ? (
+            <>
+              <div className="relative text-xs font-semibold uppercase tracking-wider text-amber-200/80">{Т.лидерборд.победитель}</div>
+              {победитель ? (
+                <>
+                  <div className="relative mt-1 flex items-center justify-center gap-2 text-2xl font-black text-amber-300">
+                    <span className="text-3xl">{победитель.emoji}</span>
+                    <span className="min-w-0 truncate">{победитель.nickname}</span>
+                  </div>
+                  <div className="relative mt-0.5 text-lg font-extrabold text-white">{Т.лидерборд.поздравляем}</div>
+                  <div className="relative text-xs text-amber-100/70">{Т.лидерборд.хэпэшекУПобедителя(победитель.hearts)}</div>
+                </>
+              ) : (
+                <div className="relative mt-1 text-lg font-bold text-amber-300">{Т.лидерборд.подводимИтоги}</div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="relative text-xs font-semibold uppercase tracking-wider text-amber-200/80">{Т.лидерборд.дедлайнПодпись}</div>
+              <div className="relative mt-1 text-2xl font-black text-amber-300">{форматТаймера(осталось)}</div>
+            </>
+          )}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 overflow-hidden">
+            {[...Array(6)].map((_, i) => (
+              <span key={i} className="absolute bottom-0 h-1 w-1 rounded-full bg-amber-300" style={{ left: `${15 + i * 14}%`, animation: `float-up ${2 + i * 0.3}s ease-in infinite`, animationDelay: `${i * 0.2}s`, opacity: 0.7 }} />
+            ))}
+          </div>
         </div>
       </div>
 

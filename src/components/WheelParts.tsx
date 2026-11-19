@@ -189,6 +189,32 @@ export function Колесо({ секторы, поворот, идёт, сек�
   );
 }
 
+/** Плашка над колесом: коэффициент сектора, на который сейчас указывает стрелка. */
+export function ПоказательСектора({ сектор }: { сектор: Сектор }) {
+  const череп = сектор.множитель === 0;
+  const золото = !!сектор.золотой;
+  const цвет = золото ? "#FFC83A" : череп ? КОЛЕСО.цветЧерепа : КОЛЕСО.цветаСекторов[String(сектор.множитель)] ?? "#666";
+  return (
+    <div
+      className={`flex h-10 min-w-[104px] items-center justify-center gap-2.5 rounded-full px-4 ring-1 backdrop-blur ${золото ? "wheel-gold-pill" : ""}`}
+      style={{
+        background: золото ? "rgba(255,200,58,.2)" : "rgba(0,0,0,.55)",
+        ["--tw-ring-color" as any]: золото ? "rgba(255,216,106,.7)" : "rgba(255,255,255,.18)",
+        transition: "background .12s",
+      }}
+      aria-live="off"
+    >
+      <span
+        className="h-4 w-4 shrink-0 rounded-full ring-1 ring-white/40"
+        style={{ background: золото ? "radial-gradient(circle at 35% 30%, #FFF4B0, #FFB800)" : цвет, boxShadow: `0 0 8px ${цвет}99` }}
+      />
+      {череп ? <Череп размер={20} /> : (
+        <span className="text-lg font-black leading-none tabular-nums" style={{ color: золото ? "#FFD95E" : "#fff" }}>{Т.колесо.множитель(сектор.множитель)}</span>
+      )}
+    </div>
+  );
+}
+
 function Плашка({ кружок, children, className = "" }: { кружок: string; children: ReactNode; className?: string }) {
   return (
     <div className={`flex items-center gap-1.5 rounded-full bg-white/10 py-1 pl-1.5 pr-2.5 text-xs font-bold text-white ${className}`}>

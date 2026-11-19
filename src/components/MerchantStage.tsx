@@ -1,7 +1,20 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { АССЕТЫ } from "../config";
+import { АССЕТЫ, РАСКЛАДКА_ТОРГОВЦА } from "../config";
 import { Картинка } from "./Icon";
+
+// Плавная маска: smoothstep вместо линейной, чтобы у края не было заметной полосы
+function маскаЗатухания(сверху: number, снизу: number): string | undefined {
+  if (сверху <= 0 && снизу <= 0) return undefined;
+  const ступени = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+  const сглажено = (t: number) => t * t * (3 - 2 * t);
+  const стопы: string[] = [];
+  if (сверху > 0) ступени.forEach((t) => стопы.push(`rgba(0,0,0,${сглажено(t).toFixed(3)}) ${(t * сверху).toFixed(1)}%`));
+  else стопы.push("#000 0%");
+  if (снизу > 0) ступени.forEach((t) => стопы.push(`rgba(0,0,0,${(1 - сглажено(t)).toFixed(3)}) ${(100 - снизу + t * снизу).toFixed(1)}%`));
+  else стопы.push("#000 100%");
+  return `linear-gradient(to bottom, ${стопы.join(", ")})`;
+}
 
 /**
  * Сцена торговца: большой процент комиссии сзади, мерцающий красный «огонь», красные искры и сам торговец поверх.
@@ -13,6 +26,8 @@ export default function MerchantStage({
   процент: number; высота: number; выступ?: number; диск?: boolean; картинка?: "обмен" | "обменБлэкджек";
   дельта?: { id: number; v: number } | null; children?: ReactNode;
 }) {
+  const раскладка = РАСКЛАДКА_ТОРГОВЦА[картинка === "обмен" ? "магазин" : "блэкджек"];
+  const маска = маскаЗатухания(раскладка.затуханиеСверху, раскладка.затуханиеСнизу);
   const искры = useMemo(
     () => Array.from({ length: 18 }, () => ({
       left: 6 + Math.random() * 88,
@@ -28,12 +43,14 @@ export default function MerchantStage({
   return (
     <div className="relative w-full" style={{ height: высота }}>
       <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0" style={{ maskImage: маска, WebkitMaskImage: маска }}>
         <div className="bj-flame absolute inset-0" style={{ background: "radial-gradient(ellipse 75% 85% at 50% 75%, rgba(214,32,40,.55), rgba(120,10,20,.25) 55%, transparent 80%)" }} />
         <div className="bj-flame bj-flame-b absolute inset-0" style={{ background: "radial-gradient(ellipse 45% 60% at 30% 90%, rgba(255,70,40,.35), transparent 70%), radial-gradient(ellipse 45% 60% at 72% 95%, rgba(230,40,60,.3), transparent 70%)" }} />
         {диск && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{ width: высота * 0.95, height: высота * 0.95, background: "radial-gradient(circle, rgba(200,28,40,.5) 0%, rgba(110,10,20,.35) 60%, transparent 72%)" }} />
         )}
+        </div>
         <div className="pointer-events-none absolute inset-x-0 select-none text-center font-black" style={{ top: -высота * 0.04, fontSize: высота * 1.12, lineHeight: 0.85, whiteSpace: "nowrap" }}>
           <span key={процент} className="bj-pct inline-block"
             style={{ background: "linear-gradient(to bottom, rgba(170,24,34,.6) 0%, rgba(70,8,14,.3) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
@@ -49,8 +66,12 @@ export default function MerchantStage({
       </div>
 
       {(() => {
-        const стиль = { bottom: -выступ, height: высота + выступ, maxWidth: "92%", filter: "drop-shadow(0 10px 22px rgba(0,0,0,.55))" };
-        const класс = "pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 select-none object-contain";
+        const стиль = {
+          left: `calc(50% + ${раскладка.x}px)`, bottom: -выступ - раскладка.y, height: высота + выступ, maxWidth: "92%",
+          transform: `translateX(-50%) scale(${раскладка.масштаб / 100})`, transformOrigin: "50% 100%",
+          filter: "drop-shadow(0 10px 22px rgba(0,0,0,.55))",
+        };
+        const класс = "pointer-events-none absolute z-10 select-none object-contain";
         const обычный = (
           <Картинка
             путь={АССЕТЫ.папки.персонажи + АССЕТЫ.персонажи.обмен}

@@ -7,11 +7,12 @@ import { стат } from "../lib/stats";
 import { Иконка } from "./Icon";
 import { useАссеты } from "../lib/assets";
 import { естьАртефакт } from "../game/artifacts";
-import { Колесо, ЛегендаКолеса } from "./WheelParts";
+import { Колесо, ЛегендаКолеса, ПоказательСектора } from "./WheelParts";
+import type { Сектор } from "../game/wheel";
 import Искры from "./Sparks";
 import { звук } from "../lib/sound";
 import { хаптик } from "../lib/haptic";
-import { собратьСектора, выбратьСектор, новыйПоворот, выплата, уголДиска, границПройдено } from "../game/wheel";
+import { собратьСектора, выбратьСектор, новыйПоворот, выплата, уголДиска, границПройдено, секторПриУгле } from "../game/wheel";
 
 const ВАЛЮТЫ: { ключ: ВалютаКолеса; иконка: "фишки" | "билеты" | "хэпэшки" }[] = [
   { ключ: "chips", иконка: "фишки" },
@@ -46,6 +47,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   const [ставкаВвод, setСтавка] = useState<number>(КОЛЕСО.минСтавка);
   const [поворот, setПоворот] = useState(0);
   const [идёт, setИдёт] = useState(false);
+  const [подСтрелкой, setПодСтрелкой] = useState<Сектор | null>(null);
   const [результат, setРезультат] = useState<Результат | null>(null);
   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
   const [ошибка, setОшибка] = useState("");
@@ -86,6 +88,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     // Показываем баланс «до результата», пока колесо крутится
     setЗаморозка({ chips: user.chips, tickets: user.tickets, hearts: user.hearts, [валюта]: баланс[валюта] - ставка });
     const было = поворот;
+    setПодСтрелкой(секторПриУгле(секторы, было));
     const стало = новыйПоворот(было, с);
     setПоворот(стало);
     звук.sfx("спин");
@@ -107,6 +110,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
           if (дельта > 340) дельта = 0; // дрожание округления, колесо назад не вращается
           const A1 = A + дельта;
           const t = performance.now() - старт;
+          setПодСтрелкой(секторПриУгле(секторы, A1));
           if (границПройдено(секторы, A, A1) > 0 && t - последнийТик >= 45) {
             последнийТик = t;
             хаптик("light");
@@ -145,7 +149,8 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     }
   };
 
-  const размерКолеса = "min(74vw, 36vh, 320px)";
+  const размерКолеса = "min(70vw, max(150px, calc(100vh - 495px)), 290px)";
+  const сейчасПодСтрелкой = идёт && подСтрелкой ? подСтрелкой : секторПриУгле(секторы, поворот);
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-y-auto bg-black/90">
@@ -166,7 +171,12 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
         {Т.общее.крестик}
       </button>
 
-      <div className="relative z-10 flex w-full max-w-sm flex-col items-center px-4 pb-6 pt-12">
+      <div className="relative z-10 flex w-full max-w-sm flex-col items-center px-4 pb-4 pt-3">
+        {/* Коэффициент под указателем */}
+        <div className="mb-6 flex justify-center">
+          <ПоказательСектора сектор={сейчасПодСтрелкой} />
+        </div>
+
         {/* Колесо с указателем */}
         <div className="relative" style={{ width: размерКолеса, height: размерКолеса }}>
           <Колесо секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />

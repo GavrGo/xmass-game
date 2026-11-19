@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../store/UserContext";
-import { БЛЭКДЖЕК, ОБМЕН } from "../config";
+import { БЛЭКДЖЕК, ОБМЕН, РАСКЛАДКА_ТОРГОВЦА } from "../config";
 import { Т } from "../texts";
 import { звук } from "../lib/sound";
 import { хаптик, хаптикУведомление } from "../lib/haptic";
@@ -131,7 +131,7 @@ export default function Blackjack() {
       : "";
 
     const было = комиссияRef.current;
-    const сдвиг = вид === "lose" ? БЛЭКДЖЕК.шагКомиссииПроцентов : вид === "win" ? -БЛЭКДЖЕК.шагКомиссииПроцентов : 0;
+    const сдвиг = вид === "lose" ? БЛЭКДЖЕК.шагКомиссииПроигрышПроцентов : вид === "win" ? -БЛЭКДЖЕК.шагКомиссииПобедаПроцентов : 0;
     const стало = Math.min(ОБМЕН.максимальнаяКомиссияПроцентов, Math.max(ОБМЕН.минимальнаяКомиссияПроцентов, было + сдвиг));
     if (стало !== было) {
       комиссияRef.current = стало;
@@ -173,7 +173,6 @@ export default function Blackjack() {
     setОшибка("");
     if (рИ.current.length || рТ.current.length) {
       setИтог(null);
-      setРеплика(null);
       setУходят(true);
       await пауза(А.сбросМс);
       if (!жив.current) return;
@@ -245,11 +244,17 @@ export default function Blackjack() {
             className="absolute right-3.5 top-3 z-30 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white/90 backdrop-blur">
             {ТБ.назад}
           </button>
-          {реплика && (
-            <div key={реплика.id} className="bj-bubble absolute z-30" style={{ left: 10, top: "30%", width: "46%", ["--show" as any]: `${БЛЭКДЖЕК.показФразыСек}s` }}>
-              <SpeechBubble text={реплика.текст} />
-            </div>
-          )}
+          {реплика && (() => {
+            const Р = РАСКЛАДКА_ТОРГОВЦА.реплика;
+            return (
+              <div key={реплика.id} className="bj-bubble pointer-events-none absolute z-30" style={{
+                left: `calc(50% + ${Р.x}px)`, marginLeft: -Р.ширина / 2, width: Р.ширина,
+                top: (высотаСцены + выступ) * 0.55 + Р.y, ["--show" as any]: `${БЛЭКДЖЕК.показФразыСек}s`,
+              }}>
+                <SpeechBubble text={реплика.текст} хвост="верх" хвостСмещение={Р.хвостСмещение} />
+              </div>
+            );
+          })()}
         </MerchantStage>
       </div>
 
