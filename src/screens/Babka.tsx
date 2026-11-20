@@ -34,7 +34,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function Babka() {
   const { user, change } = useUser();
-  useMastery("babka");
+  const начислитьМастерство = useMastery("babka");
   const navigate = useNavigate();
   useNoSwipes(); // только тапы
 
@@ -96,11 +96,13 @@ export default function Babka() {
     setИтог({ дорог: n, награда, режим: р, персонаж: п, личный, глобальный: undefined, причина: д.причина, сохранение: "идёт" });
 
     try {
+      начислитьМастерство(награда.итого);
       if (награда.итого > 0 || новыйРекорд) await изменить({ chips: награда.итого }, новыйРекорд ? { best_babka_crash: n } : {});
       setИтог((x) => (x ? { ...x, сохранение: "готово" } : x));
     } catch (e: any) {
       if (новыйРекорд && String(e?.message).includes("best_babka_crash")) {
         try {
+          начислитьМастерство(награда.итого);
           await изменить({ chips: награда.итого });
           setИтог((x) => (x ? { ...x, сохранение: "готово", предупреждение: Т.предупреждения.бабка } : x));
         } catch (e2: any) {

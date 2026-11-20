@@ -36,7 +36,7 @@ const мм = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(
 
 export default function Puzzle() {
   const { user, change, telegramId } = useUser();
-  useMastery("puzzle");
+  const начислитьМастерство = useMastery("puzzle");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -100,12 +100,14 @@ export default function Puzzle() {
     let текстОшибки: string | undefined;
     try {
       if (награда.итого > 0 || победа) {
+        начислитьМастерство(награда.итого);
         await изменить({ chips: награда.итого }, победа ? { puzzles_solved: всего } : {});
       }
     } catch (e: any) {
       if (победа && String(e?.message).includes("puzzles_solved")) {
         // В базе нет колонки счётчика — хотя бы зачисляем фишки
         try {
+          начислитьМастерство(награда.итого);
           await изменить({ chips: награда.итого });
           предупреждение = Т.предупреждения.puzzle;
         } catch (e2: any) { сохранение = "ошибка"; текстОшибки = e2.message; }

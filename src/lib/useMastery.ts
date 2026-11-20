@@ -28,12 +28,14 @@ export function useMastery(игра: string) {
   };
 
   useEffect(() => {
-    const тик = setInterval(() => { очки.current += 1; }, МАСТЕРСТВО.секундНаОчко * 1000);
     const сброс = setInterval(сохранить, 30_000);
     return () => {
-      clearInterval(тик);
       clearInterval(сброс);
       сохранить();
     };
   }, [игра]);
+
+  return (фишки: number) => {
+    очки.current += Math.floor(фишки / МАСТЕРСТВО.фишекНаОчко);
+  };
 }

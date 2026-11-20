@@ -360,7 +360,10 @@ export default function Home() {
             <div style={пилюля}><Иконка имя="фишки" размер={S(34)} />{баланс.chips}</div>
             <div style={пилюля}><Иконка имя="билеты" размер={S(34)} />{баланс.tickets}</div>
           </div>
-          <div style={{ width: S(300), marginTop: S(12) }}><SlotXpBar спинов={user.slot_spins ?? 0} /></div>
+        </div>
+
+        <div style={{ position: "absolute", left: X(A.панели.лидеры.x), width: S(A.панели.колесо.x + A.панели.колесо.w - A.панели.лидеры.x), top: Y(A.панели.лидеры.y + A.панели.лидеры.h + 8), height: S(22), zIndex: 41 }}>
+          <SlotXpBar спинов={user.slot_spins ?? 0} />
         </div>
 
         {/* Всплывающие награды (+N и значок) над экраном */}

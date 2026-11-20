@@ -224,10 +224,20 @@ function Плашка({ кружок, children, className = "" }: { кружок
   );
 }
 
-/** Подписи секторов под колесом: джекпот всегда, искра — если куплена. */
+/** Подписи секторов под колесом: джекпот всегда, ×10 — с замком, пока артефакт не куплен. */
 export function ЛегендаКолеса({ x10 }: { x10: boolean }) {
   const ТК = Т.колесо;
+  const [подсказка, setПодсказка] = useState(0);
+  const таймер = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(таймер.current), []);
+
   const множители = useMemo(() => [...new Set(КОЛЕСО.сектора.filter((м) => м > 0))].sort((a, b) => a - b), []);
+
+  const показать = () => {
+    setПодсказка((n) => n + 1);
+    clearTimeout(таймер.current);
+    таймер.current = setTimeout(() => setПодсказка(0), 3200);
+  };
 
   return (
     <div className="mt-4 flex max-w-[330px] flex-wrap items-center justify-center gap-1.5">
@@ -239,10 +249,26 @@ export function ЛегендаКолеса({ x10 }: { x10: boolean }) {
         <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #FFF4B0, #FFB800)" }} />
         {ТК.множитель(ЗОЛОТО)}
       </div>
-      {x10 && (
+      {x10 ? (
         <div className="flex items-center gap-1.5 rounded-full py-1 pl-1.5 pr-2.5 text-xs font-extrabold" style={{ background: "rgba(255,122,47,.16)", color: "#FFB27A" }}>
           <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #FFD0A8, #FF7A2F)" }} />
           {ТК.множитель(ЧЁРНЫЙ_РЫНОК.колесоX10.множитель)}
+        </div>
+      ) : (
+        <div className="relative">
+          <button
+            onClick={показать}
+            aria-label={ТК.замокПодпись}
+            className="flex items-center gap-1.5 rounded-full bg-black/55 py-1 pl-1.5 pr-2.5 text-xs font-bold text-white/60 ring-1 ring-white/10 active:scale-95"
+          >
+            <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-[#15151A] ring-1 ring-white/15" />
+            <Замок размер={13} />
+          </button>
+          {подсказка > 0 && (
+            <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-[220px] max-w-[80vw] -translate-x-1/2">
+              <div key={подсказка} className="wheel-bubble"><SpeechBubble text={ТК.замок} /></div>
+            </div>
+          )}
         </div>
       )}
     </div>

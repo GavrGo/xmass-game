@@ -50,7 +50,7 @@ const кадр = () => new Promise<void>((r) => requestAnimationFrame(() => requ
 
 export default function Match3() {
   const { user, change } = useUser();
-  useMastery("match3");
+  const начислитьМастерство = useMastery("match3");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -167,10 +167,12 @@ export default function Match3() {
     let сохранилось = true;
     let предупреждение: string | undefined;
     try {
+      начислитьМастерство(награда.итого);
       await изменить({ chips: награда.итого }, н > рекорд ? { best_match3: н } : {});
     } catch (e: any) {
       if (н > рекорд && String(e?.message).includes("best_match3")) {
         try {
+          начислитьМастерство(награда.итого);
           await изменить({ chips: награда.итого });
           предупреждение = Т.предупреждения.match3;
         } catch { сохранилось = false; }

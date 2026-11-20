@@ -53,7 +53,7 @@ function Задача({ цвет }: { цвет: string }) {
 
 export default function JiraFight() {
   const { user, change } = useUser();
-  useMastery("jira");
+  const начислитьМастерство = useMastery("jira");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -94,6 +94,7 @@ export default function JiraFight() {
     const задача = очередь.current.then(async () => {
       const { change: изменить } = свежее.current;
       try {
+        начислитьМастерство(сумма);
         await изменить({ chips: сумма }, extra);
         сессия.current.фишек += сумма;
         setФишекСессии(сессия.current.фишек);
@@ -101,6 +102,7 @@ export default function JiraFight() {
       } catch (e: any) {
         if (Object.keys(extra).length && String(e?.message).includes("best_jira_level")) {
           try {
+            начислитьМастерство(сумма);
             await изменить({ chips: сумма });
             сессия.current.фишек += сумма;
             setФишекСессии(сессия.current.фишек);

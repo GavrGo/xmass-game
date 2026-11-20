@@ -33,7 +33,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function KsuhaRun() {
   const { user, change } = useUser();
-  useMastery("ksuha");
+  const начислитьМастерство = useMastery("ksuha");
   const navigate = useNavigate();
   const контейнер = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -100,12 +100,14 @@ export default function KsuhaRun() {
 
     const нужноСохранять = награда.итого > 0 || новыйРекорд;
     try {
+      начислитьМастерство(награда.итого);
       if (нужноСохранять) await изменить({ chips: награда.итого }, новыйРекорд ? { best_ksuha_run: n } : {});
       setИтог((п) => (п ? { ...п, сохранение: "готово" } : п));
     } catch (e: any) {
       if (новыйРекорд && String(e?.message).includes("best_ksuha_run")) {
         // В базе ещё нет колонки рекорда — хотя бы зачисляем фишки
         try {
+          начислитьМастерство(награда.итого);
           await изменить({ chips: награда.итого });
           setИтог((п) => (п ? { ...п, сохранение: "готово",
             предупреждение: Т.предупреждения.ksuha } : п));

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import Modal from "./Modal";
 import { СЛОТ, ОПЫТ_СЛОТА } from "../config";
 import { уровеньОпытаСлота } from "../game/slotXp";
@@ -12,12 +13,12 @@ export default function SlotXpBar({ спинов }: { спинов: number }) {
       <button
         onClick={() => setОткрыт(true)}
         aria-label="Опыт слота"
-        className="relative flex h-7 w-full items-center overflow-hidden rounded-full bg-black/50 ring-1 ring-white/15 active:scale-[0.98]"
+        className="relative flex h-full w-full items-center overflow-hidden rounded-full bg-black/50 ring-1 ring-white/15 active:scale-[0.98]"
       >
         <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-[width] duration-500" style={{ width: `${у.прогресс * 100}%` }} />
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-white drop-shadow">{у.уровень}</span>
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-extrabold text-white drop-shadow">{у.уровень}</span>
       </button>
-      {открыт && (
+      {открыт && createPortal(
         <Modal onClose={() => setОткрыт(false)}>
           <h3 className="mb-1 text-lg font-bold">Опыт слота</h3>
           <p className="mb-3 text-xs text-muted">Каждый спин даёт опыт. Чем выше уровень, тем больше сердец за тройку и подарок.</p>
@@ -33,7 +34,8 @@ export default function SlotXpBar({ спинов }: { спинов: number }) {
               </li>
             ))}
           </ul>
-        </Modal>
+        </Modal>,
+        document.body,
       )}
     </>
   );
