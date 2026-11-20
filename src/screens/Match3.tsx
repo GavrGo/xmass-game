@@ -9,6 +9,7 @@ import СтрокаИтога, { Разделитель } from "../components/To
 import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
+import { useMastery } from "../lib/useMastery";
 import { ТРИ_В_РЯД as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
@@ -49,6 +50,7 @@ const кадр = () => new Promise<void>((r) => requestAnimationFrame(() => requ
 
 export default function Match3() {
   const { user, change } = useUser();
+  useMastery("match3");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 

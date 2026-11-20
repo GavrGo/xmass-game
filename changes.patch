@@ -1,0 +1,297 @@
+diff -ru /tmp/src_before_slot_xp/components/FortuneWheel.tsx src/components/FortuneWheel.tsx
+--- /tmp/src_before_slot_xp/components/FortuneWheel.tsx	2026-11-20 21:29:37.823972714 +0000
++++ src/components/FortuneWheel.tsx	2026-11-20 21:29:37.859972714 +0000
+@@ -52,8 +52,8 @@
+   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
+   const [ошибка, setОшибка] = useState("");
+ 
+-  const сИскрой = естьАртефакт(user, "искра");
+-  const секторы = useMemo(() => собратьСектора(валюта, сИскрой), [валюта, сИскрой]);
++  const сX10 = естьАртефакт(user, "x10");
++  const секторы = useMemo(() => собратьСектора(валюта, сX10), [валюта, сX10]);
+   if (!user) return null;
+ 
+   const баланс = заморозка ?? { chips: user.chips, tickets: user.tickets, hearts: user.hearts };
+@@ -181,7 +181,7 @@
+         <div className="relative" style={{ width: размерКолеса, height: размерКолеса }}>
+           <Колесо секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
+         </div>
+-        <ЛегендаКолеса искра={сИскрой} />
++        <ЛегендаКолеса x10={сX10} />
+ 
+         {/* Результат */}
+         <div className="mt-3 h-8 text-center text-lg font-extrabold">
+Only in src/components: SlotXpBar.tsx
+diff -ru /tmp/src_before_slot_xp/components/WheelParts.tsx src/components/WheelParts.tsx
+--- /tmp/src_before_slot_xp/components/WheelParts.tsx	2026-11-20 21:29:37.823972714 +0000
++++ src/components/WheelParts.tsx	2026-11-20 21:29:37.859972714 +0000
+@@ -225,7 +225,7 @@
+ }
+ 
+ /** Подписи секторов под колесом: джекпот всегда, искра — если куплена. */
+-export function ЛегендаКолеса({ искра }: { искра: boolean }) {
++export function ЛегендаКолеса({ x10 }: { x10: boolean }) {
+   const ТК = Т.колесо;
+   const множители = useMemo(() => [...new Set(КОЛЕСО.сектора.filter((м) => м > 0))].sort((a, b) => a - b), []);
+ 
+@@ -239,10 +239,10 @@
+         <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #FFF4B0, #FFB800)" }} />
+         {ТК.множитель(ЗОЛОТО)}
+       </div>
+-      {искра && (
++      {x10 && (
+         <div className="flex items-center gap-1.5 rounded-full py-1 pl-1.5 pr-2.5 text-xs font-extrabold" style={{ background: "rgba(255,122,47,.16)", color: "#FFB27A" }}>
+           <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #FFD0A8, #FF7A2F)" }} />
+-          {ТК.множитель(ЧЁРНЫЙ_РЫНОК.колесоИскра.множитель)}
++          {ТК.множитель(ЧЁРНЫЙ_РЫНОК.колесоX10.множитель)}
+         </div>
+       )}
+     </div>
+diff -ru /tmp/src_before_slot_xp/config.ts src/config.ts
+--- /tmp/src_before_slot_xp/config.ts	2026-11-20 21:29:37.823972714 +0000
++++ src/config.ts	2026-11-20 21:29:37.859972714 +0000
+@@ -238,7 +238,7 @@
+ // ЦЕНЫ ПОКА ЧЕРНОВЫЕ — выставьте свои. Тексты артефактов — в src/texts.ts, раздел чёрныйРынок.
+ export const ЧЁРНЫЙ_РЫНОК = {
+   артефакты: {
+-    искра: { цена: 900 },   // Золотая искра: сектор ×10 на колесе, шанс ~1 к 170
++    x10: { цена: 900 },   // Золотая искра: сектор ×10 на колесе, шанс ~1 к 170
+     wild: { цена: 1200 },   // символ Wild в слоте
+   },
+ 
+@@ -250,7 +250,7 @@
+   },
+ 
+   // Золотая искра ×10 на колесе: появляется только у купившего на чёрном рынке.
+-  колесоИскра: {
++  колесоX10: {
+     множитель: 10,
+     долляКруга: 0.006,     // 0.006 = 1 к 170
+     позиция: 2,            // сразу после джекпота
+@@ -737,3 +737,22 @@
+ };
+ export type ЭффектЗвука = keyof typeof ЗВУКИ.эффекты;
+ export type ТрекМузыки = keyof typeof ЗВУКИ.музыка;
++
++// =====================================================================
++//  ОПЫТ СЛОТА: +1 за каждый спин (любая ставка). Уровень даёт множитель сердец.
++// =====================================================================
++export const ОПЫТ_СЛОТА = {
++  спинов: [0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200, 4000],   // порог входа на уровень (индекс = уровень − 1)
++  множители: [1, 1.26, 1.59, 2, 2.5, 3.2, 4, 5, 6.3, 8, 10],             // множитель сердец за тройку и подарок
++};
++
++// =====================================================================
++//  МАСТЕРСТВО МИНИ-ИГР: очки за время внутри игры, дневной потолок на игру
++// =====================================================================
++export const МАСТЕРСТВО = {
++  секундНаОчко: 10,
++  потолокВДень: 300,
++  очковНаУровень: 200,
++  максУровень: 15,
++  бонусЗаУровень: 0.03,
++};
+Only in src/game: mastery.ts
+Only in src/game: slotXp.ts
+diff -ru /tmp/src_before_slot_xp/game/wheel.ts src/game/wheel.ts
+--- /tmp/src_before_slot_xp/game/wheel.ts	2026-11-20 21:29:37.827972714 +0000
++++ src/game/wheel.ts	2026-11-20 21:29:37.859972714 +0000
+@@ -10,13 +10,13 @@
+ }
+ 
+ /** Секторы колеса для выбранной валюты: ширина сектора пропорциональна его весу (= шансу). Джекпот x100 — у всех, искра x10 — у купивших. */
+-export function собратьСектора(валюта: ВалютаКолеса, сИскрой = false): Сектор[] {
++export function собратьСектора(валюта: ВалютаКолеса, сX10 = false): Сектор[] {
+   const w = КОЛЕСО.веса[валюта];
+   const строки: { множитель: number; вес: number; золотой?: boolean }[] = КОЛЕСО.сектора.map((м) => ({
+     множитель: м,
+     вес: м === 0 ? w.череп : w.множитель,
+   }));
+-  const спец = [ЧЁРНЫЙ_РЫНОК.колесоX100, ...(сИскрой ? [ЧЁРНЫЙ_РЫНОК.колесоИскра] : [])];
++  const спец = [ЧЁРНЫЙ_РЫНОК.колесоX100, ...(сX10 ? [ЧЁРНЫЙ_РЫНОК.колесоX10] : [])];
+   спец.forEach((с, n) => {
+     const д = с.долляКруга;
+     const остальные = строки.reduce((a, x) => a + x.вес, 0);
+Only in src/lib: useMastery.ts
+diff -ru /tmp/src_before_slot_xp/screens/Babka.tsx src/screens/Babka.tsx
+--- /tmp/src_before_slot_xp/screens/Babka.tsx	2026-11-20 21:29:37.827972714 +0000
++++ src/screens/Babka.tsx	2026-11-20 21:29:37.863972714 +0000
+@@ -7,6 +7,7 @@
+ import { звук } from "../lib/sound";
+ import { стат } from "../lib/stats";
+ import { useUser } from "../store/UserContext";
++import { useMastery } from "../lib/useMastery";
+ import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
+ import { Рекорд } from "../api/users";
+ import РекордыБлок from "../components/RecordsBlock";
+@@ -33,6 +34,7 @@
+ 
+ export default function Babka() {
+   const { user, change } = useUser();
++  useMastery("babka");
+   const navigate = useNavigate();
+   useNoSwipes(); // только тапы
+ 
+diff -ru /tmp/src_before_slot_xp/screens/Home.tsx src/screens/Home.tsx
+--- /tmp/src_before_slot_xp/screens/Home.tsx	2026-11-20 21:29:37.827972714 +0000
++++ src/screens/Home.tsx	2026-11-20 21:29:37.859972714 +0000
+@@ -8,6 +8,8 @@
+ import { Иконка, Картинка } from "../components/Icon";
+ import { СИМВОЛЫ_СЛОТА, СИМВОЛ_WILD, путьКартинкиСимвола, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
+ import { крутитьСлот, случайныйСимвол } from "../game/slot";
++import { уровеньОпытаСлота } from "../game/slotXp";
++import SlotXpBar from "../components/SlotXpBar";
+ import { естьАртефакт } from "../game/artifacts";
+ import { шансБесплатнойКрутки } from "../game/effects";
+ import { естьФайл, useАссеты } from "../lib/assets";
+@@ -165,7 +167,9 @@
+     стат("slot_spins");
+ 
+     const цена = бесплатная ? 0 : ставка;
++    const опыт = уровеньОпытаСлота(user.slot_spins ?? 0);
+     const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте);
++    итог.награда.hearts = Math.round(итог.награда.hearts * опыт.множитель);
+ 
+     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
+     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
+@@ -176,7 +180,7 @@
+           chips: итог.награда.chips,
+           tickets: итог.награда.tickets - цена,
+           hearts: итог.награда.hearts,
+-        }),
++        }, { slot_spins: (user.slot_spins ?? 0) + 1 }),
+         анимировать(итог.символы.map((с) => с.id)),
+       ]);
+ 
+@@ -356,6 +360,7 @@
+             <div style={пилюля}><Иконка имя="фишки" размер={S(34)} />{баланс.chips}</div>
+             <div style={пилюля}><Иконка имя="билеты" размер={S(34)} />{баланс.tickets}</div>
+           </div>
++          <div style={{ width: S(300), marginTop: S(12) }}><SlotXpBar спинов={user.slot_spins ?? 0} /></div>
+         </div>
+ 
+         {/* Всплывающие награды (+N и значок) над экраном */}
+diff -ru /tmp/src_before_slot_xp/screens/JiraFight.tsx src/screens/JiraFight.tsx
+--- /tmp/src_before_slot_xp/screens/JiraFight.tsx	2026-11-20 21:29:37.827972714 +0000
++++ src/screens/JiraFight.tsx	2026-11-20 21:29:37.863972714 +0000
+@@ -8,6 +8,7 @@
+ import { стат } from "../lib/stats";
+ import { useNoSwipes } from "../lib/useNoSwipes";
+ import { useUser } from "../store/UserContext";
++import { useMastery } from "../lib/useMastery";
+ import { ДЖИРА_ФАЙТ as К } from "../config";
+ import { getGlobalRecord, Рекорд } from "../api/users";
+ import РекордыБлок from "../components/RecordsBlock";
+@@ -52,6 +53,7 @@
+ 
+ export default function JiraFight() {
+   const { user, change } = useUser();
++  useMastery("jira");
+   const navigate = useNavigate();
+   useNoSwipes(); // игра управляется только тапами
+ 
+diff -ru /tmp/src_before_slot_xp/screens/KsuhaRun.tsx src/screens/KsuhaRun.tsx
+--- /tmp/src_before_slot_xp/screens/KsuhaRun.tsx	2026-11-20 21:29:37.827972714 +0000
++++ src/screens/KsuhaRun.tsx	2026-11-20 21:29:37.863972714 +0000
+@@ -7,6 +7,7 @@
+ import { звук } from "../lib/sound";
+ import { стат } from "../lib/stats";
+ import { useUser } from "../store/UserContext";
++import { useMastery } from "../lib/useMastery";
+ import { getGlobalRecord, Рекорд } from "../api/users";
+ import РекордыБлок from "../components/RecordsBlock";
+ import { КСЮХА_РАН, КлючСложности } from "../config";
+@@ -32,6 +33,7 @@
+ 
+ export default function KsuhaRun() {
+   const { user, change } = useUser();
++  useMastery("ksuha");
+   const navigate = useNavigate();
+   const контейнер = useRef<HTMLDivElement>(null);
+   const canvasRef = useRef<HTMLCanvasElement>(null);
+diff -ru /tmp/src_before_slot_xp/screens/Match3.tsx src/screens/Match3.tsx
+--- /tmp/src_before_slot_xp/screens/Match3.tsx	2026-11-20 21:29:37.827972714 +0000
++++ src/screens/Match3.tsx	2026-11-20 21:29:37.863972714 +0000
+@@ -9,6 +9,7 @@
+ import { звук } from "../lib/sound";
+ import { useNoSwipes } from "../lib/useNoSwipes";
+ import { useUser } from "../store/UserContext";
++import { useMastery } from "../lib/useMastery";
+ import { ТРИ_В_РЯД as К } from "../config";
+ import { getGlobalRecord, Рекорд } from "../api/users";
+ import РекордыБлок from "../components/RecordsBlock";
+@@ -49,6 +50,7 @@
+ 
+ export default function Match3() {
+   const { user, change } = useUser();
++  useMastery("match3");
+   const navigate = useNavigate();
+   useNoSwipes(); // игра управляется только тапами
+ 
+diff -ru /tmp/src_before_slot_xp/screens/MiniGames.tsx src/screens/MiniGames.tsx
+--- /tmp/src_before_slot_xp/screens/MiniGames.tsx	2026-11-20 21:29:37.827972714 +0000
++++ src/screens/MiniGames.tsx	2026-11-20 21:29:37.863972714 +0000
+@@ -4,6 +4,7 @@
+ import { Картинка } from "../components/Icon";
+ import { Т } from "../texts";
+ import Эм from "../components/Emoji";
++import { уровеньМастерства } from "../game/mastery";
+ 
+ // Список мини-игр: сетка карточек в 2 колонки (по макету).
+ // Обложка: public/assets/ui/game-<id>.png. Нет файла — большой эмодзи.
+@@ -37,6 +38,12 @@
+             <div className="mt-2 text-sm font-bold">{и.название}</div>
+             <div className="line-clamp-2 text-[11px] leading-snug text-muted"><Эм>{и.описание}</Эм></div>
+             <div className="mt-1 text-[11px] font-semibold text-brand-yellow">{и.рекорд}</div>
++            <div className="mt-1.5 flex items-center gap-1.5">
++              <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
++                <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-cyan-300" style={{ width: `${уровеньМастерства(user.mastery?.[и.id]?.xp ?? 0).прогресс * 100}%` }} />
++              </div>
++              <span className="text-[11px] font-bold">Ур. {уровеньМастерства(user.mastery?.[и.id]?.xp ?? 0).уровень}</span>
++            </div>
+           </Link>
+         ))}
+       </div>
+diff -ru /tmp/src_before_slot_xp/screens/Puzzle.tsx src/screens/Puzzle.tsx
+--- /tmp/src_before_slot_xp/screens/Puzzle.tsx	2026-11-20 21:29:37.827972714 +0000
++++ src/screens/Puzzle.tsx	2026-11-20 21:29:37.863972714 +0000
+@@ -8,6 +8,7 @@
+ import { стат } from "../lib/stats";
+ import { useNoSwipes } from "../lib/useNoSwipes";
+ import { useUser } from "../store/UserContext";
++import { useMastery } from "../lib/useMastery";
+ import { ПЯТНАШКИ } from "../config";
+ import { бонусВремениСек } from "../game/effects";
+ import { перемешать, сдвинуть, собрана, наградаЗаПазл, ПУСТАЯ, Режим } from "../game/puzzle";
+@@ -35,6 +36,7 @@
+ 
+ export default function Puzzle() {
+   const { user, change, telegramId } = useUser();
++  useMastery("puzzle");
+   const navigate = useNavigate();
+   useNoSwipes(); // игра управляется только тапами
+ 
+diff -ru /tmp/src_before_slot_xp/texts.ts src/texts.ts
+--- /tmp/src_before_slot_xp/texts.ts	2026-11-20 21:29:37.827972714 +0000
++++ src/texts.ts	2026-11-20 21:29:37.859972714 +0000
+@@ -329,7 +329,7 @@
+     куплено: "Куплено",
+     ошибка: (текст: string) => `Не удалось купить: ${текст}`,
+     артефакты: {
+-      искра: { название: "Золотая искра", описание: "Шанс ×10 на колесе. Выпадает примерно раз в пару вечеров.", значок: "✨" },
++      x10: { название: "Золотая искра", описание: "Шанс ×10 на колесе. Выпадает примерно раз в пару вечеров.", значок: "✨" },
+       wild: { название: "Wild", описание: "Добавь Wild в слот и добивай комбо.", значок: "🃏" },
+     },
+   },
+diff -ru /tmp/src_before_slot_xp/types.ts src/types.ts
+--- /tmp/src_before_slot_xp/types.ts	2026-11-20 21:29:37.827972714 +0000
++++ src/types.ts	2026-11-20 21:29:37.859972714 +0000
+@@ -9,6 +9,8 @@
+   free_spin_level: number;
+   salary_level: number;
+   artifacts?: string[]; // купленные артефакты чёрного рынка (ключи из ЧЁРНЫЙ_РЫНОК.артефакты)
++  slot_spins?: number;
++  mastery?: Record<string, { xp: number; день: string; заДень: number }>;
+   exchange_fee: number; // комиссия обмена в % (меняется в Black Jack с торговцем)
+   time_level: number;
+   trash_level: number; // уровень прокачки «Убрать мусор»

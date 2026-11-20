@@ -8,6 +8,7 @@ import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
+import { useMastery } from "../lib/useMastery";
 import { ПЯТНАШКИ } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { перемешать, сдвинуть, собрана, наградаЗаПазл, ПУСТАЯ, Режим } from "../game/puzzle";
@@ -35,6 +36,7 @@ const мм = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(
 
 export default function Puzzle() {
   const { user, change, telegramId } = useUser();
+  useMastery("puzzle");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 

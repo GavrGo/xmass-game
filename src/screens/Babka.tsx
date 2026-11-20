@@ -7,6 +7,7 @@ import СтрокаИтога, { Разделитель } from "../components/To
 import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useUser } from "../store/UserContext";
+import { useMastery } from "../lib/useMastery";
 import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
 import { Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
@@ -33,6 +34,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function Babka() {
   const { user, change } = useUser();
+  useMastery("babka");
   const navigate = useNavigate();
   useNoSwipes(); // только тапы
 

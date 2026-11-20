@@ -8,6 +8,8 @@ import { Конфетти, Взрыв } from "../components/SlotEffects";
 import { Иконка, Картинка } from "../components/Icon";
 import { СИМВОЛЫ_СЛОТА, СИМВОЛ_WILD, путьКартинкиСимвола, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
 import { крутитьСлот, случайныйСимвол } from "../game/slot";
+import { уровеньОпытаСлота } from "../game/slotXp";
+import SlotXpBar from "../components/SlotXpBar";
 import { естьАртефакт } from "../game/artifacts";
 import { шансБесплатнойКрутки } from "../game/effects";
 import { естьФайл, useАссеты } from "../lib/assets";
@@ -165,7 +167,9 @@ export default function Home() {
     стат("slot_spins");
 
     const цена = бесплатная ? 0 : ставка;
+    const опыт = уровеньОпытаСлота(user.slot_spins ?? 0);
     const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте);
+    итог.награда.hearts = Math.round(итог.награда.hearts * опыт.множитель);
 
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
@@ -176,7 +180,7 @@ export default function Home() {
           chips: итог.награда.chips,
           tickets: итог.награда.tickets - цена,
           hearts: итог.награда.hearts,
-        }),
+        }, { slot_spins: (user.slot_spins ?? 0) + 1 }),
         анимировать(итог.символы.map((с) => с.id)),
       ]);
 
@@ -356,6 +360,7 @@ export default function Home() {
             <div style={пилюля}><Иконка имя="фишки" размер={S(34)} />{баланс.chips}</div>
             <div style={пилюля}><Иконка имя="билеты" размер={S(34)} />{баланс.tickets}</div>
           </div>
+          <div style={{ width: S(300), marginTop: S(12) }}><SlotXpBar спинов={user.slot_spins ?? 0} /></div>
         </div>
 
         {/* Всплывающие награды (+N и значок) над экраном */}

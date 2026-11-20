@@ -7,6 +7,7 @@ import СтрокаИтога, { Разделитель } from "../components/To
 import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useUser } from "../store/UserContext";
+import { useMastery } from "../lib/useMastery";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
 import { КСЮХА_РАН, КлючСложности } from "../config";
@@ -32,6 +33,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function KsuhaRun() {
   const { user, change } = useUser();
+  useMastery("ksuha");
   const navigate = useNavigate();
   const контейнер = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);

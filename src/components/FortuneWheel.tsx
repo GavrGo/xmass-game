@@ -52,8 +52,8 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
   const [ошибка, setОшибка] = useState("");
 
-  const сX100 = естьАртефакт(user, "x100");
-  const секторы = useMemo(() => собратьСектора(валюта, сX100), [валюта, сX100]);
+  const сX10 = естьАртефакт(user, "x10");
+  const секторы = useMemo(() => собратьСектора(валюта, сX10), [валюта, сX10]);
   if (!user) return null;
 
   const баланс = заморозка ?? { chips: user.chips, tickets: user.tickets, hearts: user.hearts };
@@ -181,7 +181,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
         <div className="relative" style={{ width: размерКолеса, height: размерКолеса }}>
           <Колесо секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
         </div>
-        <ЛегендаКолеса сX100={сX100} />
+        <ЛегендаКолеса x10={сX10} />
 
         {/* Результат */}
         <div className="mt-3 h-8 text-center text-lg font-extrabold">

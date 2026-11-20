@@ -8,6 +8,7 @@ import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
+import { useMastery } from "../lib/useMastery";
 import { ДЖИРА_ФАЙТ as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
@@ -52,6 +53,7 @@ function Задача({ цвет }: { цвет: string }) {
 
 export default function JiraFight() {
   const { user, change } = useUser();
+  useMastery("jira");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 

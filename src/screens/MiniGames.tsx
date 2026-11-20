@@ -4,6 +4,7 @@ import { КСЮХА_РАН, ПЯТНАШКИ, ТРИ_В_РЯД, ДЖИРА_ФА�
 import { Картинка } from "../components/Icon";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
+import { уровеньМастерства } from "../game/mastery";
 
 // Список мини-игр: сетка карточек в 2 колонки (по макету).
 // Обложка: public/assets/ui/game-<id>.png. Нет файла — большой эмодзи.
@@ -37,6 +38,12 @@ export default function MiniGames() {
             <div className="mt-2 text-sm font-bold">{и.название}</div>
             <div className="line-clamp-2 text-[11px] leading-snug text-muted"><Эм>{и.описание}</Эм></div>
             <div className="mt-1 text-[11px] font-semibold text-brand-yellow">{и.рекорд}</div>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
+                <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-cyan-300" style={{ width: `${уровеньМастерства(user.mastery?.[и.id]?.xp ?? 0).прогресс * 100}%` }} />
+              </div>
+              <span className="text-[11px] font-bold">Ур. {уровеньМастерства(user.mastery?.[и.id]?.xp ?? 0).уровень}</span>
+            </div>
           </Link>
         ))}
       </div>
