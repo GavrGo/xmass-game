@@ -277,9 +277,9 @@ export class КсюхаРанДвижок {
     ctx.fillStyle = небо; ctx.fillRect(0, 0, W, H);
 
     if (готова(фонИмг)) {
-      const ширФона = H * фонИмг.naturalWidth / фонИмг.naturalHeight;
+      const ширФона = зем * фонИмг.naturalWidth / фонИмг.naturalHeight;
       const сдвигФона = ширФона > W ? this.смещениеФона % (ширФона - W) : 0;
-      ctx.drawImage(фонИмг, -сдвигФона, 0, ширФона, H);
+      for (let x = -сдвигФона; x < W; x += ширФона) ctx.drawImage(фонИмг, Math.round(x), 0, Math.ceil(ширФона) + 1, зем);
     }
 
     if (готова(дорогаИмг)) {
@@ -287,7 +287,7 @@ export class КсюхаРанДвижок {
       const ширДороги = высотаДороги * дорогаИмг.naturalWidth / дорогаИмг.naturalHeight;
       const верх = зем - К.вид.дорожкаДоля * высотаДороги;
       for (let x = -(this.смещение % ширДороги); x < W; x += ширДороги) {
-        ctx.drawImage(дорогаИмг, x, верх, ширДороги, высотаДороги);
+        ctx.drawImage(дорогаИмг, Math.round(x), верх, Math.ceil(ширДороги) + 1, высотаДороги);
       }
     }
 
@@ -329,17 +329,6 @@ export class КсюхаРанДвижок {
     for (const в of this.всплывашки) { ctx.globalAlpha = Math.max(0, 1 - в.t / 0.8); ctx.fillText(в.text, в.x, в.y); }
     ctx.globalAlpha = 1;
 
-    // Счёт и время (с учётом отступа под кнопки Telegram)
-    if (фаза !== "menu") {
-      const y0 = 12 + this.safeTopCss / this.масштаб;
-      ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 4;
-      ctx.fillStyle = "#ffffff"; ctx.font = "bold 20px sans-serif"; ctx.textBaseline = "top";
-      ctx.textAlign = "left"; ctx.fillText(Т.игры.ksuha.худ.препятствий(this.пройдено), 14, y0);
-      if (чипГотов()) { ctx.drawImage(чипКартинка!, 14, y0 + 26, 24, 24); ctx.fillText(Т.игры.ksuha.худ.монет(this.монетСобрано), 44, y0 + 26); }
-      else ctx.fillText(Т.игры.ksuha.худ.монет(this.монетСобрано), 14, y0 + 26);
-      if (this.лимит > 0) { ctx.textAlign = "right"; ctx.fillText(Т.игры.ksuha.худ.время(Math.ceil(this.осталось)), W - 14, y0); }
-      ctx.shadowBlur = 0;
-    }
   }
 }
 

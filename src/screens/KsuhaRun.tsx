@@ -219,6 +219,16 @@ export default function KsuhaRun() {
     };
   }, []);
 
+  const [худ, setХуд] = useState({ пройдено: 0, монеты: 0, осталось: 0, лимит: 0 });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const д = движок.current;
+      if (!д || фазаRef.current !== "playing") return;
+      setХуд({ пройдено: д.пройдено, монеты: д.монетСобрано, осталось: Math.ceil(д.осталось), лимит: д.лимит });
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
   if (!user) return null;
   const лимит = лимитВремени(сложность);
   const бонусПроц = посчитатьНаграду(0, 0, "medium", user.salary_level).бонусПроц;
@@ -229,6 +239,24 @@ export default function KsuhaRun() {
     <div ref={контейнер} className="fixed inset-0 z-30 select-none overflow-hidden bg-black" style={{ touchAction: "none" }}>
       {/* Игровое поле на весь экран. Тап = прыжок */}
       <canvas ref={canvasRef} onPointerDown={прыжок} className="absolute inset-0 h-full w-full" />
+
+      {фаза === "playing" && (
+        <div className="pointer-events-none absolute inset-x-0 z-10 flex items-start justify-between px-4" style={{ top: safeTop + 12 }}>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Препятствий</div>
+            <div className="text-4xl font-extrabold leading-none text-white drop-shadow">{худ.пройдено}</div>
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-sm font-bold text-white">
+              <img src="/assets/icons/slot-chip.png" alt="" className="h-4 w-4" />
+              {худ.монеты}
+            </div>
+          </div>
+          {худ.лимит > 0 && (
+            <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-bold tabular-nums text-white">
+              {Math.floor(худ.осталось / 60)}:{String(худ.осталось % 60).padStart(2, "0")}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ===== МЕНЮ ПЕРЕД СТАРТОМ ===== */}
       {фаза === "menu" && (
