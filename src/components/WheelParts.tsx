@@ -193,23 +193,19 @@ export function Колесо({ секторы, поворот, идёт, сек�
 export function ПоказательСектора({ сектор }: { сектор: Сектор }) {
   const череп = сектор.множитель === 0;
   const золото = !!сектор.золотой;
-  const цвет = золото ? "#FFC83A" : череп ? КОЛЕСО.цветЧерепа : КОЛЕСО.цветаСекторов[String(сектор.множитель)] ?? "#666";
+  const фон = золото
+    ? "linear-gradient(135deg, #FFF4B0, #FFB800)"
+    : череп ? КОЛЕСО.цветЧерепа : (КОЛЕСО.цветаСекторов[String(сектор.множитель)] ?? "#666");
   return (
     <div
-      className={`flex h-10 min-w-[104px] items-center justify-center gap-2.5 rounded-full px-4 ring-1 backdrop-blur ${золото ? "wheel-gold-pill" : ""}`}
-      style={{
-        background: золото ? "rgba(255,200,58,.2)" : "rgba(0,0,0,.55)",
-        ["--tw-ring-color" as any]: золото ? "rgba(255,216,106,.7)" : "rgba(255,255,255,.18)",
-        transition: "background .12s",
-      }}
+      className="flex h-10 w-[120px] items-center justify-center rounded-full ring-1 ring-white/25"
+      style={{ background: фон, boxShadow: золото ? "0 0 12px rgba(255,184,0,.5)" : `0 0 12px ${фон}66` }}
       aria-live="off"
     >
-      <span
-        className="h-4 w-4 shrink-0 rounded-full ring-1 ring-white/40"
-        style={{ background: золото ? "radial-gradient(circle at 35% 30%, #FFF4B0, #FFB800)" : цвет, boxShadow: `0 0 8px ${цвет}99` }}
-      />
       {череп ? <Череп размер={20} /> : (
-        <span className="text-lg font-black leading-none tabular-nums" style={{ color: золото ? "#FFD95E" : "#fff" }}>{Т.колесо.множитель(сектор.множитель)}</span>
+        <span className="text-center text-lg font-black leading-none tabular-nums" style={{ color: золото ? "#2A1D00" : "#fff" }}>
+          {Т.колесо.множитель(сектор.множитель)}
+        </span>
       )}
     </div>
   );

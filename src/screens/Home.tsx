@@ -169,7 +169,10 @@ export default function Home() {
     const цена = бесплатная ? 0 : ставка;
     const опыт = уровеньОпытаСлота(user.slot_spins ?? 0);
     const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте);
-    итог.награда.hearts = Math.round(итог.награда.hearts * опыт.множитель);
+    const м = опыт.множитель;
+    итог.награда.chips = Math.round(итог.награда.chips * м);
+    итог.награда.tickets = Math.round(итог.награда.tickets * м);
+    итог.награда.hearts = Math.round(итог.награда.hearts * м);
 
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
@@ -363,7 +366,7 @@ export default function Home() {
         </div>
 
         <div style={{ position: "absolute", left: X(A.панели.лидеры.x), width: S(A.панели.колесо.x + A.панели.колесо.w - A.панели.лидеры.x), top: Y(A.панели.лидеры.y + A.панели.лидеры.h + 8), height: S(22), zIndex: 41 }}>
-          <SlotXpBar спинов={user.slot_spins ?? 0} />
+          <SlotXpBar спинов={user.slot_spins ?? 0} активна={идёт} />
         </div>
 
         {/* Всплывающие награды (+N и значок) над экраном */}
