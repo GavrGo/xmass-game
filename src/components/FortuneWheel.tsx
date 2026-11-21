@@ -9,7 +9,6 @@ import { useАссеты } from "../lib/assets";
 import { естьАртефакт } from "../game/artifacts";
 import { Колесо, ЛегендаКолеса, Череп } from "./WheelParts";
 import type { Сектор } from "../game/wheel";
-import Искры from "./Sparks";
 import { звук } from "../lib/sound";
 import { хаптик } from "../lib/haptic";
 import { собратьСектора, выбратьСектор, новыйПоворот, выплата, уголДиска, границПройдено, секторПриУгле } from "../game/wheel";
@@ -47,14 +46,14 @@ function силаСвечения(м: number): number {
   return 0;
 }
 
-function ЧастицыКолеса() {
+function ЧастицыКолеса({ цвет, свет }: { цвет: string; свет: string }) {
   const частицы = useMemo(() => Array.from({ length: 16 }, () => ({
     left: 6 + Math.random() * 88, size: 2 + Math.random() * 3, dur: 5 + Math.random() * 4, delay: -Math.random() * 9,
   })), []);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {частицы.map((p, i) => (
-        <span key={i} className="wheel-rain" style={{ left: `${p.left}%`, width: p.size, height: p.size, ["--dur" as any]: `${p.dur}s`, ["--delay" as any]: `${p.delay}s` }} />
+        <span key={i} className="wheel-rain" style={{ left: `${p.left}%`, width: p.size, height: p.size, ["--dur" as any]: `${p.dur}s`, ["--delay" as any]: `${p.delay}s`, ["--fill" as any]: цвет, ["--glow" as any]: свет }} />
       ))}
     </div>
   );
@@ -79,6 +78,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
   const [ошибка, setОшибка] = useState("");
   const [сила, setСила] = useState(0);
+  const [вспышка, setВспышка] = useState(0);
 
   const сX10 = естьАртефакт(user, "x10");
   const секторы = useMemo(() => собратьСектора(валюта, сX10), [валюта, сX10]);
@@ -160,7 +160,9 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
       дельта[валюта] = итог;
       await Promise.all([change(дельта), пауза(КОЛЕСО.вращение.секунд * 1000 + 250)]);
       if (с.множитель === 0) {
-        setСила(с.золотой ? 1 : силаСвечения(с.множитель));
+        const св = с.золотой ? 1 : силаСвечения(с.множитель);
+        setСила(св);
+        if (св > 0) setВспышка((v) => v + 1);
     setРезультат({ вид: "проигрыш", текст: ТК.проигрыш(ставка) });
         звук.sfx("поражение");
       } else if (с.множитель < 1) {
@@ -191,8 +193,17 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
         className="pointer-events-none absolute inset-0 transition-opacity duration-500"
         style={{ background: `radial-gradient(circle at 50% 30%, rgba(${r},${g},${b},${0.55 + 0.4 * сила}) 0%, rgba(${r},${g},${b},${0.22 + 0.3 * сила}) 32%, transparent 62%)` }}
       />
-      <ЧастицыКолеса />
-      {валюта === "hearts" && <Искры количество={КОЛЕСО.искрыСердечек} цвет={КОЛЕСО.свечение.hearts} />}
+      {вспышка > 0 && сила > 0 && (
+        <div
+          key={вспышка}
+          className="wheel-flash pointer-events-none absolute inset-0"
+          style={{
+            background: `radial-gradient(circle at 50% 35%, rgba(${r},${g},${b},0.6) 0%, rgba(${r},${g},${b},0.2) 42%, transparent 70%)`,
+            ["--max" as any]: сила,
+          }}
+        />
+      )}
+      <ЧастицыКолеса цвет={`rgb(${r},${g},${b})`} свет={`rgba(${r},${g},${b},0.8)`} />
 
       {/* Крестик */}
       <button
@@ -207,7 +218,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
       <div className="relative z-10 flex w-full max-w-md flex-col items-center px-4 pb-4 pt-3">
 
         {/* Колесо с указателем */}
-        <div className="relative" style={{ width: размерКолеса, height: размерКолеса, marginTop: "-35vw", marginBottom: "10vw", filter: сила > 0 ? `drop-shadow(0 0 ${18 + 40 * сила}px rgba(${r},${g},${b},${0.35 + 0.5 * сила}))` : undefined }}>
+        <div className="relative" style={{ width: размерКолеса, height: размерКолеса, marginTop: "-53vw", marginBottom: "-3vw", filter: сила > 0 ? `drop-shadow(0 0 ${18 + 40 * сила}px rgba(${r},${g},${b},${0.35 + 0.5 * сила}))` : undefined }}>
           <Колесо хабЦвет={цветСектора(сейчасПодСтрелкой)} хабТекст={хабТекст} секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
         </div>
         <ЛегендаКолеса x10={сX10} />

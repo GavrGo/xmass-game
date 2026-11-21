@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "../store/UserContext";
-import { МАСТЕРСТВО, ПРОКАЧКИ } from "../config";
+import { МАСТЕРСТВО } from "../config";
 import { сегодня, уровеньМастерства } from "../game/mastery";
 import { getGlobalRecord, type КолонкаРекорда } from "../api/users";
 
@@ -47,9 +47,8 @@ export function useMastery(игра: string) {
   const держатели = useRecordHolders();
 
   const уровень = уровеньМастерства(user?.mastery?.[игра]?.xp ?? 0).бонус;
-  const витрина = 1 + ((user?.showcase_level ?? 0) * ПРОКАЧКИ.showcase.эффектЗаУровень) / 100;
   const рекорд = держатели.has(игра) ? 1 + МАСТЕРСТВО.рекордБонус : 1;
-  const бонус = уровень * витрина * рекорд;
+  const бонус = уровень * рекорд;
 
   const сохранить = async () => {
     const накоплено = очки.current;

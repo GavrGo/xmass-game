@@ -170,7 +170,7 @@ export function Колесо({ секторы, поворот, идёт, сек�
       </div>
 
       {/* Указатель: качается, когда по нему бьют сектора */}
-      <div className="pointer-events-none absolute left-1/2 z-20 w-[10%] -translate-x-1/2" style={{ top: "92%", filter: "drop-shadow(0 4px 5px rgba(0,0,0,.55))" }}>
+      <div className="pointer-events-none absolute left-1/2 z-20 w-[10%] -translate-x-1/2" style={{ top: "calc(100% - 16vw)", filter: "drop-shadow(0 4px 5px rgba(0,0,0,.55))" }}>
         <div ref={указательRef} style={{ transformOrigin: "50% 67%" }}>
           <svg viewBox="0 0 36 52" className="block w-full" style={{ transform: "rotate(180deg)" }} aria-hidden>
             <defs>
