@@ -8,7 +8,7 @@ import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
-import { useMastery } from "../lib/useMastery";
+import { useMastery, сБонусом } from "../lib/useMastery";
 import { ПЯТНАШКИ } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { перемешать, сдвинуть, собрана, наградаЗаПазл, ПУСТАЯ, Режим } from "../game/puzzle";
@@ -36,7 +36,7 @@ const мм = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(
 
 export default function Puzzle() {
   const { user, change, telegramId } = useUser();
-  const начислитьМастерство = useMastery("puzzle");
+  const { бонус, начислить: начислитьМастерство } = useMastery("puzzle");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -91,7 +91,7 @@ export default function Puzzle() {
     звук.sfx(победа ? "победа" : "поражение"); // ← звук победы / поражения
     if (победа) setРаскрыта(true);
 
-    const награда = наградаЗаПазл(р, победа, u.salary_level);
+    const награда = сБонусом(наградаЗаПазл(р, победа, u.salary_level), бонус);
     const секунд = Math.round((Date.now() - началоRef.current) / 1000);
     const всего = (u.puzzles_solved ?? 0) + (победа ? 1 : 0);
 

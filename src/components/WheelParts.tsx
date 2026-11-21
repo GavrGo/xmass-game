@@ -227,7 +227,7 @@ export function ЛегендаКолеса({ x10 }: { x10: boolean }) {
   const таймер = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(таймер.current), []);
 
-  const множители = useMemo(() => [...new Set(КОЛЕСО.сектора.filter((м) => м > 0))].sort((a, b) => a - b), []);
+  const множители = useMemo(() => [...new Set(КОЛЕСО.кольцо.filter((м): м is number => typeof м === "number" && м > 0))].sort((a, b) => a - b), []);
 
   const показать = () => {
     setПодсказка((n) => n + 1);

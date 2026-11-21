@@ -9,7 +9,7 @@ import СтрокаИтога, { Разделитель } from "../components/To
 import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
-import { useMastery } from "../lib/useMastery";
+import { useMastery, сБонусом } from "../lib/useMastery";
 import { ТРИ_В_РЯД as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
@@ -50,7 +50,7 @@ const кадр = () => new Promise<void>((r) => requestAnimationFrame(() => requ
 
 export default function Match3() {
   const { user, change } = useUser();
-  const начислитьМастерство = useMastery("match3");
+  const { бонус, начислить: начислитьМастерство } = useMastery("match3");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -162,7 +162,7 @@ export default function Match3() {
     const { user: u, change: изменить } = свежее.current;
     if (!u) return;
     const н = этапRef.current;
-    const награда = наградаЭтапа(н, ходыRef.current, u.salary_level);
+    const награда = сБонусом(наградаЭтапа(н, ходыRef.current, u.salary_level), бонус);
     const рекорд = u.best_match3 ?? 0;
     let сохранилось = true;
     let предупреждение: string | undefined;

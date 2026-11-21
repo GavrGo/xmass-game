@@ -7,7 +7,7 @@ import СтрокаИтога, { Разделитель } from "../components/To
 import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useUser } from "../store/UserContext";
-import { useMastery } from "../lib/useMastery";
+import { useMastery, сБонусом } from "../lib/useMastery";
 import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
 import { Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
@@ -34,7 +34,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function Babka() {
   const { user, change } = useUser();
-  const начислитьМастерство = useMastery("babka");
+  const { бонус, начислить: начислитьМастерство } = useMastery("babka");
   const navigate = useNavigate();
   useNoSwipes(); // только тапы
 
@@ -88,7 +88,7 @@ export default function Babka() {
     if (!u) return;
 
     const n = д.дорог;
-    const награда = посчитатьНаградуБабки(n, р, п, u.salary_level);
+    const награда = сБонусом(посчитатьНаградуБабки(n, р, п, u.salary_level), бонус);
     const прежний = u.best_babka_crash ?? 0;
     const новыйРекорд = n > прежний;
     const личный = Math.max(n, прежний);
