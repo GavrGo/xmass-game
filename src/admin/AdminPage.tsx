@@ -6,6 +6,8 @@ import type { User } from "../types";
 import { Т } from "../texts";
 import { загрузитьСтатистику } from "../lib/stats";
 import type { СтрокаСтатистики } from "../lib/stats";
+import { уровеньОпытаСлота } from "../game/slotXp";
+import { уровеньМастерства } from "../game/mastery";
 
 // Поля, которые админ может править (названия подписей — в src/texts.ts, раздел админка.поля)
 const ПОЛЯ: (keyof User)[] = [
@@ -17,6 +19,11 @@ type КлючСтат = Exclude<keyof СтрокаСтатистики, "telegra
 const ТС = Т.админка.статистика;
 const КОЛОНКИ_СТАТ = (Object.keys(ТС.колонки) as КлючСтат[]).map((k) => ({ k, t: ТС.колонки[k] }));
 const времяТекст = (с: number) => `${Math.floor(с / 3600)}${ТС.часы} ${Math.floor((с % 3600) / 60)}${ТС.минуты}`;
+const УРОВНИ = (Object.keys(ТС.уровни) as (keyof typeof ТС.уровни)[]).map((k) => ({ k, t: ТС.уровни[k] }));
+function уровеньИгрока(u: User, k: string): number {
+  if (k === "slot") return уровеньОпытаСлота(u.slot_spins ?? 0).уровень;
+  return уровеньМастерства(u.mastery?.[k]?.xp ?? 0).уровень;
+}
 
 export default function AdminPage() {
   const { isAdmin } = useUser();
@@ -124,6 +131,7 @@ export default function AdminPage() {
               <tr>
                 <th className="pr-3 pb-2">{ТС.игрок}</th>
                 {КОЛОНКИ_СТАТ.map((c) => <th key={c.k} className="px-2 pb-2 text-right">{c.t}</th>)}
+                {УРОВНИ.map((c) => <th key={c.k} className="px-2 pb-2 text-right">{c.t}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -136,6 +144,7 @@ export default function AdminPage() {
                     {КОЛОНКИ_СТАТ.map((c) => (
                       <td key={c.k} className="px-2 text-right">{c.k === "seconds_in_game" ? времяТекст(s?.[c.k] ?? 0) : s?.[c.k] ?? 0}</td>
                     ))}
+                    {УРОВНИ.map((c) => <td key={c.k} className="px-2 text-right">{уровеньИгрока(u, c.k)}</td>)}
                   </tr>
                 ))}
             </tbody>
@@ -146,6 +155,7 @@ export default function AdminPage() {
                   const сумма = статистика.reduce((a, x) => a + (x[c.k] ?? 0), 0);
                   return <td key={c.k} className="px-2 pt-2 text-right">{c.k === "seconds_in_game" ? времяТекст(сумма) : сумма}</td>;
                 })}
+                {УРОВНИ.map((c) => <td key={c.k} />)}
               </tr>
             </tfoot>
           </table>

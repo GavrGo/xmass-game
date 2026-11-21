@@ -9,6 +9,7 @@ const КОЛОНКА_РЕКОРДА: Record<string, КолонкаРекорда
   match3: "best_match3",
   jira: "best_jira_level",
   ksuha: "best_ksuha_run",
+  puzzle: "puzzles_solved",
 };
 
 export function useRecordHolders(): Set<string> {

@@ -7,7 +7,7 @@ import { стат } from "../lib/stats";
 import { Иконка } from "./Icon";
 import { useАссеты } from "../lib/assets";
 import { естьАртефакт } from "../game/artifacts";
-import { Колесо, ЛегендаКолеса, ПоказательСектора } from "./WheelParts";
+import { Колесо, ЛегендаКолеса, Череп } from "./WheelParts";
 import type { Сектор } from "../game/wheel";
 import Искры from "./Sparks";
 import { звук } from "../lib/sound";
@@ -33,6 +33,33 @@ function временнаяТочкаПути(y: number): number {
   return bz(0.12, 0.1, (lo + hi) / 2);
 }
 
+function цветСектора(с: Сектор): string {
+  if (с.золотой) return "#FFC83A";
+  if (с.множитель === 0) return КОЛЕСО.цветЧерепа;
+  return КОЛЕСО.цветаСекторов[String(с.множитель)] ?? "#666";
+}
+
+function силаСвечения(м: number): number {
+  if (м >= 100) return 1;
+  if (м >= 10) return 0.8;
+  if (м >= 5) return 0.6;
+  if (м >= 3) return 0.4;
+  return 0;
+}
+
+function ЧастицыКолеса() {
+  const частицы = useMemo(() => Array.from({ length: 16 }, () => ({
+    left: 6 + Math.random() * 88, size: 2 + Math.random() * 3, dur: 5 + Math.random() * 4, delay: -Math.random() * 9,
+  })), []);
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {частицы.map((p, i) => (
+        <span key={i} className="wheel-rain" style={{ left: `${p.left}%`, width: p.size, height: p.size, ["--dur" as any]: `${p.dur}s`, ["--delay" as any]: `${p.delay}s` }} />
+      ))}
+    </div>
+  );
+}
+
 type Результат = { вид: "выигрыш" | "частично" | "проигрыш"; текст: string };
 
 // Колесо фортуны: попап поверх всего экрана.
@@ -51,6 +78,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
   const [результат, setРезультат] = useState<Результат | null>(null);
   const [заморозка, setЗаморозка] = useState<{ chips: number; tickets: number; hearts: number } | null>(null);
   const [ошибка, setОшибка] = useState("");
+  const [сила, setСила] = useState(0);
 
   const сX10 = естьАртефакт(user, "x10");
   const секторы = useMemo(() => собратьСектора(валюта, сX10), [валюта, сX10]);
@@ -80,6 +108,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     setРезультат(null);
     setОшибка("");
 
+    setСила(0);
     const индекс = выбратьСектор(секторы);
     const с = секторы[индекс];
     const получено = выплата(ставка, с.множитель);
@@ -131,7 +160,8 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
       дельта[валюта] = итог;
       await Promise.all([change(дельта), пауза(КОЛЕСО.вращение.секунд * 1000 + 250)]);
       if (с.множитель === 0) {
-        setРезультат({ вид: "проигрыш", текст: ТК.проигрыш(ставка) });
+        setСила(с.золотой ? 1 : силаСвечения(с.множитель));
+    setРезультат({ вид: "проигрыш", текст: ТК.проигрыш(ставка) });
         звук.sfx("поражение");
       } else if (с.множитель < 1) {
         setРезультат({ вид: "частично", текст: ТК.частично(с.множитель, получено) });
@@ -149,16 +179,19 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     }
   };
 
-  const размерКолеса = "min(70vw, max(150px, calc(100vh - 495px)), 290px)";
+  const размерКолеса = "min(96vw, max(240px, calc(100vh - 330px)), 440px)";
   const сейчасПодСтрелкой = идёт && подСтрелкой ? подСтрелкой : секторПриУгле(секторы, поворот);
+
+  const хабТекст = сейчасПодСтрелкой.множитель === 0 ? <Череп размер={26} /> : Т.колесо.множитель(сейчасПодСтрелкой.множитель);
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-y-auto bg-black/90">
       {/* Свечение за колесом и искры для сердечек */}
       <div
         className="pointer-events-none absolute inset-0 transition-opacity duration-500"
-        style={{ background: `radial-gradient(circle at 50% 30%, rgba(${r},${g},${b},0.55) 0%, rgba(${r},${g},${b},0.22) 32%, transparent 62%)` }}
+        style={{ background: `radial-gradient(circle at 50% 30%, rgba(${r},${g},${b},${0.55 + 0.4 * сила}) 0%, rgba(${r},${g},${b},${0.22 + 0.3 * сила}) 32%, transparent 62%)` }}
       />
+      <ЧастицыКолеса />
       {валюта === "hearts" && <Искры количество={КОЛЕСО.искрыСердечек} цвет={КОЛЕСО.свечение.hearts} />}
 
       {/* Крестик */}
@@ -171,22 +204,18 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
         {Т.общее.крестик}
       </button>
 
-      <div className="relative z-10 flex w-full max-w-sm flex-col items-center px-4 pb-4 pt-3">
-        {/* Коэффициент под указателем */}
-        <div className="mb-6 flex justify-center">
-          <ПоказательСектора сектор={сейчасПодСтрелкой} />
-        </div>
+      <div className="relative z-10 flex w-full max-w-md flex-col items-center px-4 pb-4 pt-3">
 
         {/* Колесо с указателем */}
-        <div className="relative" style={{ width: размерКолеса, height: размерКолеса }}>
-          <Колесо секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
+        <div className="relative" style={{ width: размерКолеса, height: размерКолеса, filter: сила > 0 ? `drop-shadow(0 0 ${18 + 40 * сила}px rgba(${r},${g},${b},${0.35 + 0.5 * сила}))` : undefined }}>
+          <Колесо хабЦвет={цветСектора(сейчасПодСтрелкой)} хабТекст={хабТекст} секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
         </div>
         <ЛегендаКолеса x10={сX10} />
 
         {/* Результат */}
         <div className="mt-3 h-8 text-center text-lg font-extrabold">
           {идёт ? <span className="text-white/60">{ТК.крутится}</span> : результат && (
-            <span className={результат.вид === "выигрыш" ? "text-brand-yellow" : результат.вид === "частично" ? "text-white" : "text-red-300"}>{результат.текст}</span>
+            <span key={результат.текст} className={`${результат.вид === "выигрыш" ? "text-brand-yellow" : результат.вид === "частично" ? "text-white" : "text-red-300"} ${сила > 0 ? "bj-pct" : ""}`}>{результат.текст}</span>
           )}
           {ошибка && <span className="text-red-300">{ошибка}</span>}
         </div>

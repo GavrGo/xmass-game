@@ -46,9 +46,9 @@ const Замок = ({ размер }: { размер: number }) => (
  * Колесо целиком: неподвижная рамка с мигающими лампочками, вращающийся диск, блик, втулка и указатель.
  * Размер задаёт родитель (квадратный контейнер); указательRef — элемент, который родитель «щёлкает» при проходе границ секторов.
  */
-export function Колесо({ секторы, поворот, идёт, секунд, указательRef, дискRef }: {
+export function Колесо({ секторы, поворот, идёт, секунд, указательRef, дискRef, хабЦвет, хабТекст }: {
   секторы: Сектор[]; поворот: number; идёт: boolean; секунд: number;
-  указательRef: RefObject<HTMLDivElement>; дискRef: RefObject<HTMLDivElement>;
+  указательRef: RefObject<HTMLDivElement>; дискRef: RefObject<HTMLDivElement>; хабЦвет: string; хабТекст: ReactNode;
 }) {
   const id = useId().replace(/:/g, "");
   const лампочки = useMemo(
@@ -160,15 +160,19 @@ export function Колесо({ секторы, поворот, идёт, сек�
           </radialGradient>
         </defs>
         <circle cx="100" cy="100" r={R} fill={`url(#${id}-gloss)`} />
-        <circle cx="100" cy="100" r="17" fill={`url(#${id}-rim)`} stroke="#5B4000" strokeWidth="2.5" />
-        <circle cx="100" cy="100" r="11" fill="#2A1D04" />
-        <circle cx="100" cy="100" r="4.5" fill={`url(#${id}-bulb)`} />
+        <circle cx="100" cy="100" r="34" fill={`url(#${id}-rim)`} stroke="#5B4000" strokeWidth="2.5" />
+        <circle cx="100" cy="100" r="28" fill={хабЦвет} style={{ transition: "fill .25s" }} />
+        <circle cx="100" cy="100" r="28" fill={`url(#${id}-gloss)`} />
       </svg>
 
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center font-black text-white" style={{ width: "28%", height: "28%", fontSize: "clamp(18px, 6.5vw, 30px)", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>
+        {хабТекст}
+      </div>
+
       {/* Указатель: качается, когда по нему бьют сектора */}
-      <div className="pointer-events-none absolute left-1/2 top-0 z-20 w-[14%] -translate-x-1/2 -translate-y-[40%]" style={{ filter: "drop-shadow(0 4px 5px rgba(0,0,0,.55))" }}>
-        <div ref={указательRef} style={{ transformOrigin: "50% 33%" }}>
-          <svg viewBox="0 0 36 52" className="block w-full" aria-hidden>
+      <div className="pointer-events-none absolute left-1/2 z-20 w-[14%] -translate-x-1/2" style={{ top: "84%", filter: "drop-shadow(0 4px 5px rgba(0,0,0,.55))" }}>
+        <div ref={указательRef} style={{ transformOrigin: "50% 67%" }}>
+          <svg viewBox="0 0 36 52" className="block w-full" style={{ transform: "rotate(180deg)" }} aria-hidden>
             <defs>
               <linearGradient id={`${id}-ptr`} x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0" stopColor="#FFE27A" />
@@ -190,27 +194,6 @@ export function Колесо({ секторы, поворот, идёт, сек�
 }
 
 /** Плашка над колесом: коэффициент сектора, на который сейчас указывает стрелка. */
-export function ПоказательСектора({ сектор }: { сектор: Сектор }) {
-  const череп = сектор.множитель === 0;
-  const золото = !!сектор.золотой;
-  const фон = золото
-    ? "linear-gradient(135deg, #FFF4B0, #FFB800)"
-    : череп ? КОЛЕСО.цветЧерепа : (КОЛЕСО.цветаСекторов[String(сектор.множитель)] ?? "#666");
-  return (
-    <div
-      className="flex h-10 w-[120px] items-center justify-center rounded-full ring-1 ring-white/25"
-      style={{ background: фон, boxShadow: золото ? "0 0 12px rgba(255,184,0,.5)" : `0 0 12px ${фон}66` }}
-      aria-live="off"
-    >
-      {череп ? <Череп размер={20} /> : (
-        <span className="text-center text-lg font-black leading-none tabular-nums" style={{ color: золото ? "#2A1D00" : "#fff" }}>
-          {Т.колесо.множитель(сектор.множитель)}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function Плашка({ кружок, children, className = "" }: { кружок: string; children: ReactNode; className?: string }) {
   return (
     <div className={`flex items-center gap-1.5 rounded-full bg-white/10 py-1 pl-1.5 pr-2.5 text-xs font-bold text-white ${className}`}>

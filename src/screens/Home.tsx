@@ -435,8 +435,12 @@ export default function Home() {
           <details className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-sm">
             <summary className="cursor-pointer text-xs font-semibold text-white/80">{Т.слот.таблица.заголовок}</summary>
             <div className="mt-3 flex flex-col gap-2.5">
-              {СИМВОЛЫ_СЛОТА.filter(с => !с.мусор).map((с) => (
-                <div key={с.id} className="flex items-center justify-between gap-2">
+              {СИМВОЛЫ_СЛОТА.filter(с => !с.мусор).map((с) => {
+                const закрыт = (с.открытьНаУровне ?? 1) > уровеньОпытаСлота(user.slot_spins ?? 0).уровень;
+                return (
+                <div key={с.id}>
+                {закрыт && <div className="mb-1 text-[11px] font-semibold text-amber-300">Разблокируется на {с.открытьНаУровне} уровень слота</div>}
+                <div className={`flex items-center justify-between gap-2 ${закрыт ? "opacity-40" : ""}`}>
                   <div className="flex gap-1">{[0, 1, 2].map((k) => <Символ key={k} id={с.id} эм={с.эмодзи} />)}</div>
                   {с.бомба ? (
                     <span className="flex items-center gap-2 text-sm font-bold">{Т.слот.таблица.бан(СЛОТ.блокировкаПослеБомбСекунд)} <Символ id={с.id} эм={с.эмодзи} /></span>
@@ -444,7 +448,9 @@ export default function Home() {
                     <ВыплатаСтрока н={с.за3} м={эфМножитель} e={e} />
                   )}
                 </div>
-              ))}
+                </div>
+                );
+              })}
               {сWildВСлоте && (
                 <div className="flex items-center justify-between gap-2">
                   <Символ id={СИМВОЛ_WILD.id} эм={СИМВОЛ_WILD.эмодзи} />
@@ -453,7 +459,7 @@ export default function Home() {
               )}
               <div className="my-1 border-t border-white/10" />
               {СИМВОЛЫ_СЛОТА.filter((с) => !с.мусор && (с.за2.фишки || с.за2.билеты || с.за2.хэпэшки)).map((с) => (
-                <div key={"2" + с.id} className="flex items-center justify-between gap-2 opacity-70">
+                <div key={"2" + с.id} className={`flex items-center justify-between gap-2 opacity-70 ${(с.открытьНаУровне ?? 1) > уровеньОпытаСлота(user.slot_spins ?? 0).уровень ? "!opacity-40" : ""}`}>
                   <div className="flex gap-1">{[0, 1].map((k) => <Символ key={k} id={с.id} эм={с.эмодзи} />)}</div>
                   <ВыплатаСтрока н={с.за2} м={эфМножитель} e={e} />
                 </div>
