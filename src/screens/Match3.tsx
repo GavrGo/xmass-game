@@ -15,8 +15,9 @@ import { getGlobalRecord, Рекорд } from "../api/users";
 import РекордыБлок from "../components/RecordsBlock";
 import { глобальныйРекорд } from "../game/records";
 import ВспышкиCanvas, { Вспышка } from "../components/FlashesCanvas";
+import ПолосаОчков from "../components/MatchProgress";
 import {
-  N, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
+  КОЛ, СТР, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
   очкиЗаШаг, цельЭтапа, ходовЭтапа, наградаЭтапа, ТЕКСТ_ЭФФЕКТА,
 } from "../game/match3";
 
@@ -70,6 +71,13 @@ export default function Match3() {
   const [готово, setГотово] = useState(false);
   const [данныеЭтапа, setДанныеЭтапа] = useState<ДанныеЭтапа | null>(null);
   const [итог, setИтог] = useState<Итог | null>(null);
+  const [импульс, setИмпульс] = useState(0);
+  const [попап, setПопап] = useState<{ id: number; текст: string } | null>(null);
+  const летRef = useRef<HTMLDivElement>(null);
+  const полосаRef = useRef<HTMLDivElement>(null);
+  const визРef = useRef(0);
+  const визТокен = useRef(0);
+  const попапСчёт = useRef(0);
 
   const доскаRef = useRef<HTMLDivElement>(null);
   const полеRef = useRef<Поле>([]);
@@ -113,8 +121,8 @@ export default function Match3() {
   /** Яркая вспышка в центре взрыва (4 в ряд). */
   const добавитьВспышку = (центр: number) => {
     const id = ++счётВспышек.current;
-    const r = Math.floor(центр / N), c = центр % N;
-    setВспышки((в) => [...в, { id, x: (c + 0.5) / N, y: (r + 0.5) / N, радиус: (К.радиусВзрыва + 1.4) / N, старт: performance.now() }]);
+    const r = Math.floor(центр / КОЛ), c = центр % КОЛ;
+    setВспышки((в) => [...в, { id, x: (c + 0.5) / КОЛ, y: (r + 0.5) / СТР, радиус: (К.радиусВзрыва + 1.4) / КОЛ, старт: performance.now() }]);
     setTimeout(() => setВспышки((в) => в.filter((x) => x.id !== id)), 700);
   };
 
@@ -123,7 +131,7 @@ export default function Match3() {
     этапRef.current = n; setЭтап(n);
     цельRef.current = цельЭтапа(n); setЦель(цельRef.current);
     ходыRef.current = ходовЭтапа(n); setХоды(ходыRef.current);
-    очкиRef.current = 0; setОчки(0);
+    очкиRef.current = 0; визРef.current = 0; визТокен.current++; setОчки(0);
     const п = начальноеПоле();
     полеRef.current = п; setПоле(п);
     setНовые(new Set()); setУдаляются(new Set()); setВыбранная(null);
@@ -136,6 +144,79 @@ export default function Match3() {
     сессия.current = { пройдено: 0, фишек: 0 };
     setИтог(null);
     начатьЭтап(1);
+  };
+
+  const показатьПопап = (текст: string) => {
+    const id = ++попапСчёт.current;
+    setПопап({ id, текст });
+    const вспышкаId = ++счётВспышек.current;
+    setВспышки((в) => [...в, { id: вспышкаId, x: 0.5, y: 0.5, радиус: 0.9, старт: performance.now() }]);
+    setTimeout(() => setВспышки((в) => в.filter((x) => x.id !== вспышкаId)), 700);
+    setTimeout(() => setПопап((п) => (п?.id === id ? null : п)), 1700);
+  };
+
+  const прибавитьВизуально = (сумма: number) => {
+    визРef.current += сумма;
+    setОчки(Math.round(визРef.current));
+    setИмпульс((н) => н + 1);
+  };
+
+  const улететь = (индексы: Set<number>, п: Поле, очкиБатча: number) => {
+    const доска = доскаRef.current, слой = летRef.current, цель = полосаRef.current;
+    const части = [...индексы].filter((i) => п[i]);
+    const токен = визТокен.current;
+    if (!доска || !слой || !цель || !части.length) {
+      прибавитьВизуально(очкиБатча);
+      return;
+    }
+    const р = доска.getBoundingClientRect(), ц = цель.getBoundingClientRect();
+    const шагX = р.width / КОЛ, шагY = р.height / СТР;
+    const tx = ц.right - 4, ty = ц.top + ц.height / 2;
+    const доляОчков = очкиБатча / части.length;
+    части.forEach((i, n) => {
+      const к = п[i]!;
+      const сим = К.символы[к.тип];
+      const размер = Math.min(шагX, шагY) * 0.7;
+      const x0 = р.left + (i % КОЛ) * шагX + (шагX - размер) / 2;
+      const y0 = р.top + Math.floor(i / КОЛ) * шагY + (шагY - размер) / 2;
+      const el = document.createElement("div");
+      el.style.cssText = `position:absolute;left:${x0}px;top:${y0}px;width:${размер}px;height:${размер}px;display:flex;align-items:center;justify-content:center;pointer-events:none;will-change:transform,opacity`;
+      if (фото[сим.id]) {
+        const img = document.createElement("img");
+        img.src = К.папка + сим.файл;
+        img.alt = "";
+        img.draggable = false;
+        img.style.cssText = "width:100%;height:100%;object-fit:contain";
+        el.appendChild(img);
+      } else {
+        el.textContent = сим.эмодзи;
+        el.style.fontSize = `${размер * 0.8}px`;
+        el.style.lineHeight = "1";
+      }
+      слой.appendChild(el);
+      const dx = tx - (x0 + размер / 2), dy = ty - (y0 + размер / 2);
+      const подъём = -(60 + Math.random() * 50);
+      const анимация = el.animate(
+        [
+          { transform: "translate(0px,0px) scale(1)", opacity: 1 },
+          { transform: `translate(${dx * 0.3}px,${подъём}px) scale(1.15)`, opacity: 1, offset: 0.35 },
+          { transform: `translate(${dx}px,${dy}px) scale(0.3)`, opacity: 0.4 },
+        ],
+        { duration: 600, delay: n * 25, easing: "cubic-bezier(.5,0,.85,.5)", fill: "forwards" }
+      );
+      анимация.finished.then(
+        () => { el.remove(); if (токен === визТокен.current) прибавитьВизуально(доляОчков); },
+        () => el.remove()
+      );
+    });
+  };
+
+  const удар = (размер: number, сильно: boolean) => {
+    if (размер < 5 && !сильно) return;
+    доскаRef.current?.animate(
+      [{ transform: "translate(0,0)" }, { transform: "translate(-6px,3px)" }, { transform: "translate(6px,-3px)" }, { transform: "translate(0,0)" }],
+      { duration: 320, easing: "ease-out" }
+    );
   };
 
   /** Игра окончена (ходы закончились или игрок вышел). */
@@ -221,13 +302,15 @@ export default function Match3() {
       while (серии.length) {
         const р = разрушения(п, серии, центры);
         центры = [];
-        очкиRef.current += очкиЗаШаг(р.индексы.size, каскад);
-        setОчки(очкиRef.current);
+        const очкиБатча = очкиЗаШаг(р.индексы.size, каскад);
+        очкиRef.current += очкиБатча;
+        улететь(р.индексы, п, очкиБатча);
         // Взрыв (4 в ряд) показываем вспышкой, остальные эффекты — надписью
         if (р.взрывы.length) звук.sfx("взрыв"); // ← звук взрыва
         р.взрывы.forEach(добавитьВспышку);
-        if (р.эффект && р.эффект !== "взрыв") показатьТост(ТЕКСТ_ЭФФЕКТА[р.эффект]);
-        else if (каскад > 1) показатьТост(Т.игры.три_в_ряд.каскад(каскад));
+        удар(р.индексы.size, р.эффект !== null);
+        if (р.эффект && р.эффект !== "взрыв") показатьПопап(ТЕКСТ_ЭФФЕКТА[р.эффект]);
+        else if (каскад > 1) показатьПопап(Т.игры.три_в_ряд.каскад(каскад));
 
         setУдаляются(new Set([...р.индексы].map((i) => п[i]!.id)));
         await пауза(240);
@@ -267,8 +350,8 @@ export default function Match3() {
     const el = доскаRef.current;
     if (!el) return -1;
     const р = el.getBoundingClientRect();
-    const c = Math.floor(((x - р.left) / р.width) * N), r = Math.floor(((y - р.top) / р.height) * N);
-    return c < 0 || c >= N || r < 0 || r >= N ? -1 : r * N + c;
+    const c = Math.floor(((x - р.left) / р.width) * КОЛ), r = Math.floor(((y - р.top) / р.height) * СТР);
+    return c < 0 || c >= КОЛ || r < 0 || r >= СТР ? -1 : r * КОЛ + c;
   };
   const нажатьКлетку = (e: React.MouseEvent) => {
     if (фаза !== "playing" || занято.current) return;
@@ -311,13 +394,13 @@ export default function Match3() {
           <span>{ТМ.очки}: <b>{очки}</b> / {цель}</span>
           <span>{ТМ.ходов}: <b className={ходы <= 3 && фаза === "playing" ? "text-red-400" : ""}>{ходы}</b></span>
         </div>
-        <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-brand-yellow transition-all duration-300" style={{ width: `${доля}%` }} />
+        <div className="mt-1">
+          <ПолосаОчков ref={полосаRef} доля={доля / 100} импульс={импульс} />
         </div>
       </div>
 
       {/* Поле */}
-      <div className="relative mt-3" style={{ width: "min(92vw, calc(100dvh - 190px), 520px)", aspectRatio: "1 / 1" }}>
+      <div className="relative mt-3 w-full" style={{ maxWidth: 560, aspectRatio: `${КОЛ} / ${СТР}` }}>
         <div
           ref={доскаRef}
           onClick={нажатьКлетку}
@@ -325,7 +408,7 @@ export default function Match3() {
         >
           {поле.map((к, i) => {
             if (!к) return null;
-            const r = Math.floor(i / N), c = i % N;
+            const r = Math.floor(i / КОЛ), c = i % КОЛ;
             const новая = новые.has(к.id);
             const удал = удаляются.has(к.id);
             const выбрана = выбранная === i;
@@ -335,9 +418,9 @@ export default function Match3() {
                 key={к.id}
                 className="pointer-events-none absolute left-0 top-0"
                 style={{
-                  width: `${100 / N}%`, height: `${100 / N}%`,
-                  transform: `translate(${c * 100}%, ${(новая ? r - N : r) * 100}%)`,
-                  transition: новая ? "none" : `transform ${К.анимацияМс}ms ease-out`,
+                  width: `${100 / КОЛ}%`, height: `${100 / СТР}%`,
+                  transform: `translate(${c * 100}%, ${(новая ? r - СТР : r) * 100}%)`,
+                  transition: новая ? "none" : `transform ${К.анимацияМс}ms cubic-bezier(.34,1.5,.64,1)`,
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -353,7 +436,7 @@ export default function Match3() {
                     {фото[сим.id] ? (
                       <img src={К.папка + сим.файл} alt="" draggable={false} className="h-[84%] w-[84%] object-contain" style={idle(к.id)} />
                     ) : (
-                      <span className="inline-block" style={{ fontSize: "clamp(18px, 6.2vw, 36px)", lineHeight: 1, ...idle(к.id) }}>{сим.эмодзи}</span>
+                      <span className="inline-block" style={{ fontSize: "clamp(22px, 9vw, 52px)", lineHeight: 1, ...idle(к.id) }}>{сим.эмодзи}</span>
                     )}
                   </div>
                 </div>
@@ -363,6 +446,14 @@ export default function Match3() {
         </div>
 
         <ВспышкиCanvas вспышки={вспышки} />
+
+        <div ref={летRef} className="pointer-events-none fixed inset-0 z-40" />
+
+        {попап && (
+          <div key={попап.id} className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+            <span className="reward-pop whitespace-nowrap text-3xl font-extrabold text-brand-yellow drop-shadow-lg" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>{попап.текст}</span>
+          </div>
+        )}
 
         {тост && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 text-center">
