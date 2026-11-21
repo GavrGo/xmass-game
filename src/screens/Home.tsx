@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import SlotReels from "../components/SlotReels";
 import КнопкаСпин from "../components/SpinButton";
+import КнопкаАвто from "../components/AutoSpinButton";
 import КолесоФортуны from "../components/FortuneWheel";
 import { Конфетти, Взрыв } from "../components/SlotEffects";
 import { Иконка, Картинка } from "../components/Icon";
@@ -27,7 +28,8 @@ const ключБлока = (id: number | null) => `100hp_slot_lock_${id}`;
 const минСек = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(2, "0")}`;
 let уровеньМусора = 0;
 let сWildВСлоте = false;
-const случайныйId = () => случайныйСимвол(уровеньМусора, сWildВСлоте).id;
+let уровеньОпытаВСлоте = 1;
+const случайныйId = () => случайныйСимвол(уровеньМусора, сWildВСлоте, уровеньОпытаВСлоте).id;
 
 // Награда в таблице: «+10 [значок]» для каждой валюты
 function ВыплатаСтрока({ н, м, e }: { н: Награда; м: number; e: number }) {
@@ -67,7 +69,7 @@ export default function Home() {
   const [множитель, setМножитель] = useState<number>(СЛОТ.множителиСтавки[0]);
   const [автоспин, setАвтоспин] = useState(false);
   const автоспинRef = useRef(false);
-  const крутитьRef = useRef<() => Promise<void>>();
+  const крутитьRef = useRef<(платно?: boolean) => Promise<void>>();
   const можноКрутитьRef = useRef(false);
   const занято = useRef(false);
   const [плавающие, setПлавающие] = useState<{ id: number; имя: "фишки" | "билеты" | "хэпэшки"; n: number; смещение: number; текст?: string }[]>([]);
@@ -99,6 +101,7 @@ export default function Home() {
 
   if (!user) return null;
   уровеньМусора = user.trash_level ?? 0;
+  уровеньОпытаВСлоте = уровеньОпытаСлота(user.slot_spins ?? 0).уровень;
   сWildВСлоте = естьАртефакт(user, "wild");
 
   const A = АВТОМАТ;
@@ -147,7 +150,7 @@ export default function Home() {
         хаптикВыбор(); // тик на каждый кадр прокрутки
         setБарабаны(() => итог.map((с, i) => (остановлен[i] ? с : случайныйId())));
         setСоседи((п) => п.map((с, i) => (остановлен[i] ? с : ([случайныйId(), случайныйId()] as [string, string]))));
-      }, СЛОТ.анимация.сменаКадраМс);
+      }, темп(СЛОТ.анимация.сменаКадраМс));
       итог.forEach((_, i) => {
         setTimeout(() => {
           остановлен[i] = true;
@@ -155,12 +158,13 @@ export default function Home() {
           setКрутятся((п) => п.map((x, j) => (j === i ? false : x)));
           setБарабаны((п) => п.map((с, j) => (j === i ? итог[i] : с)));
           if (остановлен.every(Boolean)) { clearInterval(таймер); готово(); }
-        }, СЛОТ.анимация.остановкаПервогоМс + i * СЛОТ.анимация.паузаМеждуБарабанамиМс);
+        }, темп(СЛОТ.анимация.остановкаПервогоМс + i * СЛОТ.анимация.паузаМеждуБарабанамиМс));
       });
     });
 
-  const крутить = async () => {
-    if (занято.current || !можноКрутить) return;
+  const крутить = async (платно = false) => {
+    const бесплатная = !платно && бесплатныеКрутки > 0;
+    if (занято.current || (платно ? !платноRef.current : !можноКрутить)) return;
     занято.current = true;
     setИдёт(true);
     setСообщение("");
@@ -169,7 +173,7 @@ export default function Home() {
 
     const цена = бесплатная ? 0 : ставка;
     const опыт = уровеньОпытаСлота(user.slot_spins ?? 0);
-    const крутитьРаз = () => крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте);
+    const крутитьРаз = () => крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте, уровеньОпытаСлота(user.slot_spins ?? 0).уровень);
     const гарантия = (user.slot_pity ?? 0) >= ОПЫТ_СЛОТА.гарантияСпинов;
     let итог = крутитьРаз();
     for (let i = 0; гарантия && !((итог.награда.hearts ?? 0) > 0) && i < 500; i++) итог = крутитьРаз();
@@ -229,33 +233,44 @@ export default function Home() {
   крутитьRef.current = крутить;
   можноКрутитьRef.current = можноКрутить;
 
-  // Нажатие на кнопку: анимация идёт всегда, а крутится слот только если хватает билетов
+  const [автоВкл, setАвтоВкл] = useState(false);
+  const платноRef = useRef(false);
+  платноRef.current = !идёт && !заблокирован && (user?.tickets ?? 0) >= ставка;
+  const темп = (мс: number) => (автоспинRef.current ? мс / 2 : мс);
+
+  const остановитьАвто = () => {
+    автоспинRef.current = false;
+    setАвтоспин(false);
+  };
+
+  const запуститьАвто = async () => {
+    if (автоспинRef.current || !платноRef.current) return;
+    автоспинRef.current = true;
+    setАвтоспин(true);
+    while (автоспинRef.current && платноRef.current) {
+      await крутитьRef.current?.(true);
+      await new Promise((r) => setTimeout(r, темп(400)));
+    }
+    остановитьАвто();
+  };
+
+  const переключитьАвто = () => {
+    остановитьАвто();
+    setАвтоВкл((v) => !v);
+  };
+
   const нажатиеКнопки = () => {
     хаптик("light");
     if (автоспинRef.current) {
-      // Повторное нажатие останавливает автоспин
-      автоспинRef.current = false;
-      setАвтоспин(false);
+      остановитьАвто();
+      return;
+    }
+    if (автоВкл) {
+      запуститьАвто();
       return;
     }
     if (можноКрутить) крутить();
     else if (!идёт) звук.sfx("ошибка");
-  };
-
-  const запуститьАвтоспин = () => {
-    if (!можноКрутить || автоспинRef.current) return;
-    автоспинRef.current = true;
-    setАвтоспин(true);
-    const цикл = async () => {
-      while (автоспинRef.current) {
-        await крутитьRef.current?.();
-        await new Promise((r) => setTimeout(r, 400));
-        if (!можноКрутитьRef.current) break;
-      }
-      автоспинRef.current = false;
-      setАвтоспин(false);
-    };
-    цикл();
   };
 
   const подписьКнопки = идёт ? (
@@ -368,7 +383,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div style={{ position: "absolute", left: X(A.панели.лидеры.x), width: S(A.панели.колесо.x + A.панели.колесо.w - A.панели.лидеры.x), top: Y(A.панели.лидеры.y + A.панели.лидеры.h + 8), height: S(22), zIndex: 41 }}>
+        <div style={{ position: "absolute", left: X(A.панели.лидеры.x), width: S(A.панели.колесо.x + A.панели.колесо.w - A.панели.лидеры.x), top: Y(A.панели.лидеры.y + A.панели.лидеры.h + 13), height: S(22), zIndex: 41 }}>
           <SlotXpBar спинов={user.slot_spins ?? 0} активна={идёт} />
         </div>
 
@@ -390,7 +405,10 @@ export default function Home() {
 
         {/* Кнопка Spin */}
         <div style={{ position: "absolute", left: X(A.кнопка.x), top: Y(A.кнопка.y), zIndex: 40 }}>
-          <КнопкаСпин e={e} подпись={подписьКнопки} приглушена={!можноКрутить && !идёт} onНажатие={нажатиеКнопки} onДолгоеНажатие={запуститьАвтоспин} />
+          <КнопкаСпин e={e} подпись={подписьКнопки} приглушена={!можноКрутить && !идёт} залипла={автоспин} onНажатие={нажатиеКнопки} />
+        </div>
+        <div style={{ position: "absolute", left: X(A.автоКнопка.x), top: Y(A.автоКнопка.y), zIndex: 40 }}>
+          <КнопкаАвто e={e} вкл={автоВкл} onНажатие={переключитьАвто} />
         </div>
 
         {/* Место под экран и кнопку */}
