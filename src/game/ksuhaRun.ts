@@ -9,7 +9,7 @@ const ИГРОК = { x: 120, w: 40, h: 52 }; // позиция и размер �
 
 export type Фаза = "menu" | "playing" | "over";
 
-interface Препятствие { x: number; size: number; emoji: string; passed: boolean }
+interface Препятствие { x: number; size: number; картинка: number; вытяжка: [number, number]; passed: boolean }
 interface Монета { x: number; h: number; emoji: string; ценность: number; взята: boolean }
 interface Всплывашка { x: number; y: number; text: string; t: number }
 interface Снежинка { x: number; y: number; r: number; v: number }
@@ -19,6 +19,26 @@ const чипКартинка: HTMLImageElement | null = typeof Image !== "undefi
 const чипГотов = () => !!чипКартинка && чипКартинка.complete && чипКартинка.naturalWidth > 0;
 
 const случайно = (a: number, b: number) => a + Math.random() * (b - a);
+
+const ПУТЬ_АССЕТОВ = "/assets/ksuha/";
+const загрузить = (путь: string) => Object.assign(new Image(), { src: путь });
+const готова = (img: HTMLImageElement) => img.complete && img.naturalWidth > 0;
+const фонИмг = загрузить(ПУТЬ_АССЕТОВ + "BG.png");
+const дорогаИмг = загрузить(ПУТЬ_АССЕТОВ + "Road.png");
+const ксюхаИмг = загрузить(ПУТЬ_АССЕТОВ + "Ksuha.png");
+const мэнИмг = загрузить(ПУТЬ_АССЕТОВ + "Man.png");
+const барьеры = К.препятствия.картинки.map((f) => загрузить(ПУТЬ_АССЕТОВ + f));
+const подарокКартинка = загрузить("/assets/icons/slot-gift.png");
+
+function спрайт(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cx: number, низ: number, высота: number, угол = 0) {
+  if (!готова(img)) return;
+  const ширина = высота * img.naturalWidth / img.naturalHeight;
+  ctx.save();
+  ctx.translate(cx, низ);
+  if (угол) ctx.rotate(угол);
+  ctx.drawImage(img, -ширина / 2, -высота, ширина, высота);
+  ctx.restore();
+}
 
 /** Рисует эмодзи. зеркало = true разворачивает его вправо (эмодзи бегут влево по умолчанию). */
 function эмодзи(ctx: CanvasRenderingContext2D, символ: string, cx: number, низ: number, size: number, зеркало = false, угол = 0) {
@@ -57,7 +77,7 @@ export class КсюхаРанДвижок {
   снег: Снежинка[] = [];
   скорость: number = К.скорость.старт;
   смещение = 0;
-  смещениеЛеса = 0;
+  смещениеФона = 0;
   фазаБега = 0;
 
   // --- счёт ---
@@ -95,7 +115,7 @@ export class КсюхаРанДвижок {
     this.время = 0; this.лимит = лимитСек; this.осталось = лимитСек;
     this.дозаПоявления = 1.1; this.дозаМонеты = случайно(1.5, 3);
     this.закончена = false; this.причина = null; this.послеКонца = 0;
-    this.смещение = 0; this.смещениеЛеса = 0; this.фазаБега = 0;
+    this.смещение = 0; this.смещениеФона = 0; this.фазаБега = 0;
     this.снег = Array.from({ length: 40 }, () => ({
       x: случайно(0, this.мирШирина), y: случайно(0, this.земля), r: случайно(1, 3), v: случайно(15, 45),
     }));
@@ -155,7 +175,7 @@ export class КсюхаРанДвижок {
 
     // Движение фона
     this.смещение = (this.смещение + this.скорость * dt) % 100000;
-    this.смещениеЛеса = (this.смещениеЛеса + this.скорость * 0.3 * dt) % 100000;
+    this.смещениеФона = (this.смещениеФона + this.скорость * К.вид.параллакс * dt) % 100000;
     this.фазаБега += dt * 14;
     this.обновитьСнег(dt, this.скорость);
 
@@ -166,7 +186,8 @@ export class КсюхаРанДвижок {
       this.препятствия.push({
         x: this.мирШирина + 20,
         size: Math.round(случайно(п.минРазмер, п.максРазмер)),
-        emoji: п.эмодзи[Math.floor(Math.random() * п.эмодзи.length)],
+        картинка: Math.floor(Math.random() * п.картинки.length),
+        вытяжка: [случайно(0.85, 1.15), случайно(0.85, 1.15)],
         passed: false,
       });
       this.дозаПоявления = случайно(п.паузаМинСек, п.паузаМаксСек) * сл.множительПауз;
@@ -251,46 +272,40 @@ export class КсюхаРанДвижок {
   рисовать(ctx: CanvasRenderingContext2D, фаза: Фаза) {
     const W = this.мирШирина, H = this.мирВысота, зем = this.земля;
 
-    // Небо
-    const г = ctx.createLinearGradient(0, 0, 0, H);
-    г.addColorStop(0, "#0b1d2e"); г.addColorStop(1, "#1f4256");
-    ctx.fillStyle = г; ctx.fillRect(0, 0, W, H);
+    const небо = ctx.createLinearGradient(0, 0, 0, H);
+    небо.addColorStop(0, "#0b1d2e"); небо.addColorStop(1, "#1f4256");
+    ctx.fillStyle = небо; ctx.fillRect(0, 0, W, H);
 
-    // Снег
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    for (const с of this.снег) ctx.fillRect(с.x, с.y, с.r, с.r);
-
-    // Далёкие ёлки
-    ctx.globalAlpha = 0.3;
-    const шаг = 110, штук = Math.ceil(W / шаг) + 2;
-    for (let i = 0; i < штук; i++) {
-      const x = ((((i * шаг - this.смещениеЛеса) % (штук * шаг)) + штук * шаг) % (штук * шаг)) - шаг;
-      эмодзи(ctx, "🌲", x, зем + 2, 46);
+    if (готова(фонИмг)) {
+      const ширФона = H * фонИмг.naturalWidth / фонИмг.naturalHeight;
+      const сдвигФона = ширФона > W ? this.смещениеФона % (ширФона - W) : 0;
+      ctx.drawImage(фонИмг, -сдвигФона, 0, ширФона, H);
     }
-    ctx.globalAlpha = 1;
 
-    // Земля
-    ctx.fillStyle = "#e8f1f5"; ctx.fillRect(0, зем, W, H - зем);
-    ctx.fillStyle = "#d3e3ea"; ctx.fillRect(0, зем + 40, W, H - зем - 40);
-    ctx.fillStyle = "#b7cbd6";
-    for (let r = 0; r < 3; r++) {
-      for (let i = 0; i < 9; i++) {
-        const x = (((i * 90 + r * 37 - this.смещение) % (W + 100)) + W + 100) % (W + 100) - 50;
-        ctx.fillRect(x, зем + 14 + r * 22, 24, 3);
+    if (готова(дорогаИмг)) {
+      const высотаДороги = К.вид.дорогаВысотаДоля * H;
+      const ширДороги = высотаДороги * дорогаИмг.naturalWidth / дорогаИмг.naturalHeight;
+      const верх = зем - К.вид.дорожкаДоля * высотаДороги;
+      for (let x = -(this.смещение % ширДороги); x < W; x += ширДороги) {
+        ctx.drawImage(дорогаИмг, x, верх, ширДороги, высотаДороги);
       }
     }
 
-    // Препятствия
-    for (const о of this.препятствия) эмодзи(ctx, о.emoji, о.x + о.size / 2, зем + 4, о.size);
-
-    // Монеты (слегка покачиваются)
-    for (const м of this.монеты) {
-      const кач = Math.sin(this.время * 6 + м.x * 0.05) * 3;
-      if (м.emoji === "🪙" && чипГотов()) ctx.drawImage(чипКартинка!, м.x, зем - м.h - К.монеты.размер / 2 + кач, К.монеты.размер, К.монеты.размер);
-      else эмодзи(ctx, м.emoji, м.x + К.монеты.размер / 2, зем - м.h + К.монеты.размер / 2 + кач, К.монеты.размер);
+    for (const о of this.препятствия) {
+      const img = барьеры[о.картинка];
+      if (!готова(img)) continue;
+      const ш = о.size * о.вытяжка[0], в = о.size * о.вытяжка[1];
+      ctx.drawImage(img, о.x, зем - в + 4, ш, в);
     }
 
-    // Героиня 🏃‍♀️ и преследователь 🏃‍♂️ (оба зеркально — бегут вправо)
+    for (const м of this.монеты) {
+      const кач = Math.sin(this.время * 6 + м.x * 0.05) * 3;
+      const р = К.монеты.размер;
+      const img = м.emoji === "🪙" ? чипКартинка : подарокКартинка;
+      if (img && готова(img)) ctx.drawImage(img, м.x, зем - м.h - р / 2 + кач, р, р);
+      else эмодзи(ctx, м.emoji, м.x + р / 2, зем - м.h + р / 2 + кач, р);
+    }
+
     const бег = фаза === "playing" && !this.закончена;
     const кач = (сдвиг: number) => (бег ? Math.abs(Math.sin(this.фазаБега + сдвиг)) * 4 : 0);
     const упала = this.закончена ? Math.min(1, this.послеКонца * 4) : 0;
@@ -299,13 +314,15 @@ export class КсюхаРанДвижок {
     const hX = ИГРОК.x + ИГРОК.w / 2;
     const hY = зем - this.подъём - кач(0) + 4;
     const дистанция = К.погоня.дистанция;
-    const преследовательX = hX - дистанция + догнал * (дистанция - 10);
-    const hПреслед = this.закончена ? 0 : (this.история[0]?.h ?? 0);
-    const преследовательY = зем - hПреслед - кач(1.5) + 4;
-
-    эмодзи(ctx, "🏃‍♂️", преследовательX, преследовательY, ИГРОК.h, true);
-    эмодзи(ctx, "🏃‍♀️", hX, hY, ИГРОК.h, true, упала * (Math.PI / 2));
+    const преслX = hX - дистанция + догнал * (дистанция - 10);
+    const hПресл = this.закончена ? 0 : (this.история[0]?.h ?? 0);
+    const преслY = зем - hПресл - кач(1.5) + 4;
+    спрайт(ctx, мэнИмг, преслX, преслY, ИГРОК.h);
+    спрайт(ctx, ксюхаИмг, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
     if (this.причина === "crash") эмодзи(ctx, "💥", hX + 20, зем - 10, 34);
+
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    for (const с of this.снег) ctx.fillRect(с.x, с.y, с.r, с.r);
 
     // Всплывающие «+0.5»
     ctx.fillStyle = "#f4c430"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
