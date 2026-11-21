@@ -160,17 +160,17 @@ export function Колесо({ секторы, поворот, идёт, сек�
           </radialGradient>
         </defs>
         <circle cx="100" cy="100" r={R} fill={`url(#${id}-gloss)`} />
-        <circle cx="100" cy="100" r="34" fill={`url(#${id}-rim)`} stroke="#5B4000" strokeWidth="2.5" />
-        <circle cx="100" cy="100" r="28" fill={хабЦвет} style={{ transition: "fill .25s" }} />
-        <circle cx="100" cy="100" r="28" fill={`url(#${id}-gloss)`} />
+        <circle cx="100" cy="100" r="52" fill={`url(#${id}-rim)`} stroke="#5B4000" strokeWidth="2.5" />
+        <circle cx="100" cy="100" r="50" fill={хабЦвет} style={{ transition: "fill .25s" }} />
+        <circle cx="100" cy="100" r="50" fill={`url(#${id}-gloss)`} />
       </svg>
 
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center font-black text-white" style={{ width: "28%", height: "28%", fontSize: "clamp(18px, 6.5vw, 30px)", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center font-black text-white" style={{ width: "50%", height: "50%", fontSize: "clamp(30px, 10vw, 58px)", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>
         {хабТекст}
       </div>
 
       {/* Указатель: качается, когда по нему бьют сектора */}
-      <div className="pointer-events-none absolute left-1/2 z-20 w-[14%] -translate-x-1/2" style={{ top: "84%", filter: "drop-shadow(0 4px 5px rgba(0,0,0,.55))" }}>
+      <div className="pointer-events-none absolute left-1/2 z-20 w-[10%] -translate-x-1/2" style={{ top: "92%", filter: "drop-shadow(0 4px 5px rgba(0,0,0,.55))" }}>
         <div ref={указательRef} style={{ transformOrigin: "50% 67%" }}>
           <svg viewBox="0 0 36 52" className="block w-full" style={{ transform: "rotate(180deg)" }} aria-hidden>
             <defs>

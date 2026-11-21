@@ -11,7 +11,7 @@ export default function КнопкаАвто({ e, вкл, onНажатие }: { 
       onClick={onНажатие}
       aria-pressed={вкл}
       aria-label="Auto"
-      className="relative block active:scale-95"
+      className="relative block"
       style={{ width: 112 * e, height: 112 * e }}
     >
       <Картинка
@@ -21,7 +21,7 @@ export default function КнопкаАвто({ e, вкл, onНажатие }: { 
       />
       <span
         className="pointer-events-none absolute inset-0 flex items-center justify-center font-extrabold text-white"
-        style={{ fontSize: 26 * e, textShadow: "0 1px 3px rgba(0,0,0,.7)" }}
+        style={{ fontSize: 26 * e, textShadow: "0 1px 3px rgba(0,0,0,.7)", transform: "translateY(-9%)" }}
       >
         Auto
       </span>

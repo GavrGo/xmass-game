@@ -179,13 +179,13 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
     }
   };
 
-  const размерКолеса = "min(96vw, max(240px, calc(100vh - 330px)), 440px)";
+  const размерКолеса = "118vw";
   const сейчасПодСтрелкой = идёт && подСтрелкой ? подСтрелкой : секторПриУгле(секторы, поворот);
 
-  const хабТекст = сейчасПодСтрелкой.множитель === 0 ? <Череп размер={26} /> : Т.колесо.множитель(сейчасПодСтрелкой.множитель);
+  const хабТекст = сейчасПодСтрелкой.множитель === 0 ? <Череп размер={40} /> : Т.колесо.множитель(сейчасПодСтрелкой.множитель);
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-y-auto bg-black/90">
+    <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-x-hidden overflow-y-auto bg-black/90">
       {/* Свечение за колесом и искры для сердечек */}
       <div
         className="pointer-events-none absolute inset-0 transition-opacity duration-500"
@@ -207,7 +207,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
       <div className="relative z-10 flex w-full max-w-md flex-col items-center px-4 pb-4 pt-3">
 
         {/* Колесо с указателем */}
-        <div className="relative" style={{ width: размерКолеса, height: размерКолеса, filter: сила > 0 ? `drop-shadow(0 0 ${18 + 40 * сила}px rgba(${r},${g},${b},${0.35 + 0.5 * сила}))` : undefined }}>
+        <div className="relative" style={{ width: размерКолеса, height: размерКолеса, marginTop: "-35vw", marginBottom: "10vw", filter: сила > 0 ? `drop-shadow(0 0 ${18 + 40 * сила}px rgba(${r},${g},${b},${0.35 + 0.5 * сила}))` : undefined }}>
           <Колесо хабЦвет={цветСектора(сейчасПодСтрелкой)} хабТекст={хабТекст} секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
         </div>
         <ЛегендаКолеса x10={сX10} />

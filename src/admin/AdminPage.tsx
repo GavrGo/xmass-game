@@ -8,10 +8,11 @@ import { загрузитьСтатистику } from "../lib/stats";
 import type { СтрокаСтатистики } from "../lib/stats";
 import { уровеньОпытаСлота } from "../game/slotXp";
 import { уровеньМастерства } from "../game/mastery";
+import { ОПЫТ_СЛОТА } from "../config";
 
 // Поля, которые админ может править (названия подписей — в src/texts.ts, раздел админка.поля)
 const ПОЛЯ: (keyof User)[] = [
-  "chips", "tickets", "hearts", "free_spin_level", "salary_level", "exchange_fee", "time_level", "trash_level",
+  "chips", "tickets", "hearts", "slot_spins", "free_spin_level", "salary_level", "exchange_fee", "time_level", "trash_level",
   "best_ksuha_run", "puzzles_solved", "best_match3", "best_jira_level", "best_babka_crash",
 ];
 
@@ -20,6 +21,10 @@ const ТС = Т.админка.статистика;
 const КОЛОНКИ_СТАТ = (Object.keys(ТС.колонки) as КлючСтат[]).map((k) => ({ k, t: ТС.колонки[k] }));
 const времяТекст = (с: number) => `${Math.floor(с / 3600)}${ТС.часы} ${Math.floor((с % 3600) / 60)}${ТС.минуты}`;
 const УРОВНИ = (Object.keys(ТС.уровни) as (keyof typeof ТС.уровни)[]).map((k) => ({ k, t: ТС.уровни[k] }));
+function спиновНаУровень(лвл: number): number {
+  const пороги = ОПЫТ_СЛОТА.спинов;
+  return пороги[Math.min(пороги.length, Math.max(1, лвл)) - 1];
+}
 function уровеньИгрока(u: User, k: string): number {
   if (k === "slot") return уровеньОпытаСлота(u.slot_spins ?? 0).уровень;
   return уровеньМастерства(u.mastery?.[k]?.xp ?? 0).уровень;
@@ -175,9 +180,13 @@ export default function AdminPage() {
                   {Т.админка.поля[п]}
                   <input
                     type="number"
-                    min={0}
-                    value={u[п] as number}
-                    onChange={(e) => изменитьЛокально(u.telegram_id, п, Number(e.target.value))}
+                    min={п === "slot_spins" ? 1 : 0}
+                    value={п === "slot_spins" ? уровеньОпытаСлота(u.slot_spins ?? 0).уровень : (u[п] as number)}
+                    onChange={(e) =>
+                      п === "slot_spins"
+                        ? изменитьЛокально(u.telegram_id, п, спиновНаУровень(Number(e.target.value)))
+                        : изменитьЛокально(u.telegram_id, п, Number(e.target.value))
+                    }
                     className="mt-1 w-full rounded-lg bg-surface2 px-2 py-1 text-white"
                   />
                 </label>

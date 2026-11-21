@@ -96,6 +96,6 @@ export function секторПриУгле(секторы: Сектор[], A: nu
 
 export function границПройдено(секторы: Сектор[], A0: number, A1: number): number {
   let n = 0;
-  for (const с of секторы) n += Math.floor((A1 + с.от) / 360) - Math.floor((A0 + с.от) / 360);
+  for (const с of секторы) n += Math.floor((A1 + с.от - УКАЗАТЕЛЬ) / 360) - Math.floor((A0 + с.от - УКАЗАТЕЛЬ) / 360);
   return n;
 }
