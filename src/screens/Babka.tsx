@@ -190,7 +190,7 @@ export default function Babka() {
 
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
-        <div className="absolute inset-0 flex flex-col items-center overflow-y-auto bg-black/65 px-5 pb-6" style={{ paddingTop: отступ }}>
+        <div className="absolute inset-0 flex flex-col items-center overflow-y-auto bg-black/80 px-5 pb-6" style={{ paddingTop: отступ }}>
           <button onClick={() => navigate("/games")} className="btn btn-ghost self-start !px-3 !py-2 text-sm">{Т.общее.назад}</button>
           <h2 className="mt-3 text-3xl font-bold text-brand-yellow">{ТБ.заголовокМеню}</h2>
           <p className="mt-1 text-center text-sm text-white/70">{ТБ.подсказка}</p>

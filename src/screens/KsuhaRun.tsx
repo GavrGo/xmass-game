@@ -198,23 +198,15 @@ export default function KsuhaRun() {
     return () => window.removeEventListener("keydown", h);
   }, []);
 
-  // Telegram: полный экран, без «свайпа вниз», учёт отступов под кнопки Telegram
+  // Telegram: без «свайпа вниз», учёт отступов под кнопки Telegram
   useEffect(() => {
     const w = window.Telegram?.WebApp;
-    let вошли = false;
-    try {
-      if (КСЮХА_РАН.полноэкранныйРежимTelegram && w?.isVersionAtLeast?.("8.0") && !w.isFullscreen) {
-        w.requestFullscreen();
-        вошли = true;
-      }
-    } catch {}
     try { w?.disableVerticalSwipes?.(); } catch {}
     const обновить = () => setSafeTop(getSafeTop());
-    const события = ["safeAreaChanged", "contentSafeAreaChanged", "fullscreenChanged"];
+    const события = ["safeAreaChanged", "contentSafeAreaChanged"];
     события.forEach((e) => w?.onEvent?.(e, обновить));
     return () => {
       события.forEach((e) => w?.offEvent?.(e, обновить));
-      try { if (вошли) w.exitFullscreen(); } catch {}
       try { w?.enableVerticalSwipes?.(); } catch {}
     };
   }, []);
