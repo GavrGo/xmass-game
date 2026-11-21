@@ -165,7 +165,7 @@ export function Колесо({ секторы, поворот, идёт, сек�
         <circle cx="100" cy="100" r="50" fill={`url(#${id}-gloss)`} />
       </svg>
 
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center font-black text-white" style={{ width: "50%", height: "50%", fontSize: "clamp(30px, 10vw, 58px)", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center font-black text-white" style={{ width: "50%", height: "50%", marginTop: "10vw", fontSize: "clamp(30px, 10vw, 58px)", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>
         {хабТекст}
       </div>
 

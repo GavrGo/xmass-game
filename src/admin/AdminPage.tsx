@@ -9,6 +9,8 @@ import type { СтрокаСтатистики } from "../lib/stats";
 import { уровеньОпытаСлота } from "../game/slotXp";
 import { уровеньМастерства } from "../game/mastery";
 import { ОПЫТ_СЛОТА } from "../config";
+import СтатистикаАдмина from "./AdminStats";
+import РассылкаАдмина from "./AdminBroadcast";
 
 // Поля, которые админ может править (названия подписей — в src/texts.ts, раздел админка.поля)
 const ПОЛЯ: (keyof User)[] = [
@@ -18,7 +20,7 @@ const ПОЛЯ: (keyof User)[] = [
 
 type КлючСтат = Exclude<keyof СтрокаСтатистики, "telegram_id">;
 const ТС = Т.админка.статистика;
-const КОЛОНКИ_СТАТ = (Object.keys(ТС.колонки) as КлючСтат[]).map((k) => ({ k, t: ТС.колонки[k] }));
+const КОЛОНКИ_СТАТ = (Object.keys(ТС.колонки) as (keyof typeof ТС.колонки)[]).map((k) => ({ k, t: ТС.колонки[k] }));
 const времяТекст = (с: number) => `${Math.floor(с / 3600)}${ТС.часы} ${Math.floor((с % 3600) / 60)}${ТС.минуты}`;
 const УРОВНИ = (Object.keys(ТС.уровни) as (keyof typeof ТС.уровни)[]).map((k) => ({ k, t: ТС.уровни[k] }));
 function спиновНаУровень(лвл: number): number {
@@ -39,6 +41,8 @@ export default function AdminPage() {
   const [сообщение, setСообщение] = useState("");
   const [сохраняется, setСохраняется] = useState<number | null>(null);
   const [статистика, setСтатистика] = useState<СтрокаСтатистики[]>([]);
+  const [вкладка, setВкладка] = useState<"игроки" | "статистика" | "рассылка">("игроки");
+  const [банId, setБанId] = useState("");
 
   const загрузить = async () => {
     setЗагрузка(true);
@@ -104,6 +108,29 @@ export default function AdminPage() {
     }
   };
 
+  const переключитьБан = async (u: User, забанить: boolean) => {
+    if (забанить && !confirm(`Забанить ${u.nickname}?`)) return;
+    try {
+      const сохранён = await updateUser(u.telegram_id, { banned: забанить });
+      setИгроки((л) => л.map((x) => (x.telegram_id === u.telegram_id ? сохранён : x)));
+      setСообщение(`${u.nickname}: ${забанить ? "забанен" : "разбанен"}`);
+    } catch (e: any) {
+      setОшибка(e.message ?? "Ошибка");
+    }
+  };
+
+  const баньПоId = async (забанить: boolean) => {
+    const id = Number(банId);
+    if (!id) return;
+    try {
+      const сохранён = await updateUser(id, { banned: забанить });
+      setИгроки((л) => л.map((x) => (x.telegram_id === id ? сохранён : x)));
+      setСообщение(`id ${id}: ${забанить ? "забанен" : "разбанен"}`);
+    } catch (e: any) {
+      setОшибка(e.message ?? "Ошибка");
+    }
+  };
+
   return (
     <div className="p-4 pb-16">
       <div className="mb-3 flex items-center justify-between">
@@ -111,6 +138,16 @@ export default function AdminPage() {
         <Link to="/" className="btn btn-ghost !px-3 !py-2 text-sm">{Т.админка.вИгру}</Link>
       </div>
 
+      <div className="mb-3 flex flex-wrap gap-2">
+        {(["игроки", "статистика", "рассылка"] as const).map((в) => (
+          <button key={в} onClick={() => setВкладка(в)} className={`btn !px-3 !py-2 text-sm ${вкладка === в ? "btn-blue" : "btn-ghost"}`}>
+            {в === "игроки" ? "Игроки" : в === "статистика" ? "Статистика" : "Рассылка"}
+          </button>
+        ))}
+      </div>
+
+      {вкладка === "игроки" && (
+      <>
       <div className="mb-3 flex gap-2">
         <input
           value={поиск}
@@ -121,6 +158,12 @@ export default function AdminPage() {
         <button onClick={загрузить} className="btn btn-ghost !px-3">↻</button>
       </div>
 
+      <div className="card mb-3 flex flex-wrap items-center gap-2 p-3">
+        <span className="text-sm text-white/70">Бан по ID:</span>
+        <input value={банId} onChange={(e) => setБанId(e.target.value)} placeholder="telegram_id" className="w-40 rounded-lg bg-surface2 px-2 py-1 text-white" />
+        <button onClick={() => баньПоId(true)} className="btn btn-red !px-3 !py-2 text-sm">Забанить</button>
+        <button onClick={() => баньПоId(false)} className="btn btn-blue !px-3 !py-2 text-sm">Разбанить</button>
+      </div>
       <p className="mb-3 text-sm text-white/60">
         {Т.админка.показано(найденные.length, игроки.length)}
         {загрузка && Т.админка.загрузка}
@@ -196,12 +239,17 @@ export default function AdminPage() {
               <button onClick={() => сохранить(u)} disabled={сохраняется === u.telegram_id} className="btn btn-blue !px-4 !py-2 text-sm">
                 {сохраняется === u.telegram_id ? Т.админка.сохраняем : Т.админка.сохранить}
               </button>
+              <button onClick={() => переключитьБан(u, !u.banned)} className={`btn !px-4 !py-2 text-sm ${u.banned ? "btn-blue" : "btn-ghost"}`}>{u.banned ? "Разбанить" : "Забанить"}</button>
               <button onClick={() => удалить(u)} className="btn btn-red !px-4 !py-2 text-sm">{Т.админка.удалить}</button>
             </div>
           </div>
         ))}
         {!загрузка && найденные.length === 0 && <p className="text-center text-white/50">{Т.админка.никогоНеНашли}</p>}
       </div>
+      </>
+      )}
+      {вкладка === "статистика" && <СтатистикаАдмина игроки={игроки} статистика={статистика} />}
+      {вкладка === "рассылка" && <РассылкаАдмина игроки={игроки} />}
     </div>
   );
 }

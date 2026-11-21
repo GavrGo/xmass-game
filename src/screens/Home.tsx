@@ -197,6 +197,7 @@ export default function Home() {
       // Три одинаковых → эффекты
       const бомба = итог.тройка && !!итог.символы[0].бомба;
       if (бомба) {
+        стат("slot_bombs");
         const до = Date.now() + СЛОТ.блокировкаПослеБомбСекунд * 1000;
         setЗаблокированоДо(до);
         try { localStorage.setItem(ключБлока(telegramId), String(до)); } catch {}

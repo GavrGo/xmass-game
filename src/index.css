@@ -176,5 +176,5 @@ body {
 
 @keyframes wheel-rain { 0% { transform: translateY(-6vh); opacity: 0; } 12% { opacity: .95; } 100% { transform: translateY(105vh); opacity: 0; } }
 .wheel-rain { position: absolute; top: 0; border-radius: 9999px; background: var(--fill); box-shadow: 0 0 6px 2px var(--glow); opacity: 0; animation: wheel-rain var(--dur) linear var(--delay) infinite; }
-@keyframes wheel-flash { 0% { opacity: 0; } 18% { opacity: var(--max); } 100% { opacity: 0; } }
-.wheel-flash { animation: wheel-flash 1.3s ease-out forwards; }
+@keyframes wheel-flash { 0% { opacity: 0; } 12% { opacity: var(--max); } 100% { opacity: 0; } }
+.wheel-flash { animation: wheel-flash 1.8s ease-out forwards; }

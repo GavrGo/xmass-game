@@ -3,12 +3,19 @@ import { getTelegramId } from "./telegram";
 
 export type ПолеСтатистики =
   | "seconds_in_game" | "slot_spins" | "wheel_spins"
-  | "plays_ksuha" | "plays_match3" | "plays_puzzle" | "plays_jira" | "plays_babka" | "plays_blackjack";
+  | "plays_ksuha" | "plays_match3" | "plays_puzzle" | "plays_jira" | "plays_babka" | "plays_blackjack"
+  | "wheel_x3" | "wheel_x5" | "wheel_x10" | "wheel_x100" | "wheel_wins" | "wheel_losses" | "slot_bombs";
 
 export function стат(поле: ПолеСтатистики, n = 1) {
   const id = getTelegramId();
   if (!id || n < 1) return;
   supabase.rpc("stat_inc", { p_id: id, p_field: поле, p_n: n }).then(() => {}, () => {});
+}
+
+export function статМакс(поле: "max_wheel_win_bet" | "max_wheel_loss_bet", значение: number) {
+  const id = getTelegramId();
+  if (!id || значение < 1) return;
+  supabase.rpc("stat_max", { p_id: id, p_field: поле, p_value: значение }).then(() => {}, () => {});
 }
 
 let запущено = false;
@@ -39,6 +46,15 @@ export interface СтрокаСтатистики {
   plays_babka: number;
   plays_blackjack: number;
   duels_sent: number;
+  wheel_x3?: number;
+  wheel_x5?: number;
+  wheel_x10?: number;
+  wheel_x100?: number;
+  wheel_wins?: number;
+  wheel_losses?: number;
+  slot_bombs?: number;
+  max_wheel_win_bet?: number;
+  max_wheel_loss_bet?: number;
 }
 
 export async function загрузитьСтатистику(): Promise<СтрокаСтатистики[]> {

@@ -20,6 +20,7 @@ export interface User {
   best_match3: number;
   best_jira_level: number;
   best_babka_crash: number;
+  banned?: boolean;
   created_at: string;
   updated_at: string;
 }

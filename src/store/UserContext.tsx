@@ -105,6 +105,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  if (user?.banned) {
+    return <div className="flex h-screen items-center justify-center p-6 text-center text-lg font-bold">Аккаунт заблокирован. Если это ошибка, напишите администратору.</div>;
+  }
+
   return (
     <UserCtx.Provider value={{ telegramId, user, loading, error, isAdmin, register, patch, change }}>
       {children}

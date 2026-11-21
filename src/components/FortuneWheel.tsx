@@ -3,7 +3,7 @@ import { useUser } from "../store/UserContext";
 import type { Изменение } from "../store/UserContext";
 import { КОЛЕСО, ВалютаКолеса } from "../config";
 import { Т } from "../texts";
-import { стат } from "../lib/stats";
+import { стат, статМакс } from "../lib/stats";
 import { Иконка } from "./Icon";
 import { useАссеты } from "../lib/assets";
 import { естьАртефакт } from "../game/artifacts";
@@ -159,10 +159,19 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
       const дельта: Изменение = {};
       дельта[валюта] = итог;
       await Promise.all([change(дельта), пауза(КОЛЕСО.вращение.секунд * 1000 + 250)]);
+      const св = с.золотой ? 1 : силаСвечения(с.множитель);
+      setСила(св);
+      if (св > 0) setВспышка((v) => v + 1);
+      const метка = ({ 3: "wheel_x3", 5: "wheel_x5", 10: "wheel_x10", 100: "wheel_x100" } as const)[с.множитель as 3 | 5 | 10 | 100];
+      if (метка) стат(метка);
+      if (итог > 0) {
+        стат("wheel_wins");
+        if (валюта === "chips") статМакс("max_wheel_win_bet", ставка);
+      } else if (итог < 0) {
+        стат("wheel_losses");
+        if (валюта === "chips") статМакс("max_wheel_loss_bet", ставка);
+      }
       if (с.множитель === 0) {
-        const св = с.золотой ? 1 : силаСвечения(с.множитель);
-        setСила(св);
-        if (св > 0) setВспышка((v) => v + 1);
     setРезультат({ вид: "проигрыш", текст: ТК.проигрыш(ставка) });
         звук.sfx("поражение");
       } else if (с.множитель < 1) {
@@ -198,8 +207,8 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
           key={вспышка}
           className="wheel-flash pointer-events-none absolute inset-0"
           style={{
-            background: `radial-gradient(circle at 50% 35%, rgba(${r},${g},${b},0.6) 0%, rgba(${r},${g},${b},0.2) 42%, transparent 70%)`,
-            ["--max" as any]: сила,
+            background: `radial-gradient(circle at 50% 35%, rgba(${r},${g},${b},0.85) 0%, rgba(${r},${g},${b},0.35) 45%, transparent 75%)`,
+            ["--max" as any]: 0.6 + 0.4 * сила,
           }}
         />
       )}
@@ -218,7 +227,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
       <div className="relative z-10 flex w-full max-w-md flex-col items-center px-4 pb-4 pt-3">
 
         {/* Колесо с указателем */}
-        <div className="relative" style={{ width: размерКолеса, height: размерКолеса, marginTop: "-53vw", marginBottom: "-3vw", filter: сила > 0 ? `drop-shadow(0 0 ${18 + 40 * сила}px rgba(${r},${g},${b},${0.35 + 0.5 * сила}))` : undefined }}>
+        <div className="relative" style={{ width: размерКолеса, height: размерКолеса, marginTop: "-63vw", marginBottom: "7vw", filter: сила > 0 ? `drop-shadow(0 0 ${18 + 40 * сила}px rgba(${r},${g},${b},${0.35 + 0.5 * сила}))` : undefined }}>
           <Колесо хабЦвет={цветСектора(сейчасПодСтрелкой)} хабТекст={хабТекст} секторы={секторы} поворот={поворот} идёт={идёт} секунд={КОЛЕСО.вращение.секунд} указательRef={указатель} дискRef={дискRef} />
         </div>
         <ЛегендаКолеса x10={сX10} />
