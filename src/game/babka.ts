@@ -3,6 +3,7 @@
 import { БАБКА_КРАШ as К, КлючПерсонажа, ЭффектЗвука } from "../config";
 import { Т } from "../texts";
 import { бонусЗарплатыПроц } from "./effects";
+import { видимаяРамка, видимыйПрямоугольник } from "../lib/spriteBox";
 
 export type РежимБабки = "zen" | "timed";
 export type ФазаБабки = "menu" | "playing" | "over";
@@ -16,12 +17,20 @@ interface Полоса {
   враги: Враг[];
   накоплено: number;  // сколько проехали с последнего появления
   шаг: number;        // через сколько появится следующий противник
-  деревья: { x: number; эмодзи: string }[];
+  деревья: { x: number; вид: number }[];
 }
 
 const ЗАПАС = 60; // за краем экрана противники появляются и пропадают
 const случайно = (a: number, b: number) => a + Math.random() * (b - a);
 const целое = (a: number, b: number) => Math.floor(случайно(a, b + 1));
+
+const ПУТЬ_АССЕТОВ = "/assets/babka/";
+const загрузить = (файл: string) => Object.assign(new Image(), { src: ПУТЬ_АССЕТОВ + файл });
+const готова = (img: HTMLImageElement) => img.complete && img.naturalWidth > 0;
+const бабкаИмг = загрузить("Babka.png");
+const островИмг = загрузить("safe-island.png");
+const ДЕРЕВЬЯ = [загрузить("Tree-1.png"), загрузить("Tree-2.png"), загрузить("Bush-1.png"), загрузить("Bush-2.png")];
+const ДЕРЕВЬЯ_ВЫСОТА = [46, 42, 26, 26];
 
 /** Рисует эмодзи (cx, низ — точка внизу по центру). зеркало — развернуть по горизонтали, угол — поворот. */
 function эмодзи(ctx: CanvasRenderingContext2D, символ: string, cx: number, низ: number, size: number, зеркало = false, угол = 0) {
@@ -85,10 +94,10 @@ export class БабкаДвижок {
     this.закончена = false; this.причина = null; this.послеКонца = 0; this.столкновение = null;
     this.созданоДо = -1; this.дорогСоздано = 0;
     this.осталосьВГруппе = целое(К.группаДорог.мин, К.группаДорог.макс);
-    this.создатьДо(14);
+    this.создатьДо(Math.ceil(this.мирВысота / К.мир.высотаПолосы) + 8);
   }
 
-  private врагТип() { return this.персонаж === "babka" ? К.противники.машина : К.противники.бабушка; }
+  private врагТип() { return К.противники.машина; }
   private эмодзиВрага() {
     const список = this.врагТип().эмодзи;
     return список[Math.floor(Math.random() * список.length)];
@@ -115,15 +124,14 @@ export class БабкаДвижок {
     }
     const л: Полоса = { индекс: i, дорога, направление: Math.random() < 0.5 ? 1 : -1, скорость: 0, враги: [], накоплено: 0, шаг: 0, деревья: [] };
     if (!дорога) {
-      const эм = ["🌲", "🌳", "🌼", "🌲"];
       for (let k = 0; k < 5; k++) {
         const слева = Math.random() < 0.5;
-        л.деревья.push({ x: слева ? случайно(8, 60) : W - случайно(8, 60), эмодзи: эм[Math.floor(Math.random() * эм.length)] });
+        л.деревья.push({ x: слева ? случайно(8, 60) : W - случайно(8, 60), вид: Math.floor(Math.random() * ДЕРЕВЬЯ.length) });
       }
       return л;
     }
     this.дорогСоздано++;
-    const база = this.персонаж === "babka" ? К.скорость.машины : К.скорость.бабушки;
+    const база = К.скорость.машины;
     const рост = Math.min(К.скорость.максМножитель, 1 + К.скорость.ростЗаДорогу * this.дорогСоздано);
     л.скорость = база * рост * случайно(1 - К.скорость.разброс, 1 + К.скорость.разброс);
     л.шаг = this.новыйШаг(л.скорость);
@@ -150,7 +158,7 @@ export class БабкаДвижок {
   /** Двигаем противников (и в меню для красоты, и в игре). */
   двигатьВрагов(dt: number) {
     const W = this.мирШирина;
-    const от = Math.floor(this.позиция) - 3, до = Math.floor(this.позиция) + 12;
+    const от = Math.floor(this.позиция) - 3, до = Math.floor(this.позиция) + Math.ceil(this.мирВысота / К.мир.высотаПолосы) + 4;
     this.создатьДо(до + 3);
     for (let i = от; i <= до; i++) {
       const л = this.полосы.get(i);
@@ -200,17 +208,22 @@ export class БабкаДвижок {
     const вт = this.врагТип();
     const k = 1 - К.поблажкаХитбокса;
     const px = this.мирШирина / 2;
+    const высотаГероя = п.высота * 1.2;
+    const ширГероя = высотаГероя * (готова(бабкаИмг) ? бабкаИмг.naturalWidth / бабкаИмг.naturalHeight : п.ширина / п.высота);
+    const рамкаГероя = видимаяРамка(бабкаИмг);
+    const геройШир = рамкаГероя.w * ширГероя;
+    const геройЦентр = px + (рамкаГероя.x + рамкаГероя.w / 2 - 0.5) * ширГероя;
     for (let i = Math.floor(this.позиция); i <= Math.ceil(this.позиция); i++) {
       const л = this.полосы.get(i);
       if (!л?.дорога) continue;
       const dy = Math.abs(i - this.позиция) * К.мир.высотаПолосы;
       if (dy >= ((п.высота + вт.высота) / 2) * k) continue;
       for (const в of л.враги) {
-        if (Math.abs(в.x - px) < ((п.ширина + вт.ширина) / 2) * k) {
+        if (Math.abs(в.x - геройЦентр) < ((геройШир + вт.ширина) / 2) * k) {
           this.закончена = true;
           this.причина = "crash";
           this.событие?.("поражение");
-          this.столкновение = { x: (в.x + px) / 2, y: i };
+          this.столкновение = { x: (в.x + геройЦентр) / 2, y: i };
           return;
         }
       }
@@ -235,17 +248,28 @@ export class БабкаДвижок {
       const yc = y(i);
       const дорога = !!л?.дорога;
       if (дорога) {
-        ctx.fillStyle = i % 2 ? "#4a5058" : "#444a52";
+        ctx.fillStyle = i % 2 ? "#727176" : "#7D7C80";
         ctx.fillRect(0, yc - LH / 2, W, LH);
         // разметка: пунктир между двумя дорогами
         if (this.полосы.get(i + 1)?.дорога) {
-          ctx.fillStyle = "rgba(255,255,255,0.7)";
-          for (let x = 0; x < W; x += 36) ctx.fillRect(x, yc - LH / 2 - 1.5, 18, 3);
+          ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.setLineDash([18, 18]);
+          ctx.beginPath(); ctx.moveTo(0, yc - LH / 2); ctx.lineTo(W, yc - LH / 2); ctx.stroke(); ctx.setLineDash([]);
         }
       } else {
-        ctx.fillStyle = i % 2 ? "#4caf50" : "#43a047";
-        ctx.fillRect(0, yc - LH / 2, W, LH);
-        if (л) for (const д of л.деревья) эмодзи(ctx, д.эмодзи, д.x, yc + 14, 30);
+        if (готова(островИмг)) {
+          const высотаОстрова = W * островИмг.naturalHeight / островИмг.naturalWidth;
+          ctx.drawImage(островИмг, 0, yc - высотаОстрова / 2, W, высотаОстрова);
+        } else {
+          ctx.fillStyle = i % 2 ? "#4caf50" : "#43a047";
+          ctx.fillRect(0, yc - LH / 2, W, LH);
+        }
+        if (л) for (const д of л.деревья) {
+          const img = ДЕРЕВЬЯ[д.вид];
+          if (!готова(img)) continue;
+          const высота = ДЕРЕВЬЯ_ВЫСОТА[д.вид];
+          const ширина = высота * img.naturalWidth / img.naturalHeight;
+          ctx.drawImage(img, д.x - ширина / 2, yc + 14 - высота, ширина, высота);
+        }
       }
     }
 
@@ -256,7 +280,7 @@ export class БабкаДвижок {
       if (yc < -LH || yc > H + LH) continue;
       const размер = вт.высота * 1.15;
       for (const в of л.враги) {
-        const зеркало = this.персонаж === "babka" ? (л.направление === 1) === К.машиныСмотрятВлево : false;
+        const зеркало = л.направление === -1;
         эмодзи(ctx, в.эмодзи, в.x, yc + размер * 0.42, размер, зеркало);
       }
     }
@@ -264,9 +288,14 @@ export class БабкаДвижок {
     // Персонаж
     const px = W / 2;
     const дуга = this.прыгает ? Math.sin(this.t * Math.PI) * 10 : 0;
-    const угол = this.персонаж === "car" ? (К.поворотМашиныИгрока * Math.PI) / 180 : 0;
     const размерП = п.высота * 1.2;
-    эмодзи(ctx, п.эмодзи, px, y(this.позиция) + размерП * 0.42 - дуга, размерП, false, угол);
+    const низ = y(this.позиция) + размерП * 0.42 - дуга;
+    if (готова(бабкаИмг)) {
+      const ширина = размерП * бабкаИмг.naturalWidth / бабкаИмг.naturalHeight;
+      ctx.drawImage(бабкаИмг, px - ширина / 2, низ - размерП, ширина, размерП);
+    } else {
+      эмодзи(ctx, п.эмодзи, px, низ, размерП);
+    }
 
     // Столкновение
     if (this.столкновение) {

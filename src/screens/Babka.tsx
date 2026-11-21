@@ -44,7 +44,7 @@ export default function Babka() {
   const фазаRef = useRef<ФазаБабки>("menu");
   const dpr = useRef(1);
   const [фаза, setФазаСтейт] = useState<ФазаБабки>("menu");
-  const [персонаж, setПерсонаж] = useState<КлючПерсонажа>("babka");
+  const персонаж: КлючПерсонажа = "babka";
   const [режим, setРежим] = useState<РежимБабки>("timed");
   const [итог, setИтог] = useState<Итог | null>(null);
 
@@ -62,11 +62,6 @@ export default function Babka() {
     if (р === "zen") return 0;
     const u = свежее.current.user;
     return К.времяСек + (u ? бонусВремениСек(u) : 0);
-  };
-
-  const выбратьПерсонажа = (п: КлючПерсонажа) => {
-    setПерсонаж(п);
-    движок.current!.сброс(0, п); // в меню сразу видно нужных противников
   };
 
   const старт = () => {
@@ -199,23 +194,6 @@ export default function Babka() {
           <button onClick={() => navigate("/games")} className="btn btn-ghost self-start !px-3 !py-2 text-sm">{Т.общее.назад}</button>
           <h2 className="mt-3 text-3xl font-bold text-brand-yellow">{ТБ.заголовокМеню}</h2>
           <p className="mt-1 text-center text-sm text-white/70">{ТБ.подсказка}</p>
-
-          <p className="mb-2 mt-4 text-sm font-bold text-white/80">{ТБ.заКогоИграем}</p>
-          <div className="grid w-full max-w-sm grid-cols-2 gap-2">
-            {(Object.keys(К.персонажи) as КлючПерсонажа[]).map((ключ) => {
-              const п = К.персонажи[ключ];
-              const т = ТБ.персонажи[ключ];
-              const выбран = ключ === персонаж;
-              return (
-                <button key={ключ} onClick={() => выбратьПерсонажа(ключ)} className={`opt p-3 text-center ${выбран ? "opt-on" : ""}`}>
-                  <div className="text-5xl">{п.эмодзи}</div>
-                  <div className="font-bold">{т.название}</div>
-                  <div className="text-[11px] text-white/70">{т.описание}</div>
-                  {п.множительНаграды !== 1 && <div className="text-[11px] text-brand-yellow">{ТБ.наградаПерсонажа(п.множительНаграды)}</div>}
-                </button>
-              );
-            })}
-          </div>
 
           <p className="mb-2 mt-4 text-sm font-bold text-white/80">{ТБ.режимЗаголовок}</p>
           <div className="flex w-full max-w-sm flex-col gap-2">
