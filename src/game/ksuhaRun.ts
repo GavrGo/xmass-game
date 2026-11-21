@@ -278,7 +278,7 @@ export class КсюхаРанДвижок {
 
     if (готова(фонИмг)) {
       const ширФона = зем * фонИмг.naturalWidth / фонИмг.naturalHeight;
-      const сдвигФона = ширФона > W ? this.смещениеФона % (ширФона - W) : 0;
+      const сдвигФона = this.смещениеФона % ширФона;
       for (let x = -сдвигФона; x < W; x += ширФона) ctx.drawImage(фонИмг, Math.round(x), 0, Math.ceil(ширФона) + 1, зем);
     }
 
@@ -295,7 +295,7 @@ export class КсюхаРанДвижок {
       const img = барьеры[о.картинка];
       if (!готова(img)) continue;
       const ш = о.size * о.вытяжка[0], в = о.size * о.вытяжка[1];
-      ctx.drawImage(img, о.x, зем - в + 4, ш, в);
+      ctx.drawImage(img, о.x, зем - в + 14, ш, в);
     }
 
     for (const м of this.монеты) {
@@ -304,7 +304,7 @@ export class КсюхаРанДвижок {
       const img = м.emoji === "🪙" ? чипКартинка : подарокКартинка;
       ctx.save();
       ctx.shadowColor = "rgba(255,255,255,0.9)";
-      ctx.shadowBlur = 14;
+      ctx.shadowBlur = 20;
       if (img && готова(img)) ctx.drawImage(img, м.x, зем - м.h - р / 2 + кач, р, р);
       else эмодзи(ctx, м.emoji, м.x + р / 2, зем - м.h + р / 2 + кач, р);
       ctx.restore();
