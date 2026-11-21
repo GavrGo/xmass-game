@@ -241,17 +241,15 @@ export default function KsuhaRun() {
       <canvas ref={canvasRef} onPointerDown={прыжок} className="absolute inset-0 h-full w-full" />
 
       {фаза === "playing" && (
-        <div className="pointer-events-none absolute inset-x-0 z-10 flex items-start justify-between px-4" style={{ top: safeTop + 12 }}>
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Препятствий</div>
-            <div className="text-4xl font-extrabold leading-none text-white drop-shadow">{худ.пройдено}</div>
-            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-sm font-bold text-white">
-              <img src="/assets/icons/slot-chip.png" alt="" className="h-4 w-4" />
-              {худ.монеты}
-            </div>
+        <div className="pointer-events-none absolute inset-x-0 z-10 flex flex-col items-center text-center" style={{ top: safeTop + 44 }}>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Препятствий</div>
+          <div className="text-4xl font-extrabold leading-none text-white drop-shadow">{худ.пройдено}</div>
+          <div className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-white">
+            <img src="/assets/icons/slot-chip.png" alt="" className="h-5 w-5" style={{ filter: "drop-shadow(0 0 6px rgba(255,255,255,0.9))" }} />
+            {худ.монеты}
           </div>
           {худ.лимит > 0 && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-bold tabular-nums text-white">
+            <div className="mt-1 text-sm font-bold tabular-nums text-white/80">
               {Math.floor(худ.осталось / 60)}:{String(худ.осталось % 60).padStart(2, "0")}
             </div>
           )}

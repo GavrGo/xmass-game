@@ -302,8 +302,12 @@ export class КсюхаРанДвижок {
       const кач = Math.sin(this.время * 6 + м.x * 0.05) * 3;
       const р = К.монеты.размер;
       const img = м.emoji === "🪙" ? чипКартинка : подарокКартинка;
+      ctx.save();
+      ctx.shadowColor = "rgba(255,255,255,0.9)";
+      ctx.shadowBlur = 14;
       if (img && готова(img)) ctx.drawImage(img, м.x, зем - м.h - р / 2 + кач, р, р);
       else эмодзи(ctx, м.emoji, м.x + р / 2, зем - м.h + р / 2 + кач, р);
+      ctx.restore();
     }
 
     const бег = фаза === "playing" && !this.закончена;
