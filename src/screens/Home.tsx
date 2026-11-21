@@ -9,6 +9,7 @@ import { Иконка, Картинка } from "../components/Icon";
 import { СИМВОЛЫ_СЛОТА, СИМВОЛ_WILD, путьКартинкиСимвола, СЛОТ, АССЕТЫ, АВТОМАТ, Награда } from "../config";
 import { крутитьСлот, случайныйСимвол } from "../game/slot";
 import { уровеньОпытаСлота } from "../game/slotXp";
+import { ОПЫТ_СЛОТА } from "../config";
 import SlotXpBar from "../components/SlotXpBar";
 import { естьАртефакт } from "../game/artifacts";
 import { шансБесплатнойКрутки } from "../game/effects";
@@ -168,11 +169,13 @@ export default function Home() {
 
     const цена = бесплатная ? 0 : ставка;
     const опыт = уровеньОпытаСлота(user.slot_spins ?? 0);
-    const итог = крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте);
+    const крутитьРаз = () => крутитьСлот(user.free_spin_level, бесплатная, эфМножитель, user.trash_level ?? 0, сWildВСлоте);
+    const гарантия = (user.slot_pity ?? 0) >= ОПЫТ_СЛОТА.гарантияСпинов;
+    let итог = крутитьРаз();
+    for (let i = 0; гарантия && !((итог.награда.hearts ?? 0) > 0) && i < 500; i++) итог = крутитьРаз();
+    const nextPity = (итог.награда.hearts ?? 0) > 0 ? 0 : (user.slot_pity ?? 0) + 1;
     const м = опыт.множитель;
-    итог.награда.chips = Math.round(итог.награда.chips * м);
-    итог.награда.tickets = Math.round(итог.награда.tickets * м);
-    итог.награда.hearts = Math.round(итог.награда.hearts * м);
+    итог.награда.hearts = Math.round((итог.награда.hearts ?? 0) * м);
 
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);
@@ -183,7 +186,7 @@ export default function Home() {
           chips: итог.награда.chips,
           tickets: итог.награда.tickets - цена,
           hearts: итог.награда.hearts,
-        }, { slot_spins: (user.slot_spins ?? 0) + 1 }),
+        }, { slot_spins: (user.slot_spins ?? 0) + 1, slot_pity: nextPity }),
         анимировать(итог.символы.map((с) => с.id)),
       ]);
 

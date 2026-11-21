@@ -5,12 +5,14 @@ import { Картинка } from "../components/Icon";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
 import { уровеньМастерства } from "../game/mastery";
+import { useRecordHolders } from "../lib/useMastery";
 
 // Список мини-игр: сетка карточек в 2 колонки (по макету).
 // Обложка: public/assets/ui/game-<id>.png. Нет файла — большой эмодзи.
 // Чтобы добавить новую игру — добавьте ещё один объект в список ниже.
 export default function MiniGames() {
   const { user } = useUser();
+  const держатели = useRecordHolders();
   if (!user) return null;
 
   const игры = [
@@ -28,12 +30,17 @@ export default function MiniGames() {
       <div className="grid grid-cols-2 gap-3">
         {игры.map((и) => (
           <Link key={и.id} to={и.путь} className="card flex flex-col p-2.5 active:brightness-125">
-            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-surface2 text-6xl">
+            <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-surface2 text-6xl">
               <Картинка
                 путь={`${АССЕТЫ.папки.ui}game-${и.id}.png`}
                 fallback={<span>{и.эмодзи}</span>}
                 className="h-full w-full object-cover"
               />
+              {держатели.has(и.id) && (
+                <span className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 ring-1 ring-brand-yellow/60" aria-label="Рекорд">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="#FFC83A"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" /></svg>
+                </span>
+              )}
             </div>
             <div className="mt-2 text-sm font-bold">{и.название}</div>
             <div className="line-clamp-2 text-[11px] leading-snug text-muted"><Эм>{и.описание}</Эм></div>

@@ -1,7 +1,34 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUser } from "../store/UserContext";
-import { МАСТЕРСТВО } from "../config";
+import { МАСТЕРСТВО, ПРОКАЧКИ } from "../config";
 import { сегодня, уровеньМастерства } from "../game/mastery";
+import { getGlobalRecord, type КолонкаРекорда } from "../api/users";
+
+const КОЛОНКА_РЕКОРДА: Record<string, КолонкаРекорда> = {
+  babka: "best_babka_crash",
+  match3: "best_match3",
+  jira: "best_jira_level",
+  ksuha: "best_ksuha_run",
+};
+
+export function useRecordHolders(): Set<string> {
+  const { telegramId } = useUser();
+  const [держатели, setДержатели] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!telegramId) return;
+    let живой = true;
+    Promise.all(
+      Object.entries(КОЛОНКА_РЕКОРДА).map(async ([игра, колонка]) => {
+        const рекорд = await getGlobalRecord(колонка);
+        return рекорд?.telegram_id === telegramId ? игра : null;
+      }),
+    )
+      .then((список) => { if (живой) setДержатели(new Set(список.filter((x): x is string => !!x))); })
+      .catch(() => {});
+    return () => { живой = false; };
+  }, [telegramId]);
+  return держатели;
+}
 
 export function сБонусом<T extends object>(награда: T, бонус: number): T {
   const копия = { ...награда } as Record<string, unknown>;
@@ -16,7 +43,12 @@ export function useMastery(игра: string) {
   const userRef = useRef(user);
   userRef.current = user;
   const очки = useRef(0);
-  const бонус = уровеньМастерства(user?.mastery?.[игра]?.xp ?? 0).бонус;
+  const держатели = useRecordHolders();
+
+  const уровень = уровеньМастерства(user?.mastery?.[игра]?.xp ?? 0).бонус;
+  const витрина = 1 + ((user?.showcase_level ?? 0) * ПРОКАЧКИ.showcase.эффектЗаУровень) / 100;
+  const рекорд = держатели.has(игра) ? 1 + МАСТЕРСТВО.рекордБонус : 1;
+  const бонус = уровень * витрина * рекорд;
 
   const сохранить = async () => {
     const накоплено = очки.current;

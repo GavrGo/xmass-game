@@ -14,6 +14,8 @@ export interface User {
   exchange_fee: number; // комиссия обмена в % (меняется в Black Jack с торговцем)
   time_level: number;
   trash_level: number; // уровень прокачки «Убрать мусор»
+  showcase_level: number;
+  slot_pity: number;
   best_ksuha_run: number;
   puzzles_solved: number;
   best_match3: number;
@@ -28,4 +30,5 @@ export const КОЛОНКА_УРОВНЯ = {
   salary: "salary_level",
   timeBonus: "time_level",
   trash: "trash_level",
+  showcase: "showcase_level",
 } as const;
