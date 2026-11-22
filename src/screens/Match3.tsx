@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
@@ -322,11 +322,13 @@ export default function Match3() {
         п = г.поле;
         полеRef.current = п;
         setУдаляются(new Set());
+        режимПадения.current = true;
         setНовые(г.новые);
         setПоле(п);
         await кадр();
         setНовые(new Set());
-        await пауза(К.анимацияМс + 60);
+        await пауза(340);
+        режимПадения.current = false;
 
         серии = найтиСерии(п);
         каскад++;
@@ -374,6 +376,33 @@ export default function Match3() {
     }
   };
 
+  const прошлыеПозиции = useRef(new Map<number, { r: number; c: number }>());
+  const режимПадения = useRef(false);
+  useLayoutEffect(() => {
+    const доска = доскаRef.current;
+    const прежние = прошлыеПозиции.current;
+    const текущие = new Map<number, { r: number; c: number }>();
+    поле.forEach((к, i) => { if (к) текущие.set(к.id, { r: Math.floor(i / КОЛ), c: i % КОЛ }); });
+    прошлыеПозиции.current = текущие;
+    if (!доска) return;
+    доска.querySelectorAll<HTMLElement>("[data-cell]").forEach((el) => {
+      const id = Number(el.dataset.cell);
+      const т = текущие.get(id);
+      if (!т) return;
+      const был = прежние.get(id) ?? (новые.has(id) ? { r: т.r - СТР, c: т.c } : null);
+      if (!был || (был.r === т.r && был.c === т.c)) return;
+      el.animate(
+        [
+          { transform: `translate(${был.c * 100}%, ${был.r * 100}%)` },
+          { transform: `translate(${т.c * 100}%, ${т.r * 100}%)` },
+        ],
+        режимПадения.current
+          ? { duration: 320, easing: "cubic-bezier(.3,1.35,.55,1)" }
+          : { duration: 140, easing: "ease-out" }
+      );
+    });
+  }, [поле]);
+
   if (!user) return null;
   const доля = цель > 0 ? Math.min(100, (очки / цель) * 100) : 0;
   const следующий = данныеЭтапа ? данныеЭтапа.этап + 1 : 2;
@@ -401,7 +430,7 @@ export default function Match3() {
       </div>
 
       {/* Поле */}
-      <div className="relative mx-auto mt-3" style={{ width: "min(100%, 560px, calc((100dvh - 230px) * 0.6))", aspectRatio: `${КОЛ} / ${СТР}` }}>
+      <div className="relative mx-auto mt-3" style={{ width: "min(100%, 560px, calc((100dvh - 260px) * 0.6))", aspectRatio: `${КОЛ} / ${СТР}` }}>
         <div
           ref={доскаRef}
           onClick={нажатьКлетку}
@@ -417,11 +446,12 @@ export default function Match3() {
             return (
               <div
                 key={к.id}
+                data-cell={к.id}
                 className="pointer-events-none absolute left-0 top-0"
                 style={{
                   width: `${100 / КОЛ}%`, height: `${100 / СТР}%`,
                   transform: `translate(${c * 100}%, ${(новая ? r - СТР : r) * 100}%)`,
-                  transition: новая ? "none" : `transform ${К.анимацияМс}ms cubic-bezier(.34,1.5,.64,1)`,
+                  transition: "none",
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -462,8 +492,6 @@ export default function Match3() {
           </div>
         )}
       </div>
-
-      {фаза === "playing" && <p className="mt-3 text-center text-xs text-white/50">{ТМ.справка}</p>}
 
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
