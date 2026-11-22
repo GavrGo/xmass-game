@@ -4,18 +4,17 @@ import { Т } from "../texts";
 import Эм from "../components/Emoji";
 import { хаптик } from "../lib/haptic";
 import { стат } from "../lib/stats";
-import Модалка from "../components/Modal";
-import СтрокаИтога, { Разделитель } from "../components/TotalRow";
 import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { useMastery, сБонусом } from "../lib/useMastery";
 import { ТРИ_В_РЯД as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
-import РекордыБлок from "../components/RecordsBlock";
 import { глобальныйРекорд } from "../game/records";
 import ВспышкиCanvas, { Вспышка } from "../components/FlashesCanvas";
 import ПолосаОчков from "../components/MatchProgress";
+import GameMenu from "../components/GameMenu";
+import GameResult from "../components/GameResult";
 import {
   КОЛ, СТР, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
   очкиЗаШаг, цельЭтапа, ходовЭтапа, наградаЭтапа, ТЕКСТ_ЭФФЕКТА,
@@ -51,7 +50,7 @@ const кадр = () => new Promise<void>((r) => requestAnimationFrame(() => requ
 
 export default function Match3() {
   const { user, change } = useUser();
-  const { бонус, начислить: начислитьМастерство } = useMastery("match3");
+  const { бонус, мастерство, начислить: начислитьМастерство } = useMastery("match3");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -501,64 +500,54 @@ export default function Match3() {
 
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-y-auto bg-black/85 p-5">
-          <h2 className="text-3xl font-bold text-brand-yellow">{ТМ.заголовокМеню}</h2>
-          <p className="mt-2 max-w-sm text-center text-sm text-white/70">{ТМ.описаниеИгры}</p>
-          <div className="stat-box mt-3 w-full max-w-sm p-3 text-xs text-white/80">
-            <div>{ТМ.правила.три}</div>
-            <div>{ТМ.правила.четыре(размерВзрыва)}</div>
-            <div>{ТМ.правила.пять}</div>
-            <div>{ТМ.правила.шесть}</div>
-            <div>{ТМ.правила.много(К.ультиматумОтДлины)}</div>
-          </div>
-          <p className="mt-3 text-sm text-white/70"><Эм>{ТМ.этапПервый(цельЭтапа(1), ходовЭтапа(1), К.награда.старт)}</Эм></p>
-          <button onClick={старт} disabled={!готово} className="btn btn-yellow mt-4 w-full max-w-sm !py-4 text-xl">
-            {готово ? Т.общее.старт : Т.общее.загрузка}
-          </button>
-          <button onClick={() => navigate("/games")} className="mt-3 text-sm text-white/60">{Т.общее.кСпискуИгр}</button>
-          <p className="mt-3 text-xs text-brand-yellow">{ТМ.вашРекорд(user.best_match3 ?? 0)}</p>
-        </div>
+        <GameMenu
+          колонка="best_match3"
+          форматРекорда={(n) => `Этап ${n}`}
+          мастерство={мастерство}
+          готово={готово}
+          onСтарт={старт}
+          onНазад={() => navigate("/games")}
+        />
       )}
 
       {/* ===== ЭТАП ПРОЙДЕН ===== */}
       {фаза === "stage" && данныеЭтапа && (
-        <Модалка режим="absolute">
-          <h3 className="mb-2 text-2xl font-bold">{ТМ.этапПройден(данныеЭтапа.этап)}</h3>
-          <div className="stat-box my-3 p-3 text-left text-sm">
-            <СтрокаИтога л={ТМ.наградаЭтапа} п={Т.общее.фишки(данныеЭтапа.награда.база)} />
-            {данныеЭтапа.награда.заХоды > 0 && <СтрокаИтога л={ТМ.бонусЗаХоды} п={Т.общее.плюсФишки(данныеЭтапа.награда.заХоды)} />}
-            {данныеЭтапа.награда.бонусПроц > 0 && <СтрокаИтога л={Т.общее.бонусЗП} п={`+${данныеЭтапа.награда.бонусПроц}%`} />}
-            <Разделитель />
-            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(данныеЭтапа.награда.итого)} />
-          </div>
-          <РекордыБлок личный={{ nickname: user.nickname, значение: данныеЭтапа.личный }} глобальный={данныеЭтапа.глобальный} />
-          {!данныеЭтапа.сохранилось && <p className="mb-2 text-xs text-red-300">{ТМ.ошибкаНаграды}</p>}
-          {данныеЭтапа.предупреждение && <p className="mb-2 text-xs text-orange-300">{данныеЭтапа.предупреждение}</p>}
-          <p className="mb-3 text-xs text-white/60">
-            <Эм>{ТМ.дальнейший(следующий, цельЭтапа(следующий), ходовЭтапа(следующий), К.награда.старт + К.награда.прирост * (следующий - 1))}</Эм>
-          </p>
-          <div className="flex gap-2">
-            <button onClick={() => начатьЭтап(следующий)} className="btn btn-blue flex-1">{Т.общее.дальше}</button>
-            <button onClick={() => завершить("выход")} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
-          </div>
-        </Модалка>
+        <GameResult
+          заголовок={ТМ.этапПройден(данныеЭтапа.этап)}
+          база={данныеЭтапа.награда.база + данныеЭтапа.награда.заХоды}
+          прокачкаПроц={данныеЭтапа.награда.бонусПроц}
+          мастерство={мастерство}
+          итог={данныеЭтапа.награда.итого}
+          прогресс={{ подпись: "Этап", значение: String(данныеЭтапа.этап) }}
+          лучший={данныеЭтапа.личный}
+          лучшийПодпись="Лучший этап"
+          колонка="best_match3"
+          форматРекорда={(n) => `Этап ${n}`}
+          предупреждение={данныеЭтапа.предупреждение}
+          ошибка={данныеЭтапа.сохранилось ? undefined : ТМ.ошибкаНаграды}
+          основная={{ подпись: Т.общее.дальше, onClick: () => начатьЭтап(данныеЭтапа.этап + 1) }}
+          вторичная={{ подпись: Т.общее.забратьИВыйти, onClick: () => завершить("выход") }}
+        />
       )}
 
       {/* ===== ИТОГ ИГРЫ ===== */}
       {фаза === "over" && итог && (
-        <Модалка режим="absolute">
-          <h3 className="mb-2 text-2xl font-bold">{итог.причина === "ходы" ? ТМ.ходыЗакончились : ТМ.играЗавершена}</h3>
-          <div className="stat-box my-3 p-3 text-left text-sm">
-            <СтрокаИтога л={ТМ.этаповПройдено} п={String(итог.пройдено)} />
-            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(итог.фишек)} />
-          </div>
-          <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личный }} глобальный={итог.глобальный} />
-          <div className="flex gap-2">
-            <button onClick={() => { setИтог(null); setФаза("menu"); }} className="btn btn-blue flex-1">{Т.общее.игратьЕщё}</button>
-            <button onClick={() => navigate("/games")} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
-          </div>
-        </Модалка>
+        <GameResult
+          заголовок={итог.причина === "ходы" ? ТМ.ходыЗакончились : ТМ.играЗавершена}
+          база={итог.фишек}
+          прокачкаПроц={0}
+          мастерство={{ ...мастерство, процент: 0, рекордПроц: 0 }}
+          итог={итог.фишек}
+          прогресс={{ подпись: "Этап", значение: String(итог.пройдено) }}
+          лучший={user.best_match3 ?? 0}
+          лучшийПодпись="Лучший этап"
+          колонка="best_match3"
+          форматРекорда={(n) => `Этап ${n}`}
+          основная={{ подпись: Т.общее.игратьЕщё, onClick: () => { setИтог(null); setФаза("menu"); } }}
+          вторичная={{ подпись: Т.общее.кСпискуИгр, onClick: () => navigate("/games") }}
+        />
       )}
+
     </div>
   );
 }

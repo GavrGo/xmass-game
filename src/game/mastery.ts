@@ -6,6 +6,3 @@ export function уровеньМастерства(xp: number) {
   return { уровень, прогресс, бонус: 1 + уровень * МАСТЕРСТВО.бонусЗаУровень };
 }
 
-export function сегодня(): string {
-  return new Date().toISOString().slice(0, 10);
-}

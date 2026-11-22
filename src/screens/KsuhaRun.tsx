@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
-import Модалка from "../components/Modal";
-import СтрокаИтога, { Разделитель } from "../components/TotalRow";
+import GameMenu from "../components/GameMenu";
+import GameResult from "../components/GameResult";
 import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useUser } from "../store/UserContext";
 import { useMastery, сБонусом } from "../lib/useMastery";
 import { getGlobalRecord, Рекорд } from "../api/users";
-import РекордыБлок from "../components/RecordsBlock";
 import { КСЮХА_РАН, КлючСложности } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { КсюхаРанДвижок, Фаза, посчитатьНаграду } from "../game/ksuhaRun";
@@ -17,6 +16,7 @@ import { getSafeTop } from "../lib/telegram";
 
 // Что показываем в окне результата
 interface Итог {
+  база: number;
   препятствий: number;
   монет: number;
   награда: ReturnType<typeof посчитатьНаграду>;
@@ -33,7 +33,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function KsuhaRun() {
   const { user, change } = useUser();
-  const { бонус, начислить: начислитьМастерство } = useMastery("ksuha");
+  const { бонус, мастерство, начислить: начислитьМастерство } = useMastery("ksuha");
   const navigate = useNavigate();
   const контейнер = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -88,12 +88,13 @@ export default function KsuhaRun() {
     if (!u) return;
 
     const n = д.пройдено;
-    const награда = сБонусом(посчитатьНаграду(n, д.суммаМонет, сл, u.salary_level), бонус);
+    const сырая = посчитатьНаграду(n, д.суммаМонет, сл, u.salary_level);
+    const награда = сБонусом(сырая, бонус);
     const прежний = u.best_ksuha_run ?? 0;
     const новыйРекорд = n > прежний;
 
     setИтог({
-      препятствий: n, монет: д.монетСобрано, награда,
+      препятствий: n, монет: д.монетСобрано, награда, база: (сырая.заПрепятствия + сырая.заМонеты) * сырая.множитель,
       личныйРекорд: Math.max(n, прежний), новыйРекорд,
       глобальный: undefined, причина: д.причина, сохранение: "идёт",
     });
@@ -250,70 +251,40 @@ export default function KsuhaRun() {
 
       {/* ===== МЕНЮ ПЕРЕД СТАРТОМ ===== */}
       {фаза === "menu" && (
-        <div className="absolute inset-0 flex flex-col items-center overflow-y-auto bg-black/60 px-5 pb-6" style={{ paddingTop: отступ }}>
-          <button onClick={() => navigate("/games")} className="btn btn-ghost self-start !px-3 !py-2 text-sm">{Т.общее.назад}</button>
-
-          <h2 className="mt-3 text-3xl font-bold text-brand-yellow">{ТК.заголовокМеню}</h2>
-          <p className="mt-1 text-center text-sm text-white/70">{ТК.подсказка(КСЮХА_РАН.физика.максПрыжковПодряд > 1)}</p>
-
-          <p className="mb-2 mt-4 text-sm font-bold text-white/80">{ТК.сложностьЗаголовок}</p>
-          <div className="flex w-full max-w-sm flex-col gap-2">
-            {(Object.keys(КСЮХА_РАН.сложности) as КлючСложности[]).map((ключ) => {
-              const с = КСЮХА_РАН.сложности[ключ];
-              const т = ТК.сложности[ключ];
-              const выбрана = ключ === сложность;
-              return (
-                <button key={ключ} onClick={() => setСложность(ключ)} className={`opt flex items-center gap-3 p-3 text-left ${выбрана ? "opt-on" : ""}`}>
-                  <span className="text-3xl">{т.значок}</span>
-                  <span className="flex-1">
-                    <span className="block font-bold">{т.название}</span>
-                    <span className="block text-xs text-white/70">
-                      {ТК.описаниеСложности(с.множительСкорости, с.множительРоста, с.безТаймера, с.множительНаграды)}
-                    </span>
-                  </span>
-                  {выбрана && <span className="text-xl">✓</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          <button onClick={старт} className="btn btn-yellow mt-5 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>
-
-          <p className="mt-4 text-center text-xs text-white/60"><Эм>{ТК.условия(КСЮХА_РАН.препятствийЗаФишку, бонусПроц, лимит)}</Эм></p>
-          <p className="mt-1 text-xs text-brand-yellow">{ТК.вашРекорд(user.best_ksuha_run ?? 0)}</p>
-        </div>
+        <GameMenu
+          колонка="best_ksuha_run"
+          мастерство={мастерство}
+          сложности={(Object.keys(КСЮХА_РАН.сложности) as КлючСложности[]).map((к) => ({
+            id: к,
+            название: `${ТК.сложности[к].значок} ${ТК.сложности[к].название}`,
+            множитель: КСЮХА_РАН.сложности[к].множительНаграды,
+          }))}
+          выбрана={сложность}
+          onВыбор={(id) => setСложность(id as КлючСложности)}
+          onСтарт={старт}
+          onНазад={() => navigate("/games")}
+        />
       )}
 
       {/* ===== ОКНО РЕЗУЛЬТАТА ===== */}
       {фаза === "over" && итог && (
-        <Модалка режим="absolute">
-          <h3 className="mb-1 text-2xl font-bold">{итог.причина === "time" ? ТК.итог.времяВышло : ТК.итог.догнали}</h3>
-          {итог.новыйРекорд && <p className="mb-1 font-bold text-brand-yellow">{Т.рекорды.новыйЛичный}</p>}
-
-          <div className="stat-box my-3 p-3 text-left text-sm">
-            <СтрокаИтога л={ТК.итог.препятствия} п={ТК.итог.препятствияЗнач(итог.препятствий, число(итог.награда.заПрепятствия))} />
-            <СтрокаИтога л={ТК.итог.монеты} п={ТК.итог.монетыЗнач(итог.монет, число(итог.награда.заМонеты))} />
-            {итог.награда.множитель !== 1 && <СтрокаИтога л={ТК.итог.сложность} п={`×${итог.награда.множитель}`} />}
-            {итог.награда.бонусПроц > 0 && <СтрокаИтога л={Т.общее.бонусЗП} п={`+${итог.награда.бонусПроц}%`} />}
-            <Разделитель />
-            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(итог.награда.итого)} />
-          </div>
-
-          <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личныйРекорд }} глобальный={итог.глобальный} />
-
-          {итог.сохранение === "идёт" && <p className="mb-2 text-xs text-white/50">{Т.общее.сохраняем}</p>}
-          {итог.сохранение === "готово" && итог.награда.итого > 0 && !итог.предупреждение && (
-            <p className="mb-2 text-xs text-green-300">{Т.общее.фишекЗачислено}</p>
-          )}
-          {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
-          {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-300">{Т.общее.ошибкаСохранения(итог.текстОшибки)}</p>}
-
-          <div className="flex gap-2">
-            <button onClick={ещё} disabled={итог.сохранение === "идёт"} className="btn btn-blue flex-1">{Т.общее.игратьЕщё}</button>
-            <button onClick={() => navigate("/games")} disabled={итог.сохранение === "идёт"} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
-          </div>
-        </Модалка>
+        <GameResult
+          заголовок={итог.причина === "time" ? ТК.итог.времяВышло : ТК.итог.догнали}
+          база={итог.база}
+          прокачкаПроц={итог.награда.бонусПроц}
+          мастерство={мастерство}
+          итог={итог.награда.итого}
+          прогресс={{ подпись: "Препятствий", значение: String(итог.препятствий) }}
+          лучший={итог.личныйРекорд}
+          лучшийПодпись="Лучший"
+          колонка="best_ksuha_run"
+          ошибка={итог.сохранение === "ошибка" ? Т.общее.ошибкаСохранения(итог.текстОшибки) : undefined}
+          предупреждение={итог.сохранение === "идёт" ? Т.общее.сохраняем : итог.предупреждение}
+          основная={{ подпись: Т.общее.игратьЕщё, disabled: итог.сохранение === "идёт", onClick: ещё }}
+          вторичная={{ подпись: Т.общее.кСпискуИгр, disabled: итог.сохранение === "идёт", onClick: () => navigate("/games") }}
+        />
       )}
+
     </div>
   );
 }

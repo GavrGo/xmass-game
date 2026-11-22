@@ -10,7 +10,7 @@ export interface User {
   salary_level: number;
   artifacts?: string[]; // купленные артефакты чёрного рынка (ключи из ЧЁРНЫЙ_РЫНОК.артефакты)
   slot_spins?: number;
-  mastery?: Record<string, { xp: number; день: string; заДень: number }>;
+  mastery?: Record<string, { xp: number }>;
   exchange_fee: number; // комиссия обмена в % (меняется в Black Jack с торговцем)
   time_level: number;
   trash_level: number; // уровень прокачки «Убрать мусор»

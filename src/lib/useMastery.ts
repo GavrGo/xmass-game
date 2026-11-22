@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "../store/UserContext";
 import { МАСТЕРСТВО } from "../config";
-import { сегодня, уровеньМастерства } from "../game/mastery";
+import { уровеньМастерства } from "../game/mastery";
 import { getGlobalRecord, type КолонкаРекорда } from "../api/users";
+
+export interface Мастерство { уровень: number; прогресс: number; процент: number; рекордПроц: number }
 
 const КОЛОНКА_РЕКОРДА: Record<string, КолонкаРекорда> = {
   babka: "best_babka_crash",
@@ -33,7 +35,7 @@ export function useRecordHolders(): Set<string> {
 
 export function сБонусом<T extends object>(награда: T, бонус: number): T {
   const копия = { ...награда } as Record<string, unknown>;
-  for (const ключ of ["итог", "сумма"]) {
+  for (const ключ of ["итог", "итого", "сумма"]) {
     if (typeof копия[ключ] === "number") копия[ключ] = Math.round((копия[ключ] as number) * бонус);
   }
   return копия as T;
@@ -46,9 +48,15 @@ export function useMastery(игра: string) {
   const очки = useRef(0);
   const держатели = useRecordHolders();
 
-  const уровень = уровеньМастерства(user?.mastery?.[игра]?.xp ?? 0).бонус;
-  const рекорд = держатели.has(игра) ? 1 + МАСТЕРСТВО.рекордБонус : 1;
-  const бонус = уровень * рекорд;
+  const инфо = уровеньМастерства(user?.mastery?.[игра]?.xp ?? 0);
+  const рекордЕсть = держатели.has(игра);
+  const бонус = инфо.бонус + (рекордЕсть ? МАСТЕРСТВО.рекордБонус : 0);
+  const мастерство: Мастерство = {
+    уровень: инфо.уровень,
+    прогресс: инфо.прогресс,
+    процент: Math.round((инфо.бонус - 1) * 100),
+    рекордПроц: рекордЕсть ? Math.round(МАСТЕРСТВО.рекордБонус * 100) : 0,
+  };
 
   const сохранить = async () => {
     const накоплено = очки.current;
@@ -58,13 +66,8 @@ export function useMastery(игра: string) {
 
     const все = (текущий.mastery ?? {}) as NonNullable<typeof текущий.mastery>;
     const было = все[игра];
-    const день = сегодня();
-    const заДень = было?.день === день ? было.заДень : 0;
-    const добавка = Math.min(накоплено, Math.max(0, МАСТЕРСТВО.потолокВДень - заДень));
-    if (добавка === 0) return;
-
     await patch({
-      mastery: { ...все, [игра]: { xp: (было?.xp ?? 0) + добавка, день, заДень: заДень + добавка } },
+      mastery: { ...все, [игра]: { xp: (было?.xp ?? 0) + накоплено } },
     });
   };
 
@@ -78,6 +81,7 @@ export function useMastery(игра: string) {
 
   return {
     бонус,
+    мастерство,
     начислить: (фишки: number) => {
       очки.current += Math.floor(фишки / МАСТЕРСТВО.фишекНаОчко);
     },

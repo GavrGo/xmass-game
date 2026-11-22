@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
-import Модалка from "../components/Modal";
-import СтрокаИтога, { Разделитель } from "../components/TotalRow";
+import GameMenu from "../components/GameMenu";
+import GameResult from "../components/GameResult";
 import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useNoSwipes } from "../lib/useNoSwipes";
@@ -14,7 +14,6 @@ import { бонусВремениСек } from "../game/effects";
 import { перемешать, сдвинуть, собрана, наградаЗаПазл, ПУСТАЯ, Режим } from "../game/puzzle";
 import { выбратьКартинку } from "../game/puzzleImages";
 import { getPuzzleLeader, ЛидерПазлов } from "../api/users";
-import РекордыБлок from "../components/RecordsBlock";
 
 type Фаза = "menu" | "loading" | "playing" | "ending" | "won" | "lost";
 
@@ -36,7 +35,7 @@ const мм = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(
 
 export default function Puzzle() {
   const { user, change, telegramId } = useUser();
-  const { бонус, начислить: начислитьМастерство } = useMastery("puzzle");
+  const { бонус, мастерство, начислить: начислитьМастерство } = useMastery("puzzle");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -239,51 +238,41 @@ export default function Puzzle() {
 
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 p-5">
-          <h2 className="text-3xl font-bold text-brand-yellow">{ТП.заголовокМеню}</h2>
-          <p className="mb-5 mt-1 text-center text-sm text-white/70">{ТП.подзаголовок}</p>
-          <div className="flex w-full max-w-sm flex-col gap-2">
-            <button onClick={() => setРежим("zen")} className={`opt p-4 text-left ${режим === "zen" ? "opt-on" : ""}`}>
-              <div className="font-bold">{Т.общее.дзен}</div>
-              <div className="text-xs text-white/70"><Эм>{ТП.режимДзен(ПЯТНАШКИ.дзен.награда)}</Эм></div>
-            </button>
-            <button onClick={() => setРежим("timed")} className={`opt p-4 text-left ${режим === "timed" ? "opt-on" : ""}`}>
-              <div className="font-bold">{Т.общее.наВремя}</div>
-              <div className="text-xs text-white/70"><Эм>{ТП.режимВремя(мм(лимитТекст), ПЯТНАШКИ.наВремя.наградаЗаСборку, ПЯТНАШКИ.наВремя.утешительнаяНаграда)}</Эм></div>
-            </button>
-          </div>
-          <button onClick={старт} className="btn btn-yellow mt-5 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>
-          <button onClick={() => navigate("/games")} className="mt-3 text-sm text-white/60">{Т.общее.кСпискуИгр}</button>
-          <p className="mt-3 text-xs text-brand-yellow">{ТП.вашРекорд(user.puzzles_solved ?? 0)}</p>
-        </div>
+        <GameMenu
+          колонка="puzzles_solved"
+          форматРекорда={(n) => `${n}`}
+          мастерство={мастерство}
+          сложности={[
+            { id: "timed", название: Т.общее.наВремя, подпись: ТП.режимВремя(мм(лимитТекст), ПЯТНАШКИ.наВремя.наградаЗаСборку, ПЯТНАШКИ.наВремя.утешительнаяНаграда) },
+            { id: "zen", название: Т.общее.дзен, подпись: ТП.режимДзен(ПЯТНАШКИ.дзен.награда) },
+          ]}
+          выбрана={режим}
+          onВыбор={(id) => setРежим(id as typeof режим)}
+          onСтарт={старт}
+          onНазад={() => navigate("/games")}
+        />
       )}
 
       {/* ===== РЕЗУЛЬТАТ ===== */}
       {(фаза === "won" || фаза === "lost") && итог && (
-        <Модалка режим="absolute">
-          <h3 className="mb-2 text-2xl font-bold">{итог.победа ? ТП.победа : ТП.времяВышло}</h3>
-
-          <div className="stat-box my-3 p-3 text-left text-sm">
-            <СтрокаИтога л={ТП.итог.режим} п={итог.режим === "zen" ? ТП.итог.дзен : ТП.итог.наВремя} />
-            <СтрокаИтога л={ТП.итог.время} п={мм(итог.секунд)} />
-            <СтрокаИтога л={ТП.итог.ходов} п={String(итог.ходов)} />
-            {итог.награда.бонусПроц > 0 && итог.награда.итого > 0 && <СтрокаИтога л={Т.общее.бонусЗП} п={`+${итог.награда.бонусПроц}%`} />}
-            <Разделитель />
-            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(итог.награда.итого)} />
-          </div>
-
-          <РекордыБлок личный={{ nickname: user.nickname, значение: итог.всего }} глобальный={глобальныйПазлов(итог, user.nickname)} />
-          <p className="-mt-2 mb-2 text-[11px] text-white/50">{ТП.примечаниеРекорда}</p>
-
-          {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
-          {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-300">{Т.общее.ошибкаСохранения(итог.текстОшибки)}</p>}
-
-          <div className="flex gap-2">
-            <button onClick={() => { setИтог(null); setФаза("menu"); }} className="btn btn-blue flex-1">{Т.общее.игратьЕщё}</button>
-            <button onClick={() => navigate("/games")} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
-          </div>
-        </Модалка>
+        <GameResult
+          заголовок={итог.победа ? ТП.победа : ТП.времяВышло}
+          база={итог.награда.база}
+          прокачкаПроц={итог.награда.бонусПроц}
+          мастерство={мастерство}
+          итог={итог.награда.итого}
+          прогресс={{ подпись: "Ходов", значение: String(итог.ходов) }}
+          лучший={user.puzzles_solved ?? 0}
+          лучшийПодпись="Решено"
+          колонка="puzzles_solved"
+          форматРекорда={(n) => `${n}`}
+          предупреждение={итог.предупреждение}
+          ошибка={итог.сохранение === "ошибка" ? Т.общее.ошибкаСохранения(итог.текстОшибки) : undefined}
+          основная={{ подпись: Т.общее.игратьЕщё, onClick: () => { setИтог(null); setФаза("menu"); } }}
+          вторичная={{ подпись: Т.общее.забратьИВыйти, onClick: () => navigate("/games") }}
+        />
       )}
+
     </div>
   );
 }

@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
-import Модалка from "../components/Modal";
-import СтрокаИтога, { Разделитель } from "../components/TotalRow";
+import GameMenu from "../components/GameMenu";
+import GameResult from "../components/GameResult";
 import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useUser } from "../store/UserContext";
 import { useMastery, сБонусом } from "../lib/useMastery";
 import { БАБКА_КРАШ as К, КлючПерсонажа } from "../config";
 import { Рекорд } from "../api/users";
-import РекордыБлок from "../components/RecordsBlock";
 import { глобальныйРекорд } from "../game/records";
 import { бонусВремениСек } from "../game/effects";
 import { БабкаДвижок, ФазаБабки, РежимБабки, посчитатьНаградуБабки } from "../game/babka";
@@ -20,6 +19,7 @@ import { useNoSwipes } from "../lib/useNoSwipes";
 interface Итог {
   дорог: number;
   награда: ReturnType<typeof посчитатьНаградуБабки>;
+  база: number;
   режим: РежимБабки;
   персонаж: КлючПерсонажа;
   личный: number;
@@ -34,7 +34,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function Babka() {
   const { user, change } = useUser();
-  const { бонус, начислить: начислитьМастерство } = useMastery("babka");
+  const { бонус, мастерство, начислить: начислитьМастерство } = useMastery("babka");
   const navigate = useNavigate();
   useNoSwipes(); // только тапы
 
@@ -83,12 +83,13 @@ export default function Babka() {
     if (!u) return;
 
     const n = д.дорог;
-    const награда = сБонусом(посчитатьНаградуБабки(n, р, п, u.salary_level), бонус);
+    const сырая = посчитатьНаградуБабки(n, р, п, u.salary_level);
+    const награда = сБонусом(сырая, бонус);
     const прежний = u.best_babka_crash ?? 0;
     const новыйРекорд = n > прежний;
     const личный = Math.max(n, прежний);
 
-    setИтог({ дорог: n, награда, режим: р, персонаж: п, личный, глобальный: undefined, причина: д.причина, сохранение: "идёт" });
+    setИтог({ дорог: n, награда, база: сырая.сумма * сырая.режимМнож * сырая.персМнож, режим: р, персонаж: п, личный, глобальный: undefined, причина: д.причина, сохранение: "идёт" });
 
     try {
       начислитьМастерство(награда.итого);
@@ -190,53 +191,44 @@ export default function Babka() {
 
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
-        <div className="absolute inset-0 flex flex-col items-center overflow-y-auto bg-black/80 px-5 pb-6" style={{ paddingTop: отступ }}>
-          <button onClick={() => navigate("/games")} className="btn btn-ghost self-start !px-3 !py-2 text-sm">{Т.общее.назад}</button>
-          <h2 className="mt-3 text-3xl font-bold text-brand-yellow">{ТБ.заголовокМеню}</h2>
-          <p className="mt-1 text-center text-sm text-white/70">{ТБ.подсказка}</p>
-
-          <p className="mb-2 mt-4 text-sm font-bold text-white/80">{ТБ.режимЗаголовок}</p>
-          <div className="flex w-full max-w-sm flex-col gap-2">
-            <button onClick={() => setРежим("zen")} className={`opt p-3 text-left ${режим === "zen" ? "opt-on" : ""}`}>
-              <div className="font-bold">{Т.общее.дзен}</div>
-              <div className="text-xs text-white/70"><Эм>{ТБ.режимДзен(К.дзенМножитель)}</Эм></div>
-            </button>
-            <button onClick={() => setРежим("timed")} className={`opt p-3 text-left ${режим === "timed" ? "opt-on" : ""}`}>
-              <div className="font-bold">{Т.общее.обычный}</div>
-              <div className="text-xs text-white/70">{ТБ.режимОбычный(К.времяСек + бонусВрем, бонусВрем)}</div>
-            </button>
-          </div>
-
-          <button onClick={старт} className="btn btn-yellow mt-5 w-full max-w-sm !py-4 text-xl">{Т.общее.старт}</button>
-          <p className="mt-3 text-center text-xs text-white/60"><Эм>{ТБ.награда(число(К.награда.старт * м * К.персонажи[персонаж].множительНаграды))}</Эм></p>
-          <p className="mt-1 text-xs text-brand-yellow">{ТБ.вашРекорд(user.best_babka_crash ?? 0)}</p>
-        </div>
+        <GameMenu
+          колонка="best_babka_crash"
+          заголовокВыбора={ТБ.режимЗаголовок}
+          мастерство={мастерство}
+          сложности={[
+            { id: "timed", название: Т.общее.обычный, подпись: ТБ.режимОбычный(К.времяСек + бонусВрем, бонусВрем) },
+            { id: "zen", название: Т.общее.дзен, подпись: ТБ.режимДзен(К.дзенМножитель), множитель: К.дзенМножитель },
+          ]}
+          выбрана={режим}
+          onВыбор={(id) => setРежим(id as РежимБабки)}
+          onСтарт={старт}
+          onНазад={() => navigate("/games")}
+        />
       )}
 
       {/* ===== РЕЗУЛЬТАТ ===== */}
       {фаза === "over" && итог && (
-        <Модалка режим="absolute">
-          <h3 className="mb-2 text-2xl font-bold">
-            {итог.причина === "time" ? ТБ.итог.времяВышло : итог.персонаж === "babka" ? ТБ.итог.сбилаМашина : ТБ.итог.сбилиБабушку}
-          </h3>
-          <div className="stat-box my-3 p-3 text-left text-sm">
-            <СтрокаИтога л={ТБ.итог.дорог} п={ТБ.итог.дорогЗнач(итог.дорог, число(итог.награда.сумма))} />
-            {итог.награда.режимМнож !== 1 && <СтрокаИтога л={ТБ.итог.режимДзен} п={`×${итог.награда.режимМнож}`} />}
-            {итог.награда.персМнож !== 1 && <СтрокаИтога л={ТБ.итог.персонаж} п={`×${итог.награда.персМнож}`} />}
-            {итог.награда.бонусПроц > 0 && <СтрокаИтога л={Т.общее.бонусЗП} п={`+${итог.награда.бонусПроц}%`} />}
-            <Разделитель />
-            <СтрокаИтога л={Т.общее.получено} п={Т.общее.плюсФишки(итог.награда.итого)} />
-          </div>
-          <РекордыБлок личный={{ nickname: user.nickname, значение: итог.личный }} глобальный={итог.глобальный} />
-          {итог.сохранение === "идёт" && <p className="mb-2 text-xs text-white/50">{Т.общее.сохраняем}</p>}
-          {итог.предупреждение && <p className="mb-2 text-xs text-orange-300">{итог.предупреждение}</p>}
-          {итог.сохранение === "ошибка" && <p className="mb-2 text-xs text-red-300">{Т.общее.ошибкаСохранения(итог.текстОшибки)}</p>}
-          <div className="flex gap-2">
-            <button onClick={() => { setИтог(null); движок.current!.сброс(0, персонаж); setФаза("menu"); }} disabled={итог.сохранение === "идёт"} className="btn btn-blue flex-1">{Т.общее.игратьЕщё}</button>
-            <button onClick={() => navigate("/games")} disabled={итог.сохранение === "идёт"} className="btn btn-yellow flex-1">{Т.общее.забратьИВыйти}</button>
-          </div>
-        </Модалка>
+        <GameResult
+          заголовок={итог.причина === "time" ? ТБ.итог.времяВышло : итог.персонаж === "babka" ? ТБ.итог.сбилаМашина : ТБ.итог.сбилиБабушку}
+          база={итог.база}
+          прокачкаПроц={итог.награда.бонусПроц}
+          мастерство={мастерство}
+          итог={итог.награда.итого}
+          прогресс={{ подпись: "Дорог", значение: String(итог.дорог) }}
+          лучший={итог.личный}
+          лучшийПодпись="Лучший"
+          колонка="best_babka_crash"
+          ошибка={итог.сохранение === "ошибка" ? Т.общее.ошибкаСохранения(итог.текстОшибки) : undefined}
+          предупреждение={итог.сохранение === "идёт" ? Т.общее.сохраняем : итог.предупреждение}
+          основная={{
+            подпись: Т.общее.игратьЕщё,
+            disabled: итог.сохранение === "идёт",
+            onClick: () => { setИтог(null); движок.current!.сброс(0, персонаж); setФаза("menu"); },
+          }}
+          вторичная={{ подпись: Т.общее.кСпискуИгр, onClick: () => navigate("/games") }}
+        />
       )}
+
     </div>
   );
 }

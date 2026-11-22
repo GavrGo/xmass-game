@@ -42,14 +42,8 @@ export default async function handler(req, res) {
 
   const text = шаблон(String(name ?? "").slice(0, 40), Math.floor(Number(amount) || 0));
   const payload = { chat_id: Number(to), text };
-  const appUrl = (process.env.APP_URL || "").trim();
   try {
-    let j;
-    if (/^https:\/\//.test(appUrl)) {
-      j = await телеграм("sendMessage", { ...payload, reply_markup: { inline_keyboard: [[{ text: "Открыть игру", url: appUrl }]] } });
-      if (!j.ok) console.error("notify: с кнопкой не вышло:", j.error_code, j.description);
-    }
-    if (!j || !j.ok) j = await телеграм("sendMessage", payload);
+    const j = await телеграм("sendMessage", payload);
     if (!j.ok) console.error("notify: Telegram отказал:", j.error_code, j.description, "chat_id", payload.chat_id);
     return res.status(200).json({ ok: !!j.ok, error: j.description });
   } catch (e) {
