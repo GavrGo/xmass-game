@@ -74,6 +74,17 @@ export default function Match3() {
   const [импульс, setИмпульс] = useState(0);
   const [попап, setПопап] = useState<{ id: number; текст: string } | null>(null);
   const летRef = useRef<HTMLDivElement>(null);
+  const полеWrapRef = useRef<HTMLDivElement>(null);
+  const [полеВт, setПолеВт] = useState(0);
+  useLayoutEffect(() => {
+    const el = полеWrapRef.current;
+    if (!el) return;
+    const пересчитать = () => setПолеВт(Math.floor(Math.min(el.clientWidth, (el.clientHeight * КОЛ) / СТР)));
+    пересчитать();
+    const наблюдатель = new ResizeObserver(пересчитать);
+    наблюдатель.observe(el);
+    return () => наблюдатель.disconnect();
+  }, []);
   const полосаRef = useRef<HTMLDivElement>(null);
   const визРef = useRef(0);
   const визТокен = useRef(0);
@@ -356,10 +367,11 @@ export default function Match3() {
     const c = Math.floor(((x - р.left) / р.width) * КОЛ), r = Math.floor(((y - р.top) / р.height) * СТР);
     return c < 0 || c >= КОЛ || r < 0 || r >= СТР ? -1 : r * КОЛ + c;
   };
-  const нажатьКлетку = (e: React.MouseEvent) => {
-    if (фаза !== "playing" || занято.current) return;
+  const нажатьКлетку = (e: React.PointerEvent) => {
+    if (фаза !== "playing") return;
     const idx = индексПоТочке(e.clientX, e.clientY);
     if (idx < 0) return;
+    if (занято.current) { setВыбранная(idx); return; }
     if (выбранная === null) setВыбранная(idx);
     else if (выбранная === idx) setВыбранная(null);
     else if (соседи(выбранная, idx)) сделатьХод(выбранная, idx);
@@ -410,7 +422,7 @@ export default function Match3() {
   const размерВзрыва = `${К.радиусВзрыва * 2 + 1}×${К.радиусВзрыва * 2 + 1}`;
 
   return (
-    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-app px-4 pb-4 pt-3 select-none" style={{ touchAction: "manipulation" }}>
+    <div className="fixed inset-0 z-30 flex flex-col items-center overflow-hidden bg-app px-2 pb-3 pt-3 select-none" style={{ touchAction: "manipulation" }}>
       {/* Шапка */}
       <div className="flex w-full max-w-md items-center justify-between">
         <button onClick={выйти} className="btn btn-ghost !px-3 !py-2 text-sm">{фаза === "playing" ? Т.общее.выйти : Т.общее.назад}</button>
@@ -430,10 +442,11 @@ export default function Match3() {
       </div>
 
       {/* Поле */}
-      <div className="relative mx-auto mt-3" style={{ width: "calc(100vw - 16px)", aspectRatio: `${КОЛ} / ${СТР}` }}>
+      <div ref={полеWrapRef} className="relative mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
+        <div className="relative" style={{ width: полеВт, aspectRatio: `${КОЛ} / ${СТР}` }}>
         <div
           ref={доскаRef}
-          onClick={нажатьКлетку}
+          onPointerDown={нажатьКлетку}
           className="absolute inset-0 isolate overflow-hidden rounded-xl bg-black/40 ring-2 ring-brand-yellow/60"
         >
           {поле.map((к, i) => {
@@ -452,14 +465,6 @@ export default function Match3() {
                   width: `${100 / КОЛ}%`, height: `${100 / СТР}%`,
                   transform: `translate(${c * 100}%, ${(новая ? r - СТР : r) * 100}%)`,
                   transition: "none",
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (фаза !== "playing" || занято.current) return;
-                  if (выбранная === null) setВыбранная(i);
-                  else if (выбранная === i) setВыбранная(null);
-                  else if (соседи(выбранная, i)) сделатьХод(выбранная, i);
-                  else setВыбранная(i);
                 }}
               >
                 <div className={`h-full w-full p-[4%] transition-all duration-200 ${удал ? "scale-0 opacity-0" : ""} ${выбрана ? "scale-110" : ""}`}>
@@ -491,6 +496,7 @@ export default function Match3() {
             <span className="inline-block rounded-2xl bg-black/75 px-4 py-2 text-lg font-bold text-brand-yellow ring-2 ring-brand-yellow">{тост}</span>
           </div>
         )}
+        </div>
       </div>
 
       {/* ===== МЕНЮ ===== */}
