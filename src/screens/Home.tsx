@@ -237,6 +237,10 @@ export default function Home() {
   const [автоВкл, setАвтоВкл] = useState(false);
   const платноRef = useRef(false);
   платноRef.current = !идёт && !заблокирован && (user?.tickets ?? 0) >= ставка;
+  const множительRef = useRef(множитель);
+  множительRef.current = множитель;
+  const бесплатныеRef = useRef(бесплатныеКрутки);
+  бесплатныеRef.current = бесплатныеКрутки;
   const темп = (мс: number) => (автоспинRef.current ? мс / 2 : мс);
 
   const остановитьАвто = () => {
@@ -245,11 +249,13 @@ export default function Home() {
   };
 
   const запуститьАвто = async () => {
-    if (автоспинRef.current || !платноRef.current) return;
+    if (автоспинRef.current || !(платноRef.current || бесплатныеRef.current > 0)) return;
     автоспинRef.current = true;
     setАвтоспин(true);
-    while (автоспинRef.current && платноRef.current) {
-      await крутитьRef.current?.(true);
+    while (автоспинRef.current) {
+      const бесплатно = бесплатныеRef.current > 0 && множительRef.current === 1;
+      if (!бесплатно && !платноRef.current) break;
+      await крутитьRef.current?.(!бесплатно);
       await new Promise((r) => setTimeout(r, темп(400)));
     }
     остановитьАвто();
@@ -423,8 +429,8 @@ export default function Home() {
               <button
                 key={м}
                 onClick={() => setМножитель(м)}
-                disabled={идёт || (бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем)}
-                className={`btn !rounded-xl !px-0 !py-2.5 ${м === эфМножитель ? "!bg-[#F26B3A] text-white" : "!bg-[#26272D] text-white/90"}`}
+                disabled={идёт || автоВкл || (бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем)}
+                className={`btn !rounded-xl !px-0 !py-2.5 ${!автоВкл && м === эфМножитель ? "!bg-[#F26B3A] text-white" : "!bg-[#26272D] text-white/90"}`}
               >
                 x{м}
               </button>

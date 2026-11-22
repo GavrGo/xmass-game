@@ -430,7 +430,7 @@ export default function Match3() {
       </div>
 
       {/* Поле */}
-      <div className="relative mx-auto mt-3" style={{ width: "min(100%, 560px, calc((100dvh - 260px) * 0.6))", aspectRatio: `${КОЛ} / ${СТР}` }}>
+      <div className="relative mx-auto mt-3" style={{ width: "calc(100vw - 16px)", aspectRatio: `${КОЛ} / ${СТР}` }}>
         <div
           ref={доскаRef}
           onClick={нажатьКлетку}
