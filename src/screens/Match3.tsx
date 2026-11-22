@@ -171,7 +171,8 @@ export default function Match3() {
     }
     const р = доска.getBoundingClientRect(), ц = цель.getBoundingClientRect();
     const шагX = р.width / КОЛ, шагY = р.height / СТР;
-    const tx = ц.right - 4, ty = ц.top + ц.height / 2;
+    const заполнено = Math.min(1, визРef.current / цельRef.current);
+    const tx = ц.left + ц.width * заполнено, ty = ц.top + ц.height / 2;
     const доляОчков = очкиБатча / части.length;
     части.forEach((i, n) => {
       const к = п[i]!;
@@ -400,7 +401,7 @@ export default function Match3() {
       </div>
 
       {/* Поле */}
-      <div className="relative mt-3 w-full" style={{ maxWidth: 560, aspectRatio: `${КОЛ} / ${СТР}` }}>
+      <div className="relative mx-auto mt-3" style={{ width: "min(100%, 560px, calc((100dvh - 230px) * 0.6))", aspectRatio: `${КОЛ} / ${СТР}` }}>
         <div
           ref={доскаRef}
           onClick={нажатьКлетку}
