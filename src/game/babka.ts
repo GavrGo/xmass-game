@@ -22,6 +22,7 @@ interface Полоса {
   деревья: { x: number; вид: number }[];
   закрыта?: boolean;
   ямы?: { x: number; dy: number; r: number }[];
+  трещины?: { x: number; dy: number; r: number }[];
 }
 
 const ЗАПАС = 60; // за краем экрана противники появляются и пропадают
@@ -34,10 +35,14 @@ const готова = (img: HTMLImageElement) => img.complete && img.naturalWidth
 const бабкаИмг = загрузить("Babka.png");
 const островИмг = загрузить("safe-island.png");
 const таблетка = загрузить("berserk-pill.png");
+const яма = загрузить("pit.png");
+const трещинаИмг = загрузить("crack.png");
+const конус = загрузить("cone.png");
 const ДЕРЕВЬЯ = [загрузить("Tree-1.png"), загрузить("Tree-2.png"), загрузить("Bush-1.png"), загрузить("Bush-2.png")];
 const ДЕРЕВЬЯ_ВЫСОТА = [46, 42, 26, 26];
 const МАШИНЫ = [загрузить("Car-1.png"), загрузить("Car-2.png"), загрузить("Car-3.png"), загрузить("Car-4.png")];
 const ЗАПАС_ПОЛОС = 15;
+const РЕМОНТ_КАЖДЫЕ = [8, 12];
 const БЕРСЕРК_СЕК = 3;
 const ДОРОГ_ДО_БЕРСЕРКА = 8;
 const ВСПЫШКА_ВОСКРЕШЕНИЯ_СЕК = 0.6;
@@ -90,13 +95,12 @@ export class БабкаДвижок {
   столкновение: { x: number; y: number } | null = null;
   навыки = new Set<ИдНавыка>();
   воскрешениеИспользовано = false;
-  ремонтИспользован = false;
   берсеркОсталось = 0;
   дорогДоБерсерка = 0;
   вспышкаT = 999;
   отброшенные: { вид: number; x: number; полоса: number; dy: number; vx: number; vy: number; t: number; зеркало: boolean }[] = [];
 
-  ремонтПолоса: number | null = null;
+  доРемонта = 0;
   предмет: { полоса: number } | null = null;
   искры: { x: number; wy: number; vx: number; vy: number; t: number; life: number; цвет: string; r: number }[] = [];
   воскрешение: { фаза: number; t: number; откуда: number; куда: number; толчок: number } | null = null;
@@ -123,7 +127,7 @@ export class БабкаДвижок {
     this.дорог = 0; this.время = 0; this.лимит = лимитСек; this.осталось = лимитСек;
     this.закончена = false; this.причина = null; this.послеКонца = 0; this.столкновение = null;
     this.созданоДо = -1; this.дорогСоздано = 0;
-    this.воскрешениеИспользовано = false; this.ремонтИспользован = false; this.берсеркОсталось = 0; this.дорогДоБерсерка = 0; this.вспышкаT = 999; this.отброшенные = []; this.ремонтПолоса = null; this.предмет = null; this.искры = []; this.воскрешение = null;
+    this.воскрешениеИспользовано = false; this.берсеркОсталось = 0; this.дорогДоБерсерка = 0; this.вспышкаT = 999; this.отброшенные = []; this.доРемонта = целое(РЕМОНТ_КАЖДЫЕ[0], РЕМОНТ_КАЖДЫЕ[1]); this.предмет = null; this.искры = []; this.воскрешение = null;
     this.осталосьВГруппе = целое(К.группаДорог.мин, К.группаДорог.макс);
     this.создатьДо(Math.ceil(this.мирВысота / К.мир.высотаПолосы) + 8);
   }
@@ -171,7 +175,13 @@ export class БабкаДвижок {
     л.скорость = база * рост * случайно(1 - К.скорость.разброс, 1 + К.скорость.разброс);
     л.шаг = this.новыйШаг(л.скорость, л.номерДороги);
     л.накоплено = случайно(0, л.шаг);
-    if (this.ремонтПолоса === null && this.навыки.has("repair")) { л.закрыта = true; л.ямы = this.создатьЯмы(); this.ремонтПолоса = i; }
+    if (this.навыки.has("repair") && --this.доРемонта <= 0) {
+      л.закрыта = true;
+      const ремонт = this.создатьРемонт();
+      л.ямы = ремонт.ямы;
+      л.трещины = ремонт.трещины;
+      this.доРемонта = целое(РЕМОНТ_КАЖДЫЕ[0], РЕМОНТ_КАЖДЫЕ[1]);
+    }
     if (л.закрыта) return л;
     let x = -ЗАПАС + случайно(0, л.шаг);
     while (x < W + ЗАПАС) {
@@ -231,8 +241,6 @@ export class БабкаДвижок {
         this.полоса = this.цельПолоса;
         this.позиция = this.полоса;
         if (this.полосы.get(this.полоса)?.дорога) { this.дорог++; this.зарядитьБерсерк(); }
-        const пл = this.полосы.get(this.полоса);
-        if (пл?.закрыта) this.починить(пл);
         if (this.предмет?.полоса === this.полоса) this.подобратьПредмет();
         if (this.буфер) { this.буфер = false; this.прыжок(); }
       } else {
@@ -285,15 +293,10 @@ export class БабкаДвижок {
     this.отброшенные.push({ вид: в.вид, x: в.x, полоса: л.индекс, dy: 0, vx: (в.x < this.мирШирина / 2 ? -1 : 1) * 320, vy: -260, t: 0, зеркало: л.направление === -1 });
   }
 
-  private создатьЯмы() {
-    return Array.from({ length: 6 }, () => ({ x: 0.15 + Math.random() * 0.7, dy: (Math.random() - 0.5) * 0.4, r: 6 + Math.random() * 7 }));
-  }
-
-  private починить(л: Полоса) {
-    л.закрыта = false;
-    л.ямы = [];
-    this.ремонтИспользован = true;
-    this.взрыв(this.мирШирина / 2, л.индекс * К.мир.высотаПолосы, 24);
+  private создатьРемонт() {
+    const ямы = Array.from({ length: 6 }, () => ({ x: 0.15 + Math.random() * 0.7, dy: (Math.random() - 0.5) * 0.4, r: 8 + Math.random() * 6 }));
+    const трещины = Array.from({ length: 6 }, () => ({ x: 0.1 + Math.random() * 0.8, dy: (Math.random() - 0.5) * 0.4, r: 8 + Math.random() * 6 }));
+    return { ямы, трещины };
   }
 
   private подобратьПредмет() {
@@ -426,17 +429,24 @@ export class БабкаДвижок {
 
   private рисоватьРемонт(ctx: CanvasRenderingContext2D, л: Полоса, W: number, yc: number, LH: number) {
     ctx.save();
-    for (const я of л.ямы ?? []) {
-      const x = W * я.x;
-      const y0 = yc + я.dy * LH;
-      ctx.fillStyle = "rgba(20,18,16,0.9)";
-      ctx.beginPath(); ctx.ellipse(x, y0, я.r, я.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(20,18,16,0.85)"; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(x + я.r * 0.8, y0); ctx.lineTo(x + я.r * 2.2, y0 + 5); ctx.lineTo(x + я.r * 3.2, y0 - 3); ctx.stroke();
+    if (готова(трещинаИмг)) {
+      for (const т of л.трещины ?? []) {
+        const w = т.r * 4, h = w * трещинаИмг.naturalHeight / трещинаИмг.naturalWidth;
+        ctx.drawImage(трещинаИмг, W * т.x - w / 2, yc + т.dy * LH - h / 2, w, h);
+      }
+    }
+    if (готова(яма)) {
+      for (const я of л.ямы ?? []) {
+        const w = я.r * 4, h = w * яма.naturalHeight / яма.naturalWidth;
+        ctx.drawImage(яма, W * я.x - w / 2, yc + я.dy * LH - h / 2, w, h);
+      }
     }
     ctx.restore();
-    эмодзи(ctx, "🚧", W * 0.07, yc + LH / 2 - 4, 30);
-    эмодзи(ctx, "🚧", W * 0.93, yc + LH / 2 - 4, 30);
+    for (const x of [W * 0.07, W * 0.93]) {
+      if (!готова(конус)) { эмодзи(ctx, "🚧", x, yc + LH / 2 - 4, 30); continue; }
+      const h = LH * 0.8, w = h * конус.naturalWidth / конус.naturalHeight;
+      ctx.drawImage(конус, x - w / 2, yc + LH / 2 - 4 - h, w, h);
+    }
   }
 
   private рисоватьПредмет(ctx: CanvasRenderingContext2D, yc: number, W: number) {
@@ -451,8 +461,8 @@ export class БабкаДвижок {
     ctx.beginPath(); ctx.arc(W / 2, cy, 70 * p, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     if (готова(таблетка)) {
-      const s = 56;
-      ctx.drawImage(таблетка, W / 2 - s / 2, cy - s / 2, s, s);
+      const hP = 64, wP = hP * таблетка.naturalWidth / таблетка.naturalHeight;
+      ctx.drawImage(таблетка, W / 2 - wP / 2, cy - hP / 2, wP, hP);
     } else {
       эмодзи(ctx, "💊", W / 2, cy + 22, 44);
     }

@@ -30,18 +30,30 @@ const загрузить = (путь: string) => Object.assign(new Image(), { sr
 const готова = (img: HTMLImageElement) => img.complete && img.naturalWidth > 0;
 const фонИмг = загрузить(ПУТЬ_АССЕТОВ + "BG.png");
 const дорогаИмг = загрузить(ПУТЬ_АССЕТОВ + "Road.png");
-const ксюхаИмг = загрузить(ПУТЬ_АССЕТОВ + "Ksuha.png");
-const мэнИмг = загрузить(ПУТЬ_АССЕТОВ + "Man.png");
+const КАДРЫ_КСЮХИ = Array.from({ length: 6 }, (_, i) => загрузить(`ksuha-run-${i + 1}.png`));
+const КАДРЫ_МЭНА = Array.from({ length: 6 }, (_, i) => загрузить(`man-run-${i + 1}.png`));
+const ФПС_СТАРТ = 12;
+const ФПС_МИН = 4;
+const ФПС_МАКС = 14;
 const барьеры = К.препятствия.картинки.map((f) => загрузить(ПУТЬ_АССЕТОВ + f));
 const подарокКартинка = загрузить("/assets/icons/slot-gift.png");
 
-function спрайт(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cx: number, низ: number, высота: number, угол = 0) {
-  if (!готова(img)) return;
-  const ширина = высота * img.naturalWidth / img.naturalHeight;
+function геометрияФигуры(кадры: HTMLImageElement[], индекс: number, cx: number, земля: number, высота: number) {
+  const рамки = кадры.map((кадр) => видимаяРамка(кадр));
+  const низ = Math.max(...рамки.map((р) => р.y + р.h));
+  const верх = Math.min(...рамки.map((р) => р.y));
+  const img = кадры[индекс];
+  const h = высота / (низ - верх);
+  const w = h * img.naturalWidth / img.naturalHeight;
+  return { x: cx - w / 2, y: земля - низ * h, w, h };
+}
+
+function рисоватьФигуру(ctx: CanvasRenderingContext2D, кадры: HTMLImageElement[], индекс: number, cx: number, земля: number, высота: number, угол = 0) {
+  if (!готова(кадры[индекс])) return;
+  const г = геометрияФигуры(кадры, индекс, cx, земля, высота);
   ctx.save();
-  ctx.translate(cx, низ);
-  if (угол) ctx.rotate(угол);
-  ctx.drawImage(img, -ширина / 2, -высота, ширина, высота);
+  if (угол) { ctx.translate(cx, земля); ctx.rotate(угол); ctx.translate(-cx, -земля); }
+  ctx.drawImage(кадры[индекс], г.x, г.y, г.w, г.h);
   ctx.restore();
 }
 
@@ -92,6 +104,9 @@ export class КсюхаРанДвижок {
   смещение = 0;
   смещениеФона = 0;
   фазаБега = 0;
+  кадрБега = 0;
+  кадрАккум = 0;
+  опорнаяСкорость = 1;
 
   // --- счёт ---
   пройдено = 0;
@@ -125,11 +140,12 @@ export class КсюхаРанДвижок {
     this.рывок = 0; this.следыРывка = []; this.щитСломан = false; this.отброшенные = []; this.осколки = []; this.искры = [];
     this.препятствия = []; this.монеты = []; this.всплывашки = [];
     this.скорость = К.скорость.старт * К.сложности[сложность].множительСкорости;
+    this.опорнаяСкорость = this.скорость;
     this.пройдено = 0; this.монетСобрано = 0; this.суммаМонет = 0;
     this.время = 0; this.лимит = лимитСек; this.осталось = лимитСек;
     this.дозаПоявления = 1.1; this.дозаМонеты = случайно(1.5, 3);
     this.закончена = false; this.причина = null; this.послеКонца = 0;
-    this.смещение = 0; this.смещениеФона = 0; this.фазаБега = 0;
+    this.смещение = 0; this.смещениеФона = 0; this.фазаБега = 0; this.кадрБега = 0; this.кадрАккум = 0;
     this.снег = Array.from({ length: 40 }, () => ({
       x: случайно(0, this.мирШирина), y: случайно(0, this.земля), r: случайно(1, 3), v: случайно(15, 45),
     }));
@@ -220,6 +236,9 @@ export class КсюхаРанДвижок {
     this.смещение = (this.смещение + this.эффСкорость() * dt) % 100000;
     this.смещениеФона = (this.смещениеФона + this.эффСкорость() * К.вид.параллакс * dt) % 100000;
     this.фазаБега += dt * 14;
+    this.кадрАккум += Math.min(ФПС_МАКС, Math.max(ФПС_МИН, ФПС_СТАРТ * this.опорнаяСкорость / this.скорость)) * dt;
+    this.кадрБега = (this.кадрБега + Math.floor(this.кадрАккум)) % 6;
+    this.кадрАккум %= 1;
     this.обновитьСнег(dt, this.эффСкорость());
 
     // Появление препятствий
@@ -261,8 +280,8 @@ export class КсюхаРанДвижок {
       о.x -= this.эффСкорость() * dt;
       if (!о.passed && о.x + о.size < ИГРОК.x) { о.passed = true; this.пройдено++; }
 
-      const ширГероя = ИГРОК.h * (готова(ксюхаИмг) ? ксюхаИмг.naturalWidth / ксюхаИмг.naturalHeight : 59 / 66);
-      const герой = видимыйПрямоугольник(ксюхаИмг, ИГРОК.x + ИГРОК.w / 2 - ширГероя / 2, зем - this.подъём + 4 - ИГРОК.h, ширГероя, ИГРОК.h);
+      const г = геометрияФигуры(КАДРЫ_КСЮХИ, this.кадрБега, ИГРОК.x + ИГРОК.w / 2, зем - this.подъём + 4, ИГРОК.h);
+      const герой = видимыйПрямоугольник(КАДРЫ_КСЮХИ[this.кадрБега], г.x, г.y, г.w, г.h);
       const ширина = о.size * о.вытяжка[0], высота = о.size * о.вытяжка[1];
       const барьер = видимыйПрямоугольник(барьеры[о.картинка], о.x, зем - высота + 14, ширина, высота);
       if (герой.x + пб < барьер.x + барьер.w - пб && барьер.x + пб < герой.x + герой.w - пб && герой.y + пб < барьер.y + барьер.h - пб && барьер.y + пб < герой.y + герой.h - пб) {
@@ -416,22 +435,22 @@ export class КсюхаРанДвижок {
     const преслX = hX - дистанция + догнал * (дистанция - 10);
     const hПресл = this.закончена ? 0 : (this.история[0]?.h ?? 0);
     const преслY = зем - hПресл - кач(1.5) + 4;
-    спрайт(ctx, мэнИмг, преслX, преслY, ИГРОК.h);
+    рисоватьФигуру(ctx, КАДРЫ_МЭНА, this.кадрБега, преслX, преслY, ИГРОК.h);
     for (const с of this.следыРывка) {
       ctx.save();
       ctx.globalAlpha = 0.5 * (1 - с.t / 0.3);
       ctx.shadowColor = "rgba(80,170,255,1)";
       ctx.shadowBlur = 24;
-      спрайт(ctx, ксюхаИмг, hX + с.dx, hY, ИГРОК.h, упала * (Math.PI / 2));
+      рисоватьФигуру(ctx, КАДРЫ_КСЮХИ, this.кадрБега, hX + с.dx, hY, ИГРОК.h, упала * (Math.PI / 2));
       ctx.restore();
     }
-    спрайт(ctx, ксюхаИмг, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
+    рисоватьФигуру(ctx, КАДРЫ_КСЮХИ, this.кадрБега, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
     if (this.рывок > 0) {
       ctx.save();
       ctx.globalAlpha = 0.35;
       ctx.shadowColor = "rgba(80,170,255,1)";
       ctx.shadowBlur = 30;
-      спрайт(ctx, ксюхаИмг, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
+      рисоватьФигуру(ctx, КАДРЫ_КСЮХИ, this.кадрБега, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
       ctx.restore();
     }
 
