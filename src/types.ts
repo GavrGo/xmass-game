@@ -13,6 +13,7 @@ export interface User {
   mastery?: Record<string, { xp: number }>;
   exchange_fee: number; // комиссия обмена в % (меняется в Black Jack с торговцем)
   time_level: number;
+  exchange_level: number; // уровень прокачки «Договоримся» (снижает курс обмена фишек на билеты)
   trash_level: number; // уровень прокачки «Убрать мусор»
   slot_pity: number;
   best_ksuha_run: number;
@@ -29,5 +30,6 @@ export const КОЛОНКА_УРОВНЯ = {
   freeSpin: "free_spin_level",
   salary: "salary_level",
   timeBonus: "time_level",
+  exchange: "exchange_level",
   trash: "trash_level",
 } as const;

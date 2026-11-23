@@ -25,6 +25,7 @@ import {
 type Фаза = "menu" | "playing" | "over";
 
 interface Итог {
+  база: number;
   причина: "ходы" | "выход";
   пройдено: number;
   фишек: number;

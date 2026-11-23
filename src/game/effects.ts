@@ -24,3 +24,7 @@ export function бонусЗарплатыПроц(user: Pick<User, "salary_leve
 export function бонусВремениСек(user: Pick<User, "time_level">): number {
   return user.time_level * ПРОКАЧКИ.timeBonus.эффектЗаУровень;
 }
+
+export function курсОбменаФишек(user: Pick<User, "exchange_level">): number {
+  return ОБМЕН.фишекЗаБилет - ПРОКАЧКИ.exchange.эффектЗаУровень * user.exchange_level;
+}

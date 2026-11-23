@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../store/UserContext";
 import { ОБМЕН, МАГАЗИН_ОБМЕННИКА, ОНБОРДИНГ, АССЕТЫ } from "../config";
-import { комиссияОбменаПроц } from "../game/effects";
+import { комиссияОбменаПроц, курсОбменаФишек } from "../game/effects";
 import { посчитатьОбмен, Направление } from "../game/exchange";
 import { прочитатьКрутки, записатьКрутки } from "../game/emoji";
 import AvatarSpinModal from "../components/AvatarSpinModal";
@@ -30,8 +30,9 @@ export default function Exchange() {
   if (!user) return null;
 
   const комиссия = комиссияОбменаПроц(user);
+  const курс = курсОбменаФишек(user);
   const количество = Math.max(0, Math.floor(Number(ввод) || 0));
-  const { получите, спишется } = посчитатьОбмен(направление, количество, комиссия);
+  const { получите, спишется } = посчитатьОбмен(направление, количество, комиссия, курс);
 
   const фишкиВБилеты = направление === "chipsToTickets";
   const баланс = фишкиВБилеты ? user.chips : user.tickets;
@@ -165,7 +166,7 @@ export default function Exchange() {
         </div>
 
         <div className="mt-3 space-y-0.5 text-center text-xs text-muted">
-          <div><Эм>{ТО.курс(ОБМЕН.фишекЗаБилет)}</Эм></div>
+          <div><Эм>{ТО.курс(курс)}</Эм></div>
           <div>{ТО.комиссия(комиссия)} · {ТО.спишется}: {спишется}</div>
         </div>
 
