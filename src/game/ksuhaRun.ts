@@ -4,7 +4,7 @@
 import { КСЮХА_РАН as К, КлючСложности, ЭффектЗвука } from "../config";
 import { Т } from "../texts";
 import { бонусЗарплатыПроц } from "./effects";
-import { видимыйПрямоугольник } from "../lib/spriteBox";
+import { видимаяРамка, видимыйПрямоугольник } from "../lib/spriteBox";
 import type { ИдНавыка } from "./skills";
 
 const ИГРОК = { x: 120, w: 40, h: 52 }; // позиция и размер героини (в «логических» пикселях)

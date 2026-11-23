@@ -7,6 +7,7 @@ import { МАСТЕРСТВО } from "../config";
 import { подсказкаТребования } from "../game/mastery";
 import LockIcon from "./LockIcon";
 import MasteryPopup from "./MasteryPopup";
+import type { Навык } from "../game/skills";
 import { Иконка } from "./Icon";
 import { Т } from "../texts";
 
@@ -17,6 +18,7 @@ interface Props {
   колонка: КолонкаРекорда;
   форматРекорда?: (n: number) => string;
   мастерство: Мастерство;
+  навыки?: Навык[];
   сложности?: Сложность[];
   заголовокВыбора?: string;
   выбрана?: string;
@@ -26,8 +28,47 @@ interface Props {
   onНазад: () => void;
 }
 
+function НавыкиПанель({ навыки, мастерство }: { навыки: Навык[]; мастерство: Мастерство }) {
+  const [открытый, setОткрытый] = useState<string | null>(null);
+  const выбранный = навыки.find((н) => н.id === открытый && мастерство.уровень >= н.уровень);
+
+  return (
+    <div className="relative mt-4 w-full max-w-sm">
+      <div className="flex justify-between px-2">
+        {навыки.map((н) => {
+          const открыт = мастерство.уровень >= н.уровень;
+          return (
+            <div key={н.id} className="flex w-20 flex-col items-center">
+              <button
+                type="button"
+                disabled={!открыт}
+                onClick={() => setОткрытый(открытый === н.id ? null : н.id)}
+                className={`relative flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-2xl ring-1 ring-white/10 ${открыт ? "" : "opacity-40 grayscale"}`}
+              >
+                {н.иконка}
+                {!открыт && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/80 ring-1 ring-orange-300/60">
+                    <LockIcon className="h-3.5 w-3.5 text-orange-300" />
+                  </span>
+                )}
+              </button>
+              {!открыт && <span className="mt-1 text-center text-[10px] leading-tight text-orange-300">Откроется на уровне {н.уровень}</span>}
+            </div>
+          );
+        })}
+      </div>
+      {выбранный && (
+        <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-xl bg-surface2 p-3 text-left text-xs shadow-lg ring-1 ring-white/15">
+          <div className="font-bold text-white">{выбранный.название}</div>
+          <div className="mt-1 text-white/70">{выбранный.описание}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GameMenu({
-  название, колонка, форматРекорда, мастерство, сложности, заголовокВыбора = "Сложность", выбрана, onВыбор, готово = true, onСтарт, onНазад,
+  название, колонка, форматРекорда, мастерство, навыки, сложности, заголовокВыбора = "Сложность", выбрана, onВыбор, готово = true, onСтарт, onНазад,
 }: Props) {
   const рекорд = useGlobalRecord(колонка);
   const { telegramId } = useUser();
@@ -40,6 +81,8 @@ export default function GameMenu({
       <div className="flex w-full max-w-sm items-center">
         <button onClick={onНазад} className="btn btn-secondary !px-3 !py-2 text-sm">{Т.общее.назад}</button>
       </div>
+
+      {навыки && навыки.length > 0 && <НавыкиПанель навыки={навыки} мастерство={мастерство} />}
 
       <div className="mt-6 grid w-full max-w-sm gap-3">
         <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
@@ -114,7 +157,7 @@ export default function GameMenu({
         {готово ? Т.общее.старт : Т.общее.загрузка}
       </button>
       {попапОткрыт && (
-        <MasteryPopup название={название} инфо={мастерство} держатель={держатель} onClose={() => setПопапОткрыт(false)} />
+        <MasteryPopup название={название} инфо={мастерство} держатель={держатель} навыки={навыки} onClose={() => setПопапОткрыт(false)} />
       )}
     </div>
   );
