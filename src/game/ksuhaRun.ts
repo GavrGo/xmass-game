@@ -8,6 +8,8 @@ import { видимыйПрямоугольник } from "../lib/spriteBox";
 import type { ИдНавыка } from "./skills";
 
 const ИГРОК = { x: 120, w: 40, h: 52 }; // позиция и размер героини (в «логических» пикселях)
+const ДЛИТЕЛЬНОСТЬ_РЫВКА = 0.6;
+const ДАЛЬНОСТЬ_ПРЕДУПРЕЖДЕНИЯ = 420;
 
 export type Фаза = "menu" | "playing" | "over";
 
@@ -65,7 +67,7 @@ export class КсюхаРанДвижок {
   навыки = new Set<ИдНавыка>();
   щитСломан = false;
   рывок = 0;
-  следыРывка: { h: number; t: number }[] = [];
+  следыРывка: { dx: number; t: number }[] = [];
   отброшенные: { картинка: number; x: number; y: number; ширина: number; высота: number; vx: number; vy: number; t: number }[] = [];
   осколки: { x: number; y: number; vx: number; vy: number; r: number; t: number }[] = [];
   искры: { x: number; y: number; vx: number; vy: number; t: number }[] = [];
@@ -136,7 +138,7 @@ export class КсюхаРанДвижок {
   прыжок() {
     if (this.закончена) return;
     if (this.навыки.has("dash") && this.прыжков === К.физика.максПрыжковПодряд && this.подъём > 0 && this.рывок <= 0) {
-      this.рывок = 0.35;
+      this.рывок = ДЛИТЕЛЬНОСТЬ_РЫВКА;
       this.vy = 0;
       this.следыРывка = [];
       this.событие?.("прыжок");
@@ -150,7 +152,7 @@ export class КсюхаРанДвижок {
 
   private эффСкорость() {
     if (this.рывок <= 0) return this.скорость;
-    return this.скорость * (1 + Math.sin((1 - this.рывок / 0.35) * Math.PI));
+    return this.скорость * (1 + Math.sin((1 - this.рывок / ДЛИТЕЛЬНОСТЬ_РЫВКА) * Math.PI));
   }
 
   /** Самая большая высота, до которой реально допрыгнуть (нужна, чтобы монеты были достижимы). */
@@ -179,9 +181,12 @@ export class КсюхаРанДвижок {
 
     if (this.рывок > 0) {
       this.рывок = Math.max(0, this.рывок - dt);
-      this.следыРывка.push({ h: this.подъём, t: 0 });
+      this.следыРывка.push({ dx: 0, t: 0 });
     }
-    for (const с of this.следыРывка) с.t += dt;
+    for (const с of this.следыРывка) {
+      с.t += dt;
+      с.dx -= this.эффСкорость() * dt;
+    }
     this.следыРывка = this.следыРывка.filter((с) => с.t < 0.3);
     for (const п of this.отброшенные) { п.x += п.vx * dt; п.y += п.vy * dt; п.vy += 1400 * dt; п.t += dt; }
     this.отброшенные = this.отброшенные.filter((п) => п.t < 0.9);
@@ -221,7 +226,7 @@ export class КсюхаРанДвижок {
     if (this.дозаПоявления <= 0) {
       const п = К.препятствия;
       this.препятствия.push({
-        x: this.мирШирина + 20,
+        x: this.мирШирина + ДАЛЬНОСТЬ_ПРЕДУПРЕЖДЕНИЯ,
         size: Math.round(случайно(п.минРазмер, п.максРазмер)),
         картинка: Math.floor(Math.random() * п.картинки.length),
         вытяжка: [случайно(0.85, 1.15), случайно(0.85, 1.15)],
@@ -373,8 +378,9 @@ export class КсюхаРанДвижок {
       let близость = 0;
       let цельY = 0;
       for (const о of this.препятствия) {
-        if (о.x <= W || о.x >= W + 420) continue;
-        const б = 1 - (о.x - W) / 420;
+        const дист = о.x - W;
+        if (дист <= -60 || дист >= ДАЛЬНОСТЬ_ПРЕДУПРЕЖДЕНИЯ) continue;
+        const б = дист > 0 ? 1 - дист / ДАЛЬНОСТЬ_ПРЕДУПРЕЖДЕНИЯ : 1 + дист / 60;
         if (б > близость) {
           близость = б;
           цельY = зем - (о.size * о.вытяжка[1]) / 2 + 14;
@@ -407,7 +413,7 @@ export class КсюхаРанДвижок {
       ctx.globalAlpha = 0.5 * (1 - с.t / 0.3);
       ctx.shadowColor = "rgba(80,170,255,1)";
       ctx.shadowBlur = 24;
-      спрайт(ctx, ксюхаИмг, hX, зем - с.h + 4, ИГРОК.h, упала * (Math.PI / 2));
+      спрайт(ctx, ксюхаИмг, hX + с.dx, hY, ИГРОК.h, упала * (Math.PI / 2));
       ctx.restore();
     }
     спрайт(ctx, ксюхаИмг, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
