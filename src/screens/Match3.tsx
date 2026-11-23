@@ -17,6 +17,7 @@ import ПолосаОчков from "../components/MatchProgress";
 import GameMenu from "../components/GameMenu";
 import GameResult from "../components/GameResult";
 import LevelBanner from "../components/LevelBanner";
+import { createPortal } from "react-dom";
 import {
   КОЛ, СТР, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
   очкиЗаШаг, цельЭтапа, ходовЭтапа, наградаЭтапа, ТЕКСТ_ЭФФЕКТА,
@@ -511,7 +512,12 @@ export default function Match3() {
         />
       )}
 
-      {баннер && <LevelBanner key={баннер.id} текст={баннер.текст} />}
+      {баннер && createPortal(
+        <div className="pointer-events-none fixed inset-0 z-[70]">
+          <LevelBanner key={баннер.id} текст={баннер.текст} />
+        </div>,
+        document.body,
+      )}
 
       {/* ===== ИТОГ ИГРЫ ===== */}
       {фаза === "over" && итог && (
