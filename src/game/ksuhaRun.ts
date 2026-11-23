@@ -9,6 +9,7 @@ import type { ИдНавыка } from "./skills";
 
 const ИГРОК = { x: 120, w: 40, h: 52 }; // позиция и размер героини (в «логических» пикселях)
 const ДЛИТЕЛЬНОСТЬ_РЫВКА = 0.6;
+const МНОЖИТЕЛЬ_РЫВКА = 3;
 const ДАЛЬНОСТЬ_ПРЕДУПРЕЖДЕНИЯ = 420;
 
 export type Фаза = "menu" | "playing" | "over";
@@ -139,7 +140,6 @@ export class КсюхаРанДвижок {
     if (this.закончена) return;
     if (this.навыки.has("dash") && this.прыжков === К.физика.максПрыжковПодряд && this.подъём > 0 && this.рывок <= 0) {
       this.рывок = ДЛИТЕЛЬНОСТЬ_РЫВКА;
-      this.vy = 0;
       this.следыРывка = [];
       this.событие?.("прыжок");
       return;
@@ -152,7 +152,8 @@ export class КсюхаРанДвижок {
 
   private эффСкорость() {
     if (this.рывок <= 0) return this.скорость;
-    return this.скорость * (1 + Math.sin((1 - this.рывок / ДЛИТЕЛЬНОСТЬ_РЫВКА) * Math.PI));
+    const п = 1 - this.рывок / ДЛИТЕЛЬНОСТЬ_РЫВКА;
+    return this.скорость * (1 + МНОЖИТЕЛЬ_РЫВКА * Math.min(1, п / 0.12) * Math.pow(1 - п, 1.5));
   }
 
   /** Самая большая высота, до которой реально допрыгнуть (нужна, чтобы монеты были достижимы). */
@@ -391,12 +392,20 @@ export class КсюхаРанДвижок {
         ctx.save();
         ctx.translate(W, цельY);
         ctx.scale(1, 2.2);
-        const свечение = ctx.createRadialGradient(0, 0, 0, 0, 0, 90);
-        свечение.addColorStop(0, `rgba(255,40,60,${(0.85 * сила).toFixed(3)})`);
-        свечение.addColorStop(0.5, `rgba(255,30,50,${(0.4 * сила).toFixed(3)})`);
-        свечение.addColorStop(1, "rgba(255,30,50,0)");
-        ctx.fillStyle = свечение;
-        ctx.fillRect(-90, -90, 90, 180);
+        ctx.globalCompositeOperation = "lighter";
+        for (let k = 0; k < 3; k++) {
+          const фаза = this.время * (0.9 + k * 0.45) + k * 2.3;
+          const сдвигX = Math.sin(фаза) * 12;
+          const сдвигY = Math.cos(фаза * 0.7 + k) * 20;
+          const рад = 78 + Math.sin(фаза * 1.9 + k) * 16;
+          const грд = ctx.createRadialGradient(сдвигX, сдвигY, 0, сдвигX, сдвигY, рад);
+          const а = [1.0, 0.6, 0.42][k] * сила;
+          грд.addColorStop(0, `rgba(255,60,80,${Math.min(1, а).toFixed(3)})`);
+          грд.addColorStop(0.45, `rgba(255,30,50,${Math.min(1, а * 0.5).toFixed(3)})`);
+          грд.addColorStop(1, "rgba(255,30,50,0)");
+          ctx.fillStyle = грд;
+          ctx.fillRect(-130, -130, 130, 260);
+        }
         ctx.restore();
       }
     }
