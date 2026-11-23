@@ -8,6 +8,7 @@ import Эм from "../components/Emoji";
 import { инфоМастерства } from "../game/mastery";
 import LockIcon from "../components/LockIcon";
 import MasteryPopup from "../components/MasteryPopup";
+import { навыкиИгры } from "../game/skills";
 import { useRecordHolders } from "../lib/useMastery";
 
 // Список мини-игр: сетка карточек в 2 колонки (по макету).
@@ -60,6 +61,7 @@ export default function MiniGames() {
       </div>
       {открытаИгра && инфоОткрытой && (
         <MasteryPopup
+          навыки={открытаИгра.id === "ksuha" ? навыкиИгры("ksuha") : []}
           название={открытаИгра.название}
           инфо={{ ...инфоОткрытой, процент: Math.round((инфоОткрытой.бонус - 1) * 100) }}
           держатель={держатели.has(открытаИгра.id)}

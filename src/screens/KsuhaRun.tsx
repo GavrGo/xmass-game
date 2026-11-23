@@ -12,7 +12,7 @@ import { getGlobalRecord, Рекорд } from "../api/users";
 import { КСЮХА_РАН, КлючСложности } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { КсюхаРанДвижок, Фаза, посчитатьНаграду } from "../game/ksuhaRun";
-import { открытыеНавыки } from "../game/skills";
+import { навыкиИгры, открытыеНавыки } from "../game/skills";
 import { getSafeTop } from "../lib/telegram";
 
 // Что показываем в окне результата
@@ -256,6 +256,7 @@ export default function KsuhaRun() {
           колонка="best_ksuha_run"
           название={Т.игры.ksuha.название}
           мастерство={мастерство}
+          навыки={навыкиИгры("ksuha")}
           сложности={(Object.keys(КСЮХА_РАН.сложности) as КлючСложности[]).map((к) => ({
             id: к,
             название: `${ТК.сложности[к].значок} ${ТК.сложности[к].название}`,

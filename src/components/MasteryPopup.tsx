@@ -4,15 +4,17 @@ import LockIcon from "./LockIcon";
 import { МАСТЕРСТВО } from "../config";
 import { бонусНаУровне, подсказкаТребования } from "../game/mastery";
 import type { Мастерство } from "../lib/useMastery";
+import type { Навык } from "../game/skills";
 
 interface Props {
   название: string;
   инфо: Pick<Мастерство, "уровень" | "прогресс" | "процент" | "заблокирован" | "следующее">;
   держатель: boolean;
+  навыки?: Навык[];
   onClose: () => void;
 }
 
-export default function MasteryPopup({ название, инфо, держатель, onClose }: Props) {
+export default function MasteryPopup({ название, инфо, держатель, навыки, onClose }: Props) {
   return createPortal(
     <Modal тон="calm" onClose={onClose}>
           <div className={инфо.заблокирован ? "brightness-75" : ""}>
@@ -40,12 +42,16 @@ export default function MasteryPopup({ название, инфо, держат�
               const пройден = ур < инфо.уровень;
               const текущий = ур === инфо.уровень;
               const закрыто = ур > инфо.уровень && ур > МАСТЕРСТВО.отрывУровней;
+              const новыеНавыки = навыки?.filter((н) => н.уровень === ур) ?? [];
               return (
                 <li key={ур} className={`rounded-xl px-3 py-2 ${текущий ? "bg-amber-300/20 ring-1 ring-amber-300/70" : пройден ? "opacity-35" : "bg-white/5"}`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold">Ур. {ур}</span>
                     <span className="inline-flex items-center gap-1 font-bold text-amber-200">+{Math.round(бонусНаУровне(ур) * 100)}%</span>
                   </div>
+                  {новыеНавыки.map((н) => (
+                    <div key={н.id} className="mt-1 text-[11px] font-semibold text-emerald-300">+ {н.иконка} {н.название}</div>
+                  ))}
                   {закрыто && (
                     <div className="mt-1 text-[11px] font-semibold text-orange-300">Нужно: 2 другие игры на уровне {ур - МАСТЕРСТВО.отрывУровней}+</div>
                   )}
