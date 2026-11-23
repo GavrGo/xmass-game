@@ -69,12 +69,11 @@ function ШкалаМастерства({ срез }: { срез: Срез }) {
     <div className="mt-4 rounded-2xl bg-white/5 px-4 py-3 text-left ring-1 ring-white/10">
       <div className="mb-1.5 flex items-baseline justify-between text-sm">
         <span className="font-bold">Мастерство · Ур. {вид.уровень}</span>
-        <span className="font-bold text-cyan-300">+{вид.процент}%</span>
       </div>
       <div className="relative h-3 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
-        <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-600 to-sky-400" style={{ width: `${база * 100}%` }} />
+        <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-sky-600 to-sky-400" style={{ width: `${база * 100}%` }} />
         <div
-          className="absolute inset-y-0 rounded-full bg-gradient-to-r from-sky-200 to-cyan-100 shadow-[0_0_8px_rgba(186,230,253,0.7)]"
+          className="absolute inset-y-0 bg-gradient-to-r from-sky-200 to-cyan-100 shadow-[0_0_8px_rgba(186,230,253,0.7)]"
           style={{ left: `${заезд.слева * 100}%`, width: `${заезд.ширина * 100}%` }}
         />
       </div>

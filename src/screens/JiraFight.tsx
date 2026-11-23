@@ -317,6 +317,7 @@ export default function JiraFight() {
       {фаза === "menu" && (
         <GameMenu
           колонка="best_jira_level"
+          название={Т.игры.jira.название}
           заголовокВыбора="Режим"
           мастерство={мастерство}
           сложности={[

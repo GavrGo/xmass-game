@@ -19,7 +19,7 @@ export default function Модалка({
       <div className={`${тон === "calm" ? "modal-calm" : "modal-card"} relative w-full max-w-sm p-5 text-center ${hero ? "mt-12 pt-14" : ""}`}>
         {hero && <div className="absolute -top-12 left-1/2 flex -translate-x-1/2 justify-center">{hero}</div>}
         {onClose && (
-          <button onClick={onClose} aria-label={Т.общее.закрыть} className="absolute right-3 top-3 h-7 w-7 rounded-full bg-black/30 text-sm text-white/80">
+          <button onClick={onClose} aria-label={Т.общее.закрыть} className={`absolute right-3 top-3 rounded-full bg-black/30 text-white/80 ${тон === "calm" ? "h-10 w-10 text-xl" : "h-7 w-7 text-sm"}`}>
             {Т.общее.крестик}
           </button>
         )}

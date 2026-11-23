@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { КолонкаРекорда } from "../api/users";
 import type { Мастерство } from "../lib/useMastery";
 import { useGlobalRecord } from "../lib/useGlobalRecord";
@@ -5,12 +6,14 @@ import { useUser } from "../store/UserContext";
 import { МАСТЕРСТВО } from "../config";
 import { подсказкаТребования } from "../game/mastery";
 import LockIcon from "./LockIcon";
+import MasteryPopup from "./MasteryPopup";
 import { Иконка } from "./Icon";
 import { Т } from "../texts";
 
 export interface Сложность { id: string; название: string; подпись?: string; множитель?: number }
 
 interface Props {
+  название: string;
   колонка: КолонкаРекорда;
   форматРекорда?: (n: number) => string;
   мастерство: Мастерство;
@@ -24,10 +27,11 @@ interface Props {
 }
 
 export default function GameMenu({
-  колонка, форматРекорда, мастерство, сложности, заголовокВыбора = "Сложность", выбрана, onВыбор, готово = true, onСтарт, onНазад,
+  название, колонка, форматРекорда, мастерство, сложности, заголовокВыбора = "Сложность", выбрана, onВыбор, готово = true, onСтарт, onНазад,
 }: Props) {
   const рекорд = useGlobalRecord(колонка);
   const { telegramId } = useUser();
+  const [попапОткрыт, setПопапОткрыт] = useState(false);
   const держатель = !!рекорд && рекорд.telegram_id === telegramId;
   const формат = форматРекорда ?? ((n: number) => n.toLocaleString("ru-RU"));
 
@@ -49,7 +53,7 @@ export default function GameMenu({
               <div className="text-lg font-extrabold text-amber-300">+{мастерство.процент}%</div>
             </div>
           </div>
-          <div className={`mt-3 h-2 overflow-hidden rounded-full bg-black/50 ${мастерство.заблокирован ? "opacity-40 grayscale" : ""}`}>
+          <div role="button" onClick={() => setПопапОткрыт(true)} className={`mt-3 h-2 cursor-pointer overflow-hidden rounded-full bg-black/50 ${мастерство.заблокирован ? "opacity-40 grayscale" : ""}`}>
             <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-[width] duration-500" style={{ width: `${Math.round(мастерство.прогресс * 100)}%` }} />
           </div>
           {мастерство.заблокирован && (
@@ -109,6 +113,9 @@ export default function GameMenu({
       <button onClick={onСтарт} disabled={!готово} className="btn btn-primary mt-6 w-full max-w-sm !py-4 text-xl">
         {готово ? Т.общее.старт : Т.общее.загрузка}
       </button>
+      {попапОткрыт && (
+        <MasteryPopup название={название} инфо={мастерство} держатель={держатель} onClose={() => setПопапОткрыт(false)} />
+      )}
     </div>
   );
 }

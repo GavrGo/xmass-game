@@ -254,6 +254,7 @@ export default function KsuhaRun() {
       {фаза === "menu" && (
         <GameMenu
           колонка="best_ksuha_run"
+          название={Т.игры.ksuha.название}
           мастерство={мастерство}
           сложности={(Object.keys(КСЮХА_РАН.сложности) as КлючСложности[]).map((к) => ({
             id: к,
