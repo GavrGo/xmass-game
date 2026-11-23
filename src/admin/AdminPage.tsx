@@ -135,12 +135,12 @@ export default function AdminPage() {
     <div className="p-4 pb-16">
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-2xl font-bold">{Т.админка.заголовок}</h1>
-        <Link to="/" className="btn btn-ghost !px-3 !py-2 text-sm">{Т.админка.вИгру}</Link>
+        <Link to="/" className="btn btn-secondary !px-3 !py-2 text-sm">{Т.админка.вИгру}</Link>
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
         {(["игроки", "статистика", "рассылка"] as const).map((в) => (
-          <button key={в} onClick={() => setВкладка(в)} className={`btn !px-3 !py-2 text-sm ${вкладка === в ? "btn-blue" : "btn-ghost"}`}>
+          <button key={в} onClick={() => setВкладка(в)} className={`btn !px-3 !py-2 text-sm ${вкладка === в ? "btn-primary" : "btn-secondary"}`}>
             {в === "игроки" ? "Игроки" : в === "статистика" ? "Статистика" : "Рассылка"}
           </button>
         ))}
@@ -155,14 +155,14 @@ export default function AdminPage() {
           placeholder={Т.админка.поиск}
           className="w-full rounded-xl bg-surface px-4 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
         />
-        <button onClick={загрузить} className="btn btn-ghost !px-3">↻</button>
+        <button onClick={загрузить} className="btn btn-secondary !px-3">↻</button>
       </div>
 
       <div className="card mb-3 flex flex-wrap items-center gap-2 p-3">
         <span className="text-sm text-white/70">Бан по ID:</span>
         <input value={банId} onChange={(e) => setБанId(e.target.value)} placeholder="telegram_id" className="w-40 rounded-lg bg-surface2 px-2 py-1 text-white" />
-        <button onClick={() => баньПоId(true)} className="btn btn-red !px-3 !py-2 text-sm">Забанить</button>
-        <button onClick={() => баньПоId(false)} className="btn btn-blue !px-3 !py-2 text-sm">Разбанить</button>
+        <button onClick={() => баньПоId(true)} className="btn btn-danger !px-3 !py-2 text-sm">Забанить</button>
+        <button onClick={() => баньПоId(false)} className="btn btn-primary !px-3 !py-2 text-sm">Разбанить</button>
       </div>
       <p className="mb-3 text-sm text-white/60">
         {Т.админка.показано(найденные.length, игроки.length)}
@@ -236,11 +236,11 @@ export default function AdminPage() {
               ))}
             </div>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => сохранить(u)} disabled={сохраняется === u.telegram_id} className="btn btn-blue !px-4 !py-2 text-sm">
+              <button onClick={() => сохранить(u)} disabled={сохраняется === u.telegram_id} className="btn btn-primary !px-4 !py-2 text-sm">
                 {сохраняется === u.telegram_id ? Т.админка.сохраняем : Т.админка.сохранить}
               </button>
-              <button onClick={() => переключитьБан(u, !u.banned)} className={`btn !px-4 !py-2 text-sm ${u.banned ? "btn-blue" : "btn-ghost"}`}>{u.banned ? "Разбанить" : "Забанить"}</button>
-              <button onClick={() => удалить(u)} className="btn btn-red !px-4 !py-2 text-sm">{Т.админка.удалить}</button>
+              <button onClick={() => переключитьБан(u, !u.banned)} className={`btn !px-4 !py-2 text-sm ${u.banned ? "btn-primary" : "btn-secondary"}`}>{u.banned ? "Разбанить" : "Забанить"}</button>
+              <button onClick={() => удалить(u)} className="btn btn-danger !px-4 !py-2 text-sm">{Т.админка.удалить}</button>
             </div>
           </div>
         ))}

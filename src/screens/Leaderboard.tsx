@@ -195,7 +195,7 @@ export default function Leaderboard() {
                   <button
                     onClick={() => setОкно({ вид: "send", соперник })}
                     disabled={!!исходящая}
-                    className="btn btn-ghost shrink-0 !rounded-lg !px-2.5 !py-1.5 text-xs"
+                    className="btn btn-secondary shrink-0 !rounded-lg !px-2.5 !py-1.5 text-xs"
                   >
                     {исходящая ? Т.дуэль.ждём : Т.дуэль.кнопка}
                   </button>

@@ -262,7 +262,7 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
         {/* Ставка: −100 −10 −1 [поле] +1 +10 +100 */}
         <div className="mt-3 flex w-full items-center justify-center gap-1">
           {[["-100", -100], [ТК.минус10, -10], [ТК.минус1, -1]].map(([подпись, шаг]) => (
-            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-ghost !rounded-lg !px-0 w-9 !py-2 text-xs">{подпись}</button>
+            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-secondary !rounded-lg !px-0 w-9 !py-2 text-xs">{подпись}</button>
           ))}
           <div className="flex h-12 w-24 items-center justify-center gap-1 rounded-xl border border-white/15 bg-black/40">
             <input
@@ -277,12 +277,12 @@ export default function КолесоФортуны({ onЗакрыть }: { onЗ�
             <Иконка имя={иконкаВалюты} размер={18} />
           </div>
           {[[ТК.плюс1, 1], [ТК.плюс10, 10], ["+100", 100]].map(([подпись, шаг]) => (
-            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-ghost !rounded-lg !px-0 w-9 !py-2 text-xs">{подпись}</button>
+            <button key={подпись as string} disabled={идёт} onClick={() => setСтавка(зажать(ставка + (шаг as number)))} className="btn btn-secondary !rounded-lg !px-0 w-9 !py-2 text-xs">{подпись}</button>
           ))}
         </div>
 
         {/* Большая кнопка */}
-        <button onClick={крутить} disabled={идёт || !ставкаОК} className="btn btn-yellow mt-4 flex w-full items-center justify-center gap-2 !py-4 text-lg">
+        <button onClick={крутить} disabled={идёт || !ставкаОК} className="btn btn-primary mt-4 flex w-full items-center justify-center gap-2 !py-4 text-lg">
           {ТК.кнопка(ставка)}
           <Иконка имя={иконкаВалюты} размер={22} />
         </button>

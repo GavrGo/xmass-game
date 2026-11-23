@@ -156,7 +156,7 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
           {исход === "draw" && <div className="text-sm text-white/70">{ТД.возврат}</div>}
         </div>
 
-        <button onClick={() => { onChange(); onClose(); }} className="btn btn-yellow relative mt-8 w-full max-w-[260px]">{ТД.выйти}</button>
+        <button onClick={() => { onChange(); onClose(); }} className="btn btn-primary relative mt-8 w-full max-w-[260px]">{ТД.выйти}</button>
       </div>
     );
   }
@@ -173,7 +173,7 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
           <div className="mt-5 text-xs text-white/60">{ТД.ставка}</div>
           <div className="mt-2 flex w-full items-center justify-center gap-1">
             {[["-100", -100], ["−10", -10], ["−1", -1]].map(([п, ш]) => (
-              <button key={п as string} onClick={() => setСтавка(зажать(ставка + (ш as number)))} className="btn btn-ghost !rounded-lg !px-0 w-9 !py-2 text-xs">{п}</button>
+              <button key={п as string} onClick={() => setСтавка(зажать(ставка + (ш as number)))} className="btn btn-secondary !rounded-lg !px-0 w-9 !py-2 text-xs">{п}</button>
             ))}
             <div className="flex h-12 w-24 items-center justify-center gap-1 rounded-xl border border-white/15 bg-black/40">
               <input
@@ -184,10 +184,10 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
               <Иконка имя="хэпэшки" размер={18} />
             </div>
             {[["+1", 1], ["+10", 10], ["+100", 100]].map(([п, ш]) => (
-              <button key={п as string} onClick={() => setСтавка(зажать(ставка + (ш as number)))} className="btn btn-ghost !rounded-lg !px-0 w-9 !py-2 text-xs">{п}</button>
+              <button key={п as string} onClick={() => setСтавка(зажать(ставка + (ш as number)))} className="btn btn-secondary !rounded-lg !px-0 w-9 !py-2 text-xs">{п}</button>
             ))}
           </div>
-          <button onClick={отправить} disabled={!выбор || занято || user.hearts < 1} className="btn btn-yellow mt-5 w-full">{ТД.отправить}</button>
+          <button onClick={отправить} disabled={!выбор || занято || user.hearts < 1} className="btn btn-primary mt-5 w-full">{ТД.отправить}</button>
         </>
       )}
 
@@ -198,8 +198,8 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
           <div className="my-3"><Сумма n={режим.дуэль.bet} размер={44} шрифт="text-6xl text-brand-yellow" /></div>
           {!хватает && <div className="mb-2 text-xs text-red-300">{ТД.недостаточно}</div>}
           <div className="mt-2 flex gap-3">
-            <button onClick={() => setЭтап("pick")} disabled={!хватает || занято} className="btn btn-yellow flex-1">{ТД.принять}</button>
-            <button onClick={отказать} disabled={занято} className="btn btn-red flex-1">{ТД.отказать}</button>
+            <button onClick={() => setЭтап("pick")} disabled={!хватает || занято} className="btn btn-primary flex-1">{ТД.принять}</button>
+            <button onClick={отказать} disabled={занято} className="btn btn-danger flex-1">{ТД.отказать}</button>
           </div>
         </>
       )}
@@ -208,7 +208,7 @@ export default function DuelModal({ режим, onClose, onChange }: { режи�
         <>
           <div className="mb-4 text-lg font-extrabold">{ТД.выберите}</div>
           <Выбиралка выбор={выбор} set={setВыбор} />
-          <button onClick={сыграть} disabled={!выбор || занято} className="btn btn-yellow mt-5 w-full">{ТД.начать}</button>
+          <button onClick={сыграть} disabled={!выбор || занято} className="btn btn-primary mt-5 w-full">{ТД.начать}</button>
         </>
       )}
 

@@ -173,7 +173,7 @@ export default function Puzzle() {
     <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto bg-app px-4 pb-4 pt-3 select-none" style={{ touchAction: "manipulation" }}>
       {/* Шапка */}
       <div className="flex w-full max-w-md items-center justify-between">
-        <button onClick={выйти} className="btn btn-ghost !px-3 !py-2 text-sm">{Т.общее.назад}</button>
+        <button onClick={выйти} className="btn btn-secondary !px-3 !py-2 text-sm">{Т.общее.назад}</button>
         <h2 className="text-xl font-bold">{ТП.заголовокМеню}</h2>
         <div className={`pill min-w-[64px] px-3 py-2 text-center text-sm font-bold ${режим === "timed" && осталось <= 10 && фаза === "playing" ? "text-red-400" : ""}`}>
           {фаза === "menu" || фаза === "loading" ? "—" : режим === "timed" ? `⏱ ${мм(осталось)}` : `⏱ ${мм(прошло)}`}
@@ -184,8 +184,8 @@ export default function Puzzle() {
       <div className="mt-3 flex w-full max-w-md items-center justify-between text-sm text-white/70">
         <span>{ТП.ходов(ходов)}</span>
         <div className="flex gap-2">
-          <button onClick={() => setНомера(!номера)} className={`btn !rounded-lg !px-3 !py-1 ${номера ? "btn-yellow" : "btn-ghost"}`}>{ТП.номера}</button>
-          <button onClick={() => setПодсказка(!подсказка)} className={`btn !rounded-lg !px-3 !py-1 ${подсказка ? "btn-yellow" : "btn-ghost"}`}>{ТП.подсказкаКнопка}</button>
+          <button onClick={() => setНомера(!номера)} className={`btn !rounded-lg !px-3 !py-1 ${номера ? "btn-primary" : "btn-secondary"}`}>{ТП.номера}</button>
+          <button onClick={() => setПодсказка(!подсказка)} className={`btn !rounded-lg !px-3 !py-1 ${подсказка ? "btn-primary" : "btn-secondary"}`}>{ТП.подсказкаКнопка}</button>
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+import { АВТО_КНОПКА } from "../theme";
 import { АССЕТЫ } from "../config";
 import { Картинка } from "./Icon";
 import { useАссеты } from "../lib/assets";
@@ -16,7 +17,7 @@ export default function КнопкаАвто({ e, вкл, onНажатие }: { 
     >
       <Картинка
         путь={ПУТЬ + файл}
-        fallback={<span className="block h-full w-full rounded-full" style={{ background: вкл ? "#E8704A" : "#4A4550" }} />}
+        fallback={<span className="block h-full w-full rounded-full" style={{ background: вкл ? АВТО_КНОПКА.вкл : АВТО_КНОПКА.выкл }} />}
         className="h-full w-full"
       />
       <span

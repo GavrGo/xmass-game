@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Картинка } from "../components/Icon";
+import { БЛЭКДЖЕК_КНОПКИ } from "../theme";
 import { useUser } from "../store/UserContext";
 import { БЛЭКДЖЕК, ОБМЕН, РАСКЛАДКА_ТОРГОВЦА } from "../config";
 import { Т } from "../texts";
@@ -284,23 +286,23 @@ export default function Blackjack() {
 
         <div className="mt-auto flex justify-center gap-3">
           {фаза === "done" ? (
-            <button onClick={раздать} className="btn btn-blue h-[76px] w-[212px] text-base">{ТБ.новаяРаздача}</button>
+            <button onClick={раздать} className="btn btn-primary h-[76px] w-[212px] text-base">{ТБ.новаяРаздача}</button>
           ) : (
             <>
               <button onClick={стоп} disabled={!играем}
                 className="flex h-[76px] w-[100px] flex-col items-center justify-center gap-1 rounded-2xl font-extrabold text-white transition active:scale-95 disabled:opacity-45"
-                style={{ background: "linear-gradient(180deg,#FF5C2E 0%,#EE3419 100%)", boxShadow: "0 6px 18px rgba(238,52,25,.28)" }}>
-                <span className="text-[26px] leading-none" style={{ filter: "brightness(0) invert(1)" }}>✋</span>
+                style={{ background: БЛЭКДЖЕК_КНОПКИ.стоп.фон, boxShadow: БЛЭКДЖЕК_КНОПКИ.стоп.тень }}>
+                <Картинка путь="assets/icons/blackjack-stop.svg" fallback={<span className="text-[26px] leading-none" style={{ filter: "brightness(0) invert(1)" }}>✋</span>} className="h-[26px] w-[26px]" />
                 <span className="text-sm">{ТБ.стоп}</span>
               </button>
               <button onClick={ещё} disabled={!играем}
                 className="flex h-[76px] w-[100px] flex-col items-center justify-center gap-1 rounded-2xl font-extrabold transition active:scale-95 disabled:opacity-45"
-                style={{ background: "linear-gradient(180deg,#C9F23C 0%,#9CDB14 100%)", color: "#1B2A00", boxShadow: "0 6px 18px rgba(156,219,20,.25)" }}>
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                style={{ background: БЛЭКДЖЕК_КНОПКИ.еще.фон, color: БЛЭКДЖЕК_КНОПКИ.еще.текст, boxShadow: БЛЭКДЖЕК_КНОПКИ.еще.тень }}>
+                <Картинка путь="assets/icons/blackjack-hit.svg" fallback={<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <rect x="3" y="7" width="14" height="17" rx="3" />
                   <rect x="9" y="3" width="14" height="17" rx="3" fill="#B6E92A" />
                   <path d="M16 8.5v8M12 12.5h8" />
-                </svg>
+                </svg>} className="h-7 w-7" />
                 <span className="text-sm">{ТБ.ещё}</span>
               </button>
             </>

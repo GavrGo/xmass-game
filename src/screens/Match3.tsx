@@ -15,21 +15,14 @@ import ВспышкиCanvas, { Вспышка } from "../components/FlashesCanva
 import ПолосаОчков from "../components/MatchProgress";
 import GameMenu from "../components/GameMenu";
 import GameResult from "../components/GameResult";
+import LevelBanner from "../components/LevelBanner";
 import {
   КОЛ, СТР, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
   очкиЗаШаг, цельЭтапа, ходовЭтапа, наградаЭтапа, ТЕКСТ_ЭФФЕКТА,
 } from "../game/match3";
 
-type Фаза = "menu" | "playing" | "stage" | "over";
+type Фаза = "menu" | "playing" | "over";
 
-interface ДанныеЭтапа {
-  этап: number;
-  награда: ReturnType<typeof наградаЭтапа>;
-  сохранилось: boolean;
-  предупреждение?: string;
-  личный: number;
-  глобальный: Рекорд | null | "ошибка" | undefined;
-}
 interface Итог {
   причина: "ходы" | "выход";
   пройдено: number;
@@ -68,10 +61,11 @@ export default function Match3() {
   const счётВспышек = useRef(0);
   const [фото, setФото] = useState<Record<string, boolean>>({});
   const [готово, setГотово] = useState(false);
-  const [данныеЭтапа, setДанныеЭтапа] = useState<ДанныеЭтапа | null>(null);
   const [итог, setИтог] = useState<Итог | null>(null);
   const [импульс, setИмпульс] = useState(0);
   const [попап, setПопап] = useState<{ id: number; текст: string } | null>(null);
+  const [баннер, setБаннер] = useState<{ id: number; текст: string } | null>(null);
+  const баннерСчёт = useRef(0);
   const летRef = useRef<HTMLDivElement>(null);
   const полеWrapRef = useRef<HTMLDivElement>(null);
   const [полеВт, setПолеВт] = useState(0);
@@ -136,6 +130,12 @@ export default function Match3() {
     setTimeout(() => setВспышки((в) => в.filter((x) => x.id !== id)), 700);
   };
 
+  const показатьБаннер = (текст: string) => {
+    const id = ++баннерСчёт.current;
+    setБаннер({ id, текст });
+    setTimeout(() => setБаннер((б) => (б?.id === id ? null : б)), 1700);
+  };
+
   /** Новый этап (n = 1, 2, 3 ...). */
   const начатьЭтап = (n: number) => {
     этапRef.current = n; setЭтап(n);
@@ -145,7 +145,6 @@ export default function Match3() {
     const п = начальноеПоле();
     полеRef.current = п; setПоле(п);
     setНовые(new Set()); setУдаляются(new Set()); setВыбранная(null);
-    setДанныеЭтапа(null);
     setФаза("playing");
   };
 
@@ -272,16 +271,11 @@ export default function Match3() {
     }
     if (сохранилось) сессия.current.фишек += награда.итого;
     сессия.current.пройдено = н;
-    const личный = Math.max(рекорд, н);
-    setДанныеЭтапа({ этап: н, награда, сохранилось, предупреждение, личный, глобальный: undefined });
-    setФаза("stage");
-    звук.sfx("победа"); // ← звук «этап пройден»
-    try {
-      const г = await глобальныйРекорд("best_match3", личный, u);
-      setДанныеЭтапа((п) => (п && п.этап === н ? { ...п, глобальный: г } : п));
-    } catch {
-      setДанныеЭтапа((п) => (п && п.этап === н ? { ...п, глобальный: "ошибка" } : п));
-    }
+    звук.sfx("победа");
+    if (!сохранилось) показатьПопап(ТМ.ошибкаНаграды);
+    else if (предупреждение) показатьПопап(предупреждение);
+    показатьБаннер(ТМ.баннерЭтапа(н + 1));
+    начатьЭтап(н + 1);
   };
 
   /** Ход игрока: обмен двух соседних клеток и вся цепочка последствий. */
@@ -416,7 +410,6 @@ export default function Match3() {
 
   if (!user) return null;
   const доля = цель > 0 ? Math.min(100, (очки / цель) * 100) : 0;
-  const следующий = данныеЭтапа ? данныеЭтапа.этап + 1 : 2;
   const ТМ = Т.игры.три_в_ряд;
   const размерВзрыва = `${К.радиусВзрыва * 2 + 1}×${К.радиусВзрыва * 2 + 1}`;
 
@@ -424,7 +417,7 @@ export default function Match3() {
     <div className="fixed inset-0 z-30 flex flex-col items-center overflow-hidden bg-app px-2 pb-3 pt-3 select-none" style={{ touchAction: "manipulation" }}>
       {/* Шапка */}
       <div className="flex w-full max-w-md items-center justify-between">
-        <button onClick={выйти} className="btn btn-ghost !px-3 !py-2 text-sm">{фаза === "playing" ? Т.общее.выйти : Т.общее.назад}</button>
+        <button onClick={выйти} className="btn btn-secondary !px-3 !py-2 text-sm">{фаза === "playing" ? Т.общее.выйти : Т.общее.назад}</button>
         <h2 className="text-xl font-bold">{ТМ.заголовокМеню}</h2>
         <div className="pill min-w-[72px] px-3 py-2 text-center text-sm font-bold">{фаза === "menu" ? "—" : ТМ.этап(этап)}</div>
       </div>
@@ -510,25 +503,7 @@ export default function Match3() {
         />
       )}
 
-      {/* ===== ЭТАП ПРОЙДЕН ===== */}
-      {фаза === "stage" && данныеЭтапа && (
-        <GameResult
-          заголовок={ТМ.этапПройден(данныеЭтапа.этап)}
-          база={данныеЭтапа.награда.база + данныеЭтапа.награда.заХоды}
-          прокачкаПроц={данныеЭтапа.награда.бонусПроц}
-          мастерство={мастерство}
-          итог={данныеЭтапа.награда.итого}
-          прогресс={{ подпись: "Этап", значение: String(данныеЭтапа.этап) }}
-          лучший={данныеЭтапа.личный}
-          лучшийПодпись="Лучший этап"
-          колонка="best_match3"
-          форматРекорда={(n) => `Этап ${n}`}
-          предупреждение={данныеЭтапа.предупреждение}
-          ошибка={данныеЭтапа.сохранилось ? undefined : ТМ.ошибкаНаграды}
-          основная={{ подпись: Т.общее.дальше, onClick: () => начатьЭтап(данныеЭтапа.этап + 1) }}
-          вторичная={{ подпись: Т.общее.забратьИВыйти, onClick: () => завершить("выход") }}
-        />
-      )}
+      {баннер && <LevelBanner key={баннер.id} текст={баннер.текст} />}
 
       {/* ===== ИТОГ ИГРЫ ===== */}
       {фаза === "over" && итог && (

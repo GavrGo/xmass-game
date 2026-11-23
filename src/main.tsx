@@ -4,9 +4,11 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { UserProvider } from "./store/UserContext";
 import { initTelegram } from "./lib/telegram";
+import { применитьТему as applyTheme } from "./theme";
 import "./index.css";
 
 initTelegram(); // ready + expand + тема
+applyTheme();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -122,7 +122,7 @@ export default function Exchange() {
   return (
     <div className="px-4">
       <MerchantStage процент={комиссия} высота={250} диск />
-      <button onClick={() => { звук.sfx("клик"); navigate("/blackjack"); }} className="btn btn-blue mt-3 w-full">{Т.блэкджек.кнопка}</button>
+      <button onClick={() => { звук.sfx("клик"); navigate("/blackjack"); }} className="btn btn-primary mt-3 w-full">{Т.блэкджек.кнопка}</button>
       <p className="mb-4 mt-2 px-6 text-center text-[11px] leading-snug text-muted">{Т.блэкджек.подпись}</p>
 
       {/* Панель обмена */}
@@ -172,7 +172,7 @@ export default function Exchange() {
         {!хватает && <p className="mt-2 text-center text-sm text-red-400">{ТО.нехватаетСредств}</p>}
         {количество > 0 && получите < 1 && хватает && <p className="mt-2 text-center text-sm text-muted">{ТО.слишкомМало}</p>}
 
-        <button onClick={подтвердить} disabled={!можно} className="btn btn-blue mt-3 w-full !py-3 text-lg">{ТО.кнопка}</button>
+        <button onClick={подтвердить} disabled={!можно} className="btn btn-primary mt-3 w-full !py-3 text-lg">{ТО.кнопка}</button>
         {сообщение && <p className="mt-3 text-center text-sm text-brand-yellow"><Эм>{сообщение}</Эм></p>}
       </div>
 
@@ -189,7 +189,7 @@ export default function Exchange() {
           placeholder={ТО.магазин.ник.подсказка}
           className="w-full rounded-xl bg-surface2 px-4 py-2.5 text-white outline-none placeholder:text-muted focus:ring-2 focus:ring-brand-blue"
         />
-        <button onClick={сменитьНик} disabled={занят || !ник_ок || user.chips < цНик} className="btn btn-blue mt-2 w-full"><Эм>{ТО.магазин.ник.кнопка(цНик)}</Эм></button>
+        <button onClick={сменитьНик} disabled={занят || !ник_ок || user.chips < цНик} className="btn btn-primary mt-2 w-full"><Эм>{ТО.магазин.ник.кнопка(цНик)}</Эм></button>
         {user.chips < цНик && <p className="mt-1 text-xs text-red-400">{ТО.магазин.нехватаетФишек}</p>}
       </div>
 
@@ -200,9 +200,9 @@ export default function Exchange() {
           {крутки > 0 && ТО.магазин.крутки.осталось(крутки)}
         </p>
         {крутки > 0 && (
-          <button onClick={() => setОкноАватара(true)} className="btn btn-yellow mb-2 w-full">{ТО.магазин.крутки.крутить(крутки)}</button>
+          <button onClick={() => setОкноАватара(true)} className="btn btn-primary mb-2 w-full">{ТО.магазин.крутки.крутить(крутки)}</button>
         )}
-        <button onClick={купитьКрутки} disabled={занят || user.chips < цКрутки} className="btn btn-blue w-full"><Эм>{ТО.магазин.крутки.купить(колКруток, цКрутки)}</Эм></button>
+        <button onClick={купитьКрутки} disabled={занят || user.chips < цКрутки} className="btn btn-primary w-full"><Эм>{ТО.магазин.крутки.купить(колКруток, цКрутки)}</Эм></button>
         {user.chips < цКрутки && <p className="mt-1 text-xs text-red-400">{ТО.магазин.нехватаетФишек}</p>}
       </div>
 

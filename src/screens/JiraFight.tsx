@@ -4,6 +4,7 @@ import { Т } from "../texts";
 import Эм from "../components/Emoji";
 import GameMenu from "../components/GameMenu";
 import GameResult from "../components/GameResult";
+import LevelBanner from "../components/LevelBanner";
 import { звук } from "../lib/sound";
 import { стат } from "../lib/stats";
 import { useNoSwipes } from "../lib/useNoSwipes";
@@ -19,14 +20,8 @@ import {
   сгенерироватьУровень, времяУровня, наградаДжира, доскНаУровне,
 } from "../game/jira";
 
-type Фаза = "menu" | "playing" | "level" | "over";
+type Фаза = "menu" | "playing" | "over";
 
-interface ДанныеУровня {
-  выплачено: number;
-  уровень: number; награда: number; досок: number; фишекЗаДоски: number;
-  личный: number;
-  глобальный: Рекорд | null | "ошибка" | undefined;
-}
 interface Итог {
   база: number;
   причина: "нет ходов" | "время" | "выход";
@@ -65,15 +60,15 @@ export default function JiraFight() {
   const [выбрана, setВыбрана] = useState<number | null>(null);
   const [осталось, setОсталось] = useState(0);
   const [тост, setТост] = useState("");
+  const [баннер, setБаннер] = useState<{ id: number; текст: string } | null>(null);
+  const баннерСчёт = useRef(0);
   const [тряска, setТряска] = useState<number | null>(null);
   const [фишекСессии, setФишекСессии] = useState(0);
-  const [данныеУровня, setДанныеУровня] = useState<ДанныеУровня | null>(null);
   const [итог, setИтог] = useState<Итог | null>(null);
 
   const доскиRef = useRef<Доски>([]);
   const уровеньRef = useRef(1);
   const награждённые = useRef<Set<number>>(new Set());
-  const статУровня = useRef({ досок: 0, фишек: 0, выплачено: 0 });
   const сессия = useRef({ уровней: 0, фишек: 0, сырых: 0 });
   const рекордRef = useRef(0);
   const конецRef = useRef(0);
@@ -88,6 +83,12 @@ export default function JiraFight() {
     setТост(т);
     clearTimeout(таймерТоста.current);
     таймерТоста.current = setTimeout(() => setТост(""), 1300);
+  };
+
+  const показатьБаннер = (текст: string) => {
+    const id = ++баннерСчёт.current;
+    setБаннер({ id, текст });
+    setTimeout(() => setБаннер((б) => (б?.id === id ? null : б)), 1700);
   };
 
   /** Зачисляем фишки (по очереди, чтобы записи в базу не перепутались). */
@@ -127,7 +128,6 @@ export default function JiraFight() {
     доскиRef.current = д; setДоски(д);
     уровеньRef.current = L; setУровень(L);
     награждённые.current = new Set();
-    статУровня.current = { досок: 0, фишек: 0, выплачено: 0 };
     setВыбрана(null);
     if (свежее.current.режим === "timed") {
       const u = свежее.current.user;
@@ -135,7 +135,6 @@ export default function JiraFight() {
       конецRef.current = Date.now() + лимит * 1000;
       setОсталось(лимит);
     }
-    setДанныеУровня(null);
     setФаза("playing");
   };
 
@@ -183,23 +182,10 @@ export default function JiraFight() {
     if (новыйРекорд) рекордRef.current = L;
     сессия.current.уровней = L;
     начислить(наградаЗаУровень, новыйРекорд ? { best_jira_level: L } : {});
-    const личный = Math.max(рекордRef.current, L);
-    setДанныеУровня({ уровень: L, награда: наградаЗаУровень, выплачено: статУровня.current.выплачено + Math.round(наградаЗаУровень * бонус), досок: статУровня.current.досок, фишекЗаДоски: статУровня.current.фишек, личный, глобальный: undefined });
     setВыбрана(null);
-    setФаза("level");
-    звук.sfx("победа"); // ← звук «уровень пройден»
-    // Глобальный рекорд подгружаем после того, как запись в базу прошла
-    if (u) {
-      (async () => {
-        await очередь.current;
-        try {
-          const г = await глобальныйРекорд("best_jira_level", личный, u);
-          setДанныеУровня((п) => (п && п.уровень === L ? { ...п, глобальный: г } : п));
-        } catch {
-          setДанныеУровня((п) => (п && п.уровень === L ? { ...п, глобальный: "ошибка" } : п));
-        }
-      })();
-    }
+    звук.sfx("победа");
+    показатьБаннер(ТЖ.баннерУровня(L + 1));
+    начатьУровень(L + 1);
   };
 
   /** Переливаем задачи с доски a на доску b. */
@@ -215,9 +201,6 @@ export default function JiraFight() {
     if (завершена(рез.доски[b]) && !награждённые.current.has(b)) {
       награждённые.current.add(b);
       const н = наградаДжира(К.награды.заДоску, р, u?.salary_level ?? 0);
-      статУровня.current.досок += 1;
-      статУровня.current.фишек += н;
-      статУровня.current.выплачено += Math.round(н * бонус);
       показатьТост(Т.игры.jira.тостДоска(н));
       звук.sfx("бонус"); // ← звук закрытой доски
       начислить(н);
@@ -274,7 +257,7 @@ export default function JiraFight() {
     <div className="fixed inset-0 z-30 flex flex-col items-center overflow-y-auto px-3 pb-6 pt-3 select-none" style={{ background: "linear-gradient(#0747A6, #091E42)", touchAction: "manipulation" }}>
       {/* Шапка в стиле Jira */}
       <div className="flex w-full max-w-md items-center justify-between">
-        <button onClick={выйти} className="btn btn-ghost !px-3 !py-2 text-sm">{фаза === "playing" ? Т.общее.выйти : Т.общее.назад}</button>
+        <button onClick={выйти} className="btn btn-secondary !px-3 !py-2 text-sm">{фаза === "playing" ? Т.общее.выйти : Т.общее.назад}</button>
         <h2 className="text-lg font-bold">{ТЖ.заголовокМеню}</h2>
         <div className={`pill min-w-[72px] px-3 py-2 text-center text-sm font-bold ${режим === "timed" && осталось <= 10 && фаза === "playing" ? "text-red-300" : ""}`}>
           {фаза === "menu" ? "—" : режим === "timed" ? `⏱ ${мм(осталось)}` : ТЖ.уровеньКратко(уровень)}
@@ -346,23 +329,7 @@ export default function JiraFight() {
         />
       )}
 
-      {/* ===== УРОВЕНЬ ПРОЙДЕН ===== */}
-      {фаза === "level" && данныеУровня && (
-        <GameResult
-          заголовок={ТЖ.уровеньЗакрыт(данныеУровня.уровень)}
-          база={данныеУровня.фишекЗаДоски + данныеУровня.награда}
-          прокачкаПроц={0}
-          мастерство={мастерство}
-          итог={данныеУровня.выплачено}
-          прогресс={{ подпись: "Уровень", значение: String(данныеУровня.уровень) }}
-          лучший={данныеУровня.личный}
-          лучшийПодпись="Лучший ур."
-          колонка="best_jira_level"
-          форматРекорда={(n) => `Ур. ${n}`}
-          основная={{ подпись: Т.общее.дальше, onClick: () => начатьУровень(данныеУровня.уровень + 1) }}
-          вторичная={{ подпись: Т.общее.забратьИВыйти, onClick: () => завершить("выход") }}
-        />
-      )}
+      {баннер && <LevelBanner key={баннер.id} текст={баннер.текст} />}
 
       {/* ===== ИТОГ ===== */}
       {фаза === "over" && итог && (

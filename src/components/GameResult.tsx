@@ -82,9 +82,9 @@ export default function GameResult({
 
       <div className="mt-5 flex gap-2">
         {вторичная && (
-          <button onClick={вторичная.onClick} disabled={вторичная.disabled} className="btn btn-ghost flex-1 !py-3">{вторичная.подпись}</button>
+          <button onClick={вторичная.onClick} disabled={вторичная.disabled} className="btn btn-secondary flex-1 !py-3">{вторичная.подпись}</button>
         )}
-        <button onClick={основная.onClick} disabled={основная.disabled} className="btn btn-yellow flex-1 !py-3">{основная.подпись}</button>
+        <button onClick={основная.onClick} disabled={основная.disabled} className="btn btn-primary flex-1 !py-3">{основная.подпись}</button>
       </div>
     </Модалка>
   );

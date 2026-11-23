@@ -52,11 +52,11 @@ export default function AvatarSpinModal({ текущий, осталось, onК
       <p className="mt-3 text-sm text-white/80">{ТА.осталось(осталось)}</p>
       {крутили && <p className="mt-1 text-xs text-white/50">{ТА.предупреждение}</p>}
 
-      <button onClick={крутить} disabled={осталось <= 0 || крутится || сохраняю} className="btn btn-yellow mt-4 w-full !py-3 text-lg">{ТА.крутить}</button>
-      <button onClick={выбрать} disabled={!крутили || крутится || превью === текущий || сохраняю} className="btn btn-blue mt-2 w-full !py-3 text-lg">
+      <button onClick={крутить} disabled={осталось <= 0 || крутится || сохраняю} className="btn btn-primary mt-4 w-full !py-3 text-lg">{ТА.крутить}</button>
+      <button onClick={выбрать} disabled={!крутили || крутится || превью === текущий || сохраняю} className="btn btn-primary mt-2 w-full !py-3 text-lg">
         {сохраняю ? ТА.сохраняем : ТА.оставить}
       </button>
-      <button onClick={onЗакрыть} disabled={сохраняю || крутится} className="btn btn-ghost mt-2 w-full !py-2 text-sm">{ТА.закрыть}</button>
+      <button onClick={onЗакрыть} disabled={сохраняю || крутится} className="btn btn-secondary mt-2 w-full !py-2 text-sm">{ТА.закрыть}</button>
       {ошибка && <p className="mt-2 text-sm text-red-300">{ошибка}</p>}
     </Модалка>
   );

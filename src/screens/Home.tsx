@@ -280,7 +280,7 @@ export default function Home() {
     else if (!идёт) звук.sfx("ошибка");
   };
 
-  const подписьКнопки = идёт ? (
+  const подписьКнопки = автоВкл ? Т.слот.кнопка.крутится : идёт ? (
     Т.слот.кнопка.крутится
   ) : заблокирован ? (
     Т.слот.кнопка.блок(минСек(осталосьБлок))
@@ -430,7 +430,7 @@ export default function Home() {
                 key={м}
                 onClick={() => setМножитель(м)}
                 disabled={идёт || автоВкл || (бесплатная && !СЛОТ.бесплатнаяКруткаСМножителем)}
-                className={`btn !rounded-xl !px-0 !py-2.5 ${!автоВкл && м === эфМножитель ? "!bg-[#F26B3A] text-white" : "!bg-[#26272D] text-white/90"}`}
+                className={`btn !rounded-xl !px-0 !py-2.5 ${!автоВкл && м === эфМножитель ? "btn-choice-on" : "btn-choice"}`}
               >
                 x{м}
               </button>

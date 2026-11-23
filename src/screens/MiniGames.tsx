@@ -38,7 +38,7 @@ export default function MiniGames() {
               />
               {держатели.has(и.id) && (
                 <span className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 ring-1 ring-brand-yellow/60" aria-label="Рекорд">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="#FFC83A"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" /></svg>
+                  <Картинка путь="assets/icons/record-badge.svg" fallback={<svg viewBox="0 0 24 24" className="h-4 w-4" fill="#FFC83A"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" /></svg>} className="h-4 w-4" />
                 </span>
               )}
             </div>

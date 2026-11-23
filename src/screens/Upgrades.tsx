@@ -76,7 +76,7 @@ export default function Upgrades() {
                 <button
                   disabled={занят || !хватает}
                   onClick={() => купить(ключ)}
-                  className="btn btn-blue flex shrink-0 items-center gap-1.5 !rounded-xl !px-3 !py-2 text-sm"
+                  className="btn btn-primary flex shrink-0 items-center gap-1.5 !rounded-xl !px-3 !py-2 text-sm"
                 >
                   <Иконка имя="фишки" размер={16} />
                   {цена}

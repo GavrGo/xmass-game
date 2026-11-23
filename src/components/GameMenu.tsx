@@ -26,9 +26,9 @@ export default function GameMenu({
   const формат = форматРекорда ?? ((n: number) => n.toLocaleString("ru-RU"));
 
   return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center overflow-y-auto bg-black/80 px-5 pb-6 pt-4">
+    <div className="absolute inset-0 z-10 flex flex-col items-center overflow-y-auto bg-[var(--overlay-menu)] backdrop-blur-sm px-5 pb-6 pt-4">
       <div className="flex w-full max-w-sm items-center">
-        <button onClick={onНазад} className="btn btn-ghost !px-3 !py-2 text-sm">{Т.общее.назад}</button>
+        <button onClick={onНазад} className="btn btn-secondary !px-3 !py-2 text-sm">{Т.общее.назад}</button>
       </div>
 
       <div className="mt-6 grid w-full max-w-sm gap-3">
@@ -89,7 +89,7 @@ export default function GameMenu({
         </div>
       )}
 
-      <button onClick={onСтарт} disabled={!готово} className="btn btn-yellow mt-6 w-full max-w-sm !py-4 text-xl">
+      <button onClick={onСтарт} disabled={!готово} className="btn btn-primary mt-6 w-full max-w-sm !py-4 text-xl">
         {готово ? Т.общее.старт : Т.общее.загрузка}
       </button>
     </div>

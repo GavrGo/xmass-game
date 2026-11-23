@@ -71,7 +71,7 @@ export default function Onboarding() {
         <Модалка снизу hero={hero}>
           <h2 className="text-xl font-bold">{Т.онбординг.приветствие.заголовок}</h2>
           <p className="mt-3 text-sm leading-relaxed text-white/80">{Т.онбординг.приветствие.текст}</p>
-          <button onClick={() => setШаг("ник")} className="btn btn-blue mt-5 w-full">{Т.онбординг.приветствие.кнопка}</button>
+          <button onClick={() => setШаг("ник")} className="btn btn-primary mt-5 w-full">{Т.онбординг.приветствие.кнопка}</button>
           <p className="mt-3 text-xs text-white/50">{Т.онбординг.приветствие.подвал}</p>
         </Модалка>
       )}
@@ -87,7 +87,7 @@ export default function Onboarding() {
             placeholder={Т.онбординг.ник.подсказка}
             className="mt-4 h-11 w-full rounded-xl border border-white/15 bg-black/45 px-4 text-center text-white outline-none placeholder:text-muted focus:border-white/40"
           />
-          <button disabled={!ник_ок} onClick={() => setШаг("эмодзи")} className="btn btn-blue mt-4 w-full">{Т.онбординг.ник.кнопка}</button>
+          <button disabled={!ник_ок} onClick={() => setШаг("эмодзи")} className="btn btn-primary mt-4 w-full">{Т.онбординг.ник.кнопка}</button>
           <p className="mt-3 text-xs text-white/50">{Т.онбординг.ник.подвал}</p>
         </Модалка>
       )}
@@ -103,8 +103,8 @@ export default function Onboarding() {
             {эмодзи}
           </div>
 
-          <button onClick={крутить} disabled={кончились || крутится} className="btn btn-yellow mt-3 w-full">{Т.онбординг.аватар.крутить}</button>
-          <button onClick={подтвердить} disabled={!выбрано || крутится || сохраняем} className="btn btn-blue mt-2 w-full">
+          <button onClick={крутить} disabled={кончились || крутится} className="btn btn-primary mt-3 w-full">{Т.онбординг.аватар.крутить}</button>
+          <button onClick={подтвердить} disabled={!выбрано || крутится || сохраняем} className="btn btn-primary mt-2 w-full">
             {сохраняем ? Т.онбординг.аватар.сохраняем : Т.онбординг.аватар.продолжить}
           </button>
           {ошибка && <p className="mt-2 text-sm text-red-300">{ошибка}</p>}

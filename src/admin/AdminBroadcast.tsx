@@ -60,7 +60,7 @@ export default function РассылкаАдмина({ игроки }: { игр�
       />
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm text-white/60">Получателей: {получатели.length} (забаненные не получают)</span>
-        <button onClick={отправить} disabled={идёт || !текст.trim()} className="btn btn-blue !px-4 !py-2 text-sm disabled:opacity-40">
+        <button onClick={отправить} disabled={идёт || !текст.trim()} className="btn btn-primary !px-4 !py-2 text-sm disabled:opacity-40">
           {идёт ? "Отправка..." : "Отправить всем"}
         </button>
       </div>
