@@ -20,7 +20,7 @@ interface Полоса {
   накоплено: number;  // сколько проехали с последнего появления
   шаг: number;        // через сколько появится следующий противник
   деревья: { x: number; вид: number }[];
-  заграждение?: number;
+  закрыта?: boolean;
 }
 
 const ЗАПАС = 60; // за краем экрана противники появляются и пропадают
@@ -39,7 +39,8 @@ const ЗАПАС_ПОЛОС = 15;
 const БЕРСЕРК_СЕК = 3;
 const ДОРОГ_ДО_БЕРСЕРКА = 8;
 const ВСПЫШКА_ВОСКРЕШЕНИЯ_СЕК = 0.6;
-const ЗАГРАЖДЕНИЕ_СЕК = 2;
+const ФАЗЫ_ВОСКРЕШЕНИЯ = [0.7, 0.6, 0.9, 0.5];
+const ИСКРЫ_ЦВЕТА = ["#ffd27a", "#ff8a2b", "#fff3c4"];
 
 function видимыйЦентрМашины(в: Враг, зеркало: boolean, ширина: number) {
   const f = видимаяРамка(МАШИНЫ[в.вид]);
@@ -93,6 +94,11 @@ export class БабкаДвижок {
   вспышкаT = 999;
   отброшенные: { вид: number; x: number; полоса: number; dy: number; vx: number; vy: number; t: number; зеркало: boolean }[] = [];
 
+  ремонтПолоса: number | null = null;
+  предмет: { полоса: number } | null = null;
+  искры: { x: number; wy: number; vx: number; vy: number; t: number; life: number; цвет: string; r: number }[] = [];
+  воскрешение: { фаза: number; t: number; откуда: number; куда: number } | null = null;
+
   private созданоДо = -1;
   private дорогСоздано = 0;
   private осталосьВГруппе = 0;
@@ -115,7 +121,7 @@ export class БабкаДвижок {
     this.дорог = 0; this.время = 0; this.лимит = лимитСек; this.осталось = лимитСек;
     this.закончена = false; this.причина = null; this.послеКонца = 0; this.столкновение = null;
     this.созданоДо = -1; this.дорогСоздано = 0;
-    this.воскрешениеИспользовано = false; this.ремонтИспользован = false; this.берсеркОсталось = 0; this.дорогДоБерсерка = 0; this.вспышкаT = 999; this.отброшенные = [];
+    this.воскрешениеИспользовано = false; this.ремонтИспользован = false; this.берсеркОсталось = 0; this.дорогДоБерсерка = 0; this.вспышкаT = 999; this.отброшенные = []; this.ремонтПолоса = null; this.предмет = null; this.искры = []; this.воскрешение = null;
     this.осталосьВГруппе = целое(К.группаДорог.мин, К.группаДорог.макс);
     this.создатьДо(Math.ceil(this.мирВысота / К.мир.высотаПолосы) + 8);
   }
@@ -163,7 +169,8 @@ export class БабкаДвижок {
     л.скорость = база * рост * случайно(1 - К.скорость.разброс, 1 + К.скорость.разброс);
     л.шаг = this.новыйШаг(л.скорость, л.номерДороги);
     л.накоплено = случайно(0, л.шаг);
-    // Сразу расставляем противников по всей ширине
+    if (this.ремонтПолоса === null && this.навыки.has("repair")) { л.закрыта = true; this.ремонтПолоса = i; }
+    if (л.закрыта) return л;
     let x = -ЗАПАС + случайно(0, л.шаг);
     while (x < W + ЗАПАС) {
       л.враги.push({ x, вид: Math.floor(Math.random() * МАШИНЫ.length) });
@@ -206,6 +213,7 @@ export class БабкаДвижок {
 
   обновить(dt: number) {
     if (this.закончена) return;
+    if (this.воскрешение) { this.обновитьВоскрешение(dt); return; }
     this.время += dt;
     if (this.лимит > 0) {
       this.осталось = Math.max(0, this.лимит - this.время);
@@ -221,6 +229,9 @@ export class БабкаДвижок {
         this.полоса = this.цельПолоса;
         this.позиция = this.полоса;
         if (this.полосы.get(this.полоса)?.дорога) { this.дорог++; this.зарядитьБерсерк(); }
+        const пл = this.полосы.get(this.полоса);
+        if (пл?.закрыта) this.починить(пл);
+        if (this.предмет?.полоса === this.полоса) this.подобратьПредмет();
         if (this.буфер) { this.буфер = false; this.прыжок(); }
       } else {
         const e = 1 - (1 - this.t) * (1 - this.t);
@@ -228,9 +239,10 @@ export class БабкаДвижок {
       }
     }
 
+    this.обновитьИскры(dt);
+    if (this.берсеркОсталось > 0) this.искрыОгня();
     this.вспышкаT += dt;
     if (this.берсеркОсталось > 0) this.берсеркОсталось = Math.max(0, this.берсеркОсталось - dt);
-    for (const л of this.полосы.values()) if (л.заграждение) л.заграждение = Math.max(0, л.заграждение - dt);
     for (const f of this.отброшенные) { f.x += f.vx * dt; f.dy += f.vy * dt; f.vy += 900 * dt; f.t += dt; }
     this.отброшенные = this.отброшенные.filter((f) => f.t < 0.8);
     this.двигатьВрагов(dt);
@@ -253,9 +265,9 @@ export class БабкаДвижок {
       for (const в of л.враги) {
         const м = видимыйЦентрМашины(в, л.направление === -1, вт.ширина);
         if (Math.abs(м.центр - геройЦентр) < ((геройШир + м.ширина) / 2) * k) {
+          this.взрыв(в.x, i * К.мир.высотаПолосы, 30);
           if (this.берсеркОсталось > 0) { this.отбросить(л, в); continue; }
-          if (this.навыки.has("repair") && !this.ремонтИспользован) { this.ремонтИспользован = true; this.починить(л); return; }
-          if (this.навыки.has("resurrection") && !this.воскрешениеИспользовано) { this.воскрешениеИспользовано = true; this.воскреси(this.ближайшаяБезопаснаяПолоса(i)); return; }
+          if (this.навыки.has("resurrection") && !this.воскрешениеИспользовано) { this.воскрешениеИспользовано = true; this.начатьВоскрешение(); return; }
           this.закончена = true;
           this.причина = "crash";
           this.событие?.("поражение");
@@ -266,33 +278,182 @@ export class БабкаДвижок {
     }
   }
 
-  private ближайшаяБезопаснаяПолоса(от: number): number {
-    for (let k = 0; ; k++) {
-      if (от - k >= 0 && this.полосы.get(от - k)?.дорога === false) return от - k;
-      if (this.полосы.get(от + k)?.дорога === false) return от + k;
-    }
-  }
-
-  private воскреси(полоса: number) {
-    this.закончена = false; this.причина = null; this.столкновение = null; this.послеКонца = 0;
-    this.полоса = полоса; this.позиция = полоса; this.цельПолоса = полоса;
-    this.прыгает = false; this.t = 0; this.буфер = false;
-    this.вспышкаT = 0;
-  }
-
   private отбросить(л: Полоса, в: Враг) {
     л.враги = л.враги.filter((v) => v !== в);
     this.отброшенные.push({ вид: в.вид, x: в.x, полоса: л.индекс, dy: 0, vx: (в.x < this.мирШирина / 2 ? -1 : 1) * 320, vy: -260, t: 0, зеркало: л.направление === -1 });
   }
 
   private починить(л: Полоса) {
-    л.враги = [];
-    л.заграждение = ЗАГРАЖДЕНИЕ_СЕК;
+    л.закрыта = false;
+    this.ремонтИспользован = true;
+    this.взрыв(this.мирШирина / 2, л.индекс * К.мир.высотаПолосы, 24);
+  }
+
+  private подобратьПредмет() {
+    this.предмет = null;
+    this.берсеркОсталось = БЕРСЕРК_СЕК;
+    this.взрыв(this.мирШирина / 2, this.позиция * К.мир.высотаПолосы, 40);
+  }
+
+  private положитьПредмет() {
+    let k = this.полоса + 2;
+    for (;;) {
+      this.создатьДо(k);
+      if (this.полосы.get(k)?.дорога === false) break;
+      k++;
+    }
+    this.предмет = { полоса: k };
+  }
+
+  private начатьВоскрешение() {
+    this.воскрешение = { фаза: 0, t: 0, откуда: this.позиция, куда: this.предыдущаяБезопасная() };
+    this.прыгает = false;
+    this.буфер = false;
+  }
+
+  private предыдущаяБезопасная(): number {
+    const от = Math.floor(this.позиция);
+    for (let k = от; k > от - 12; k--) if (this.полосы.get(k)?.дорога === false) return k;
+    return Math.max(0, от - 1);
+  }
+
+  private обновитьВоскрешение(dt: number) {
+    const в = this.воскрешение!;
+    в.t += dt;
+    if (в.фаза === 2) {
+      const p = Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[2]);
+      this.позиция = в.откуда + (в.куда - в.откуда) * (p * p * (3 - 2 * p));
+    }
+    if (в.t < ФАЗЫ_ВОСКРЕШЕНИЯ[в.фаза]) return;
+    if (в.фаза === 3) { this.завершитьВоскрешение(в.куда); return; }
+    в.t -= ФАЗЫ_ВОСКРЕШЕНИЯ[в.фаза];
+    в.фаза++;
+    if (в.фаза === 1) this.столкновение = null;
+  }
+
+  private завершитьВоскрешение(куда: number) {
+    this.воскрешение = null;
+    this.полоса = куда;
+    this.позиция = куда;
+    this.цельПолоса = куда;
+    this.прыгает = false;
+    this.t = 0;
+    this.буфер = false;
+    this.вспышкаT = 0;
+  }
+
+  private серостьВоскрешения(): number {
+    const в = this.воскрешение;
+    if (!в) return 0;
+    if (в.фаза === 0) return Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[0]);
+    if (в.фаза === 3) return 1 - Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[3]);
+    return 1;
+  }
+
+  private масштабВоскрешения(): number {
+    const в = this.воскрешение;
+    if (!в || в.фаза === 0) return 1;
+    if (в.фаза === 1) return 1 + 0.6 * Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[1]);
+    if (в.фаза === 2) return 1.6;
+    return 1.6 - 0.6 * Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[3]);
+  }
+
+  private взрыв(x: number, wy: number, n: number) {
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 120 + Math.random() * 320;
+      this.искры.push({ x, wy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.45 + Math.random() * 0.4, цвет: ИСКРЫ_ЦВЕТА[k % ИСКРЫ_ЦВЕТА.length], r: 1.5 + Math.random() * 2.5 });
+    }
+  }
+
+  private искрыОгня() {
+    for (let k = 0; k < 2; k++) {
+      this.искры.push({ x: this.мирШирина / 2 + (Math.random() - 0.5) * 36, wy: this.позиция * К.мир.высотаПолосы + Math.random() * 14, vx: (Math.random() - 0.5) * 60, vy: 90 + Math.random() * 140, t: 0, life: 0.6 + Math.random() * 0.5, цвет: ИСКРЫ_ЦВЕТА[Math.floor(Math.random() * ИСКРЫ_ЦВЕТА.length)], r: 2 + Math.random() * 2.5 });
+    }
+  }
+
+  private обновитьИскры(dt: number) {
+    for (const s of this.искры) { s.x += s.vx * dt; s.wy += s.vy * dt; s.vy -= 500 * dt; s.t += dt; }
+    this.искры = this.искры.filter((s) => s.t < s.life);
+  }
+
+  private рисоватьИскры(ctx: CanvasRenderingContext2D, якорь: number) {
+    for (const s of this.искры) {
+      const p = 1 - s.t / s.life;
+      ctx.globalAlpha = p;
+      ctx.fillStyle = s.цвет;
+      ctx.beginPath();
+      ctx.arc(s.x, якорь - s.wy + this.позиция * К.мир.высотаПолосы, s.r * (0.5 + p), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  private рисоватьПламя(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
+    const r = К.персонажи[this.персонаж].высота * 0.6;
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2 + Math.sin(this.время * 3 + k) * 0.25;
+      const bx = cx + Math.cos(a) * r * 0.7;
+      const by = cy + Math.sin(a) * r * 0.25 + r * 0.5;
+      const h = r * (0.7 + 0.45 * Math.abs(Math.sin(this.время * 11 + k * 1.7)));
+      ctx.beginPath();
+      ctx.moveTo(bx - r * 0.16, by);
+      ctx.quadraticCurveTo(bx - r * 0.28, by - h * 0.55, bx + Math.sin(this.время * 14 + k) * r * 0.1, by - h);
+      ctx.quadraticCurveTo(bx + r * 0.28, by - h * 0.55, bx + r * 0.16, by);
+      ctx.closePath();
+      ctx.fillStyle = k % 2 ? "rgba(255,150,40,0.55)" : "rgba(255,210,80,0.5)";
+      ctx.fill();
+    }
+  }
+
+  private рисоватьРемонт(ctx: CanvasRenderingContext2D, W: number, yc: number, LH: number) {
+    ctx.save();
+    for (const fx of [0.12, 0.34, 0.58, 0.8]) {
+      const x = W * fx;
+      const y0 = yc + (((fx * 37) % 1) - 0.5) * LH * 0.4;
+      ctx.fillStyle = "rgba(20,16,12,0.85)";
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(x, y0, 16, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(20,16,12,0.9)";
+    ctx.lineWidth = 2;
+    for (const fx of [0.05, 0.27, 0.46, 0.67, 0.93]) {
+      let x = W * fx;
+      let y0 = yc - LH * 0.3;
+      ctx.beginPath(); ctx.moveTo(x, y0);
+      for (let k = 0; k < 5; k++) { x += 14; y0 += (k % 2 ? -1 : 1) * 9; ctx.lineTo(x, y0); }
+      ctx.stroke();
+    }
+    const bh = LH * 0.42;
+    ctx.fillStyle = "#e53935";
+    ctx.fillRect(0, yc - bh / 2, W, bh);
+    ctx.fillStyle = "#ffffff";
+    for (let x = -bh; x < W; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, yc + bh / 2); ctx.lineTo(x + 20, yc + bh / 2);
+      ctx.lineTo(x + 20 + bh * 0.6, yc - bh / 2); ctx.lineTo(x + bh * 0.6, yc - bh / 2);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  private рисоватьПредмет(ctx: CanvasRenderingContext2D, yc: number, W: number) {
+    const p = 0.85 + 0.15 * Math.sin(this.время * 6);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const гл = ctx.createRadialGradient(W / 2, yc - 20, 4, W / 2, yc - 20, 46 * p);
+    гл.addColorStop(0, "rgba(255,200,90,0.8)");
+    гл.addColorStop(1, "rgba(255,160,40,0)");
+    ctx.fillStyle = гл;
+    ctx.beginPath(); ctx.arc(W / 2, yc - 20, 46 * p, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    эмодзи(ctx, "🪓", W / 2, yc + 14, 38);
   }
 
   private зарядитьБерсерк() {
     if (!this.навыки.has("berserk") || this.берсеркОсталось > 0) return;
-    if (++this.дорогДоБерсерка >= ДОРОГ_ДО_БЕРСЕРКА) { this.дорогДоБерсерка = 0; this.берсеркОсталось = БЕРСЕРК_СЕК; }
+    if (++this.дорогДоБерсерка >= ДОРОГ_ДО_БЕРСЕРКА && !this.предмет) { this.дорогДоБерсерка = 0; this.положитьПредмет(); }
   }
 
   обновитьКонец(dt: number) { this.послеКонца += dt; }
@@ -315,6 +476,7 @@ export class БабкаДвижок {
       const yc = y(i);
       ctx.fillStyle = i % 2 ? "#727176" : "#7D7C80";
       ctx.fillRect(0, yc - LH / 2, W, LH);
+      if (л.закрыта) this.рисоватьРемонт(ctx, W, yc, LH);
       if (this.полосы.get(i + 1)?.дорога) {
         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.setLineDash([18, 18]);
         ctx.beginPath(); ctx.moveTo(0, yc - LH / 2); ctx.lineTo(W, yc - LH / 2); ctx.stroke(); ctx.setLineDash([]);
@@ -383,9 +545,7 @@ export class БабкаДвижок {
       рисоватьМашину({ x: f.x, вид: f.вид }, f.зеркало, y(f.полоса) + f.dy);
       ctx.restore();
     }
-    for (const л of this.полосы.values()) {
-      if (л.заграждение) эмодзи(ctx, "🚧", W / 2 + 40, y(л.индекс) + LH / 4, 30);
-    }
+    if (this.предмет) this.рисоватьПредмет(ctx, y(this.предмет.полоса), W);
 
     const hH = К.персонажи[this.персонаж].высота * 1.2;
     const cx = W / 2;
@@ -404,6 +564,8 @@ export class БабкаДвижок {
       ctx.arc(cx, cy, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (this.берсеркОсталось / БЕРСЕРК_СЕК));
       ctx.lineWidth = 4; ctx.strokeStyle = "rgba(255,210,120,0.95)"; ctx.stroke();
     }
+    if (this.берсеркОсталось > 0) this.рисоватьПламя(ctx, cx, cy);
+    this.рисоватьИскры(ctx, якорь);
     if (this.вспышкаT < ВСПЫШКА_ВОСКРЕШЕНИЯ_СЕК) {
       const p = this.вспышкаT / ВСПЫШКА_ВОСКРЕШЕНИЯ_СЕК;
       const r = 40 + 90 * p;
@@ -422,6 +584,30 @@ export class БабкаДвижок {
       ctx.fillRect(0, 0, W, H);
     }
 
+    if (this.воскрешение) {
+      const s = this.серостьВоскрешения();
+      if (s > 0) {
+        ctx.save(); ctx.globalCompositeOperation = "saturation"; ctx.globalAlpha = s;
+        ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, W, H); ctx.restore();
+      }
+      if (this.воскрешение.фаза >= 1) {
+        const k = this.масштабВоскрешения();
+        const п2 = К.персонажи[this.персонаж];
+        const вс = п2.высота * 1.2;
+        const ст = y(this.позиция) + вс * 0.42;
+        const гц = ст - вс / 2;
+        ctx.save();
+        ctx.globalAlpha = this.воскрешение.фаза === 3 ? 1 - Math.min(1, this.воскрешение.t / ФАЗЫ_ВОСКРЕШЕНИЯ[3]) : 1;
+        const гл = ctx.createRadialGradient(W / 2, гц, 10, W / 2, гц, вс * k);
+        гл.addColorStop(0, "rgba(255,225,120,0.9)");
+        гл.addColorStop(1, "rgba(255,190,40,0)");
+        ctx.fillStyle = гл;
+        ctx.beginPath(); ctx.arc(W / 2, гц, вс * k, 0, Math.PI * 2); ctx.fill();
+        ctx.translate(W / 2, ст); ctx.scale(k, k); ctx.translate(-W / 2, -ст);
+        рисоватьГероя();
+        ctx.restore();
+      }
+    }
     // Счёт и время
     if (фаза !== "menu") {
       const y0 = 12 + this.safeTopCss / this.масштаб;
