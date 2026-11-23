@@ -470,9 +470,9 @@ export default function Match3() {
                 <div className={`h-full w-full p-[4%] transition-all duration-200 ${удал ? "scale-0 opacity-0" : ""} ${выбрана ? "scale-110" : ""}`}>
                   <div className={`flex h-full w-full items-center justify-center rounded-lg ${выбрана ? "bg-white/30 ring-2 ring-brand-yellow" : "bg-white/10"}`}>
                     {фото[сим.id] ? (
-                      <img src={К.папка + сим.файл} alt="" draggable={false} className="h-[84%] w-[84%] object-contain" style={idle(к.id)} />
+                      <img src={К.папка + сим.файл} alt="" draggable={false} data-sym className="h-[84%] w-[84%] object-contain" style={idle(к.id)} />
                     ) : (
-                      <span className="inline-block" style={{ fontSize: "clamp(22px, 9vw, 52px)", lineHeight: 1, ...idle(к.id) }}>{сим.эмодзи}</span>
+                      <span data-sym className="inline-block" style={{ fontSize: "clamp(22px, 9vw, 52px)", lineHeight: 1, ...idle(к.id) }}>{сим.эмодзи}</span>
                     )}
                   </div>
                 </div>
