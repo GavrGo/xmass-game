@@ -4,6 +4,7 @@ import { БАБКА_КРАШ as К, КлючПерсонажа, ЭффектЗв
 import { Т } from "../texts";
 import { бонусЗарплатыПроц } from "./effects";
 import { видимаяРамка, видимыйПрямоугольник } from "../lib/spriteBox";
+import type { ИдНавыка } from "./skills";
 
 export type РежимБабки = "zen" | "timed";
 export type ФазаБабки = "menu" | "playing" | "over";
@@ -19,6 +20,7 @@ interface Полоса {
   накоплено: number;  // сколько проехали с последнего появления
   шаг: number;        // через сколько появится следующий противник
   деревья: { x: number; вид: number }[];
+  заграждение?: number;
 }
 
 const ЗАПАС = 60; // за краем экрана противники появляются и пропадают
@@ -34,6 +36,10 @@ const ДЕРЕВЬЯ = [загрузить("Tree-1.png"), загрузить("Tr
 const ДЕРЕВЬЯ_ВЫСОТА = [46, 42, 26, 26];
 const МАШИНЫ = [загрузить("Car-1.png"), загрузить("Car-2.png"), загрузить("Car-3.png"), загрузить("Car-4.png")];
 const ЗАПАС_ПОЛОС = 15;
+const БЕРСЕРК_СЕК = 3;
+const ДОРОГ_ДО_БЕРСЕРКА = 8;
+const ВСПЫШКА_ВОСКРЕШЕНИЯ_СЕК = 0.6;
+const ЗАГРАЖДЕНИЕ_СЕК = 2;
 
 function видимыйЦентрМашины(в: Враг, зеркало: boolean, ширина: number) {
   const f = видимаяРамка(МАШИНЫ[в.вид]);
@@ -79,6 +85,13 @@ export class БабкаДвижок {
   причина: "crash" | "time" | null = null;
   послеКонца = 0;
   столкновение: { x: number; y: number } | null = null;
+  навыки = new Set<ИдНавыка>();
+  воскрешениеИспользовано = false;
+  ремонтИспользован = false;
+  берсеркОсталось = 0;
+  дорогДоБерсерка = 0;
+  вспышкаT = 999;
+  отброшенные: { вид: number; x: number; полоса: number; dy: number; vx: number; vy: number; t: number; зеркало: boolean }[] = [];
 
   private созданоДо = -1;
   private дорогСоздано = 0;
@@ -102,6 +115,7 @@ export class БабкаДвижок {
     this.дорог = 0; this.время = 0; this.лимит = лимитСек; this.осталось = лимитСек;
     this.закончена = false; this.причина = null; this.послеКонца = 0; this.столкновение = null;
     this.созданоДо = -1; this.дорогСоздано = 0;
+    this.воскрешениеИспользовано = false; this.ремонтИспользован = false; this.берсеркОсталось = 0; this.дорогДоБерсерка = 0; this.вспышкаT = 999; this.отброшенные = [];
     this.осталосьВГруппе = целое(К.группаДорог.мин, К.группаДорог.макс);
     this.создатьДо(Math.ceil(this.мирВысота / К.мир.высотаПолосы) + 8);
   }
@@ -206,7 +220,7 @@ export class БабкаДвижок {
         this.прыгает = false;
         this.полоса = this.цельПолоса;
         this.позиция = this.полоса;
-        if (this.полосы.get(this.полоса)?.дорога) this.дорог++;
+        if (this.полосы.get(this.полоса)?.дорога) { this.дорог++; this.зарядитьБерсерк(); }
         if (this.буфер) { this.буфер = false; this.прыжок(); }
       } else {
         const e = 1 - (1 - this.t) * (1 - this.t);
@@ -214,6 +228,11 @@ export class БабкаДвижок {
       }
     }
 
+    this.вспышкаT += dt;
+    if (this.берсеркОсталось > 0) this.берсеркОсталось = Math.max(0, this.берсеркОсталось - dt);
+    for (const л of this.полосы.values()) if (л.заграждение) л.заграждение = Math.max(0, л.заграждение - dt);
+    for (const f of this.отброшенные) { f.x += f.vx * dt; f.dy += f.vy * dt; f.vy += 900 * dt; f.t += dt; }
+    this.отброшенные = this.отброшенные.filter((f) => f.t < 0.8);
     this.двигатьВрагов(dt);
 
     // Столкновения: хитбокс персонажа против хитбоксов противников на полосах, которых он касается
@@ -234,6 +253,9 @@ export class БабкаДвижок {
       for (const в of л.враги) {
         const м = видимыйЦентрМашины(в, л.направление === -1, вт.ширина);
         if (Math.abs(м.центр - геройЦентр) < ((геройШир + м.ширина) / 2) * k) {
+          if (this.берсеркОсталось > 0) { this.отбросить(л, в); continue; }
+          if (this.навыки.has("repair") && !this.ремонтИспользован) { this.ремонтИспользован = true; this.починить(л); return; }
+          if (this.навыки.has("resurrection") && !this.воскрешениеИспользовано) { this.воскрешениеИспользовано = true; this.воскреси(this.ближайшаяБезопаснаяПолоса(i)); return; }
           this.закончена = true;
           this.причина = "crash";
           this.событие?.("поражение");
@@ -242,6 +264,35 @@ export class БабкаДвижок {
         }
       }
     }
+  }
+
+  private ближайшаяБезопаснаяПолоса(от: number): number {
+    for (let k = 0; ; k++) {
+      if (от - k >= 0 && this.полосы.get(от - k)?.дорога === false) return от - k;
+      if (this.полосы.get(от + k)?.дорога === false) return от + k;
+    }
+  }
+
+  private воскреси(полоса: number) {
+    this.закончена = false; this.причина = null; this.столкновение = null; this.послеКонца = 0;
+    this.полоса = полоса; this.позиция = полоса; this.цельПолоса = полоса;
+    this.прыгает = false; this.t = 0; this.буфер = false;
+    this.вспышкаT = 0;
+  }
+
+  private отбросить(л: Полоса, в: Враг) {
+    л.враги = л.враги.filter((v) => v !== в);
+    this.отброшенные.push({ вид: в.вид, x: в.x, полоса: л.индекс, dy: 0, vx: (в.x < this.мирШирина / 2 ? -1 : 1) * 320, vy: -260, t: 0, зеркало: л.направление === -1 });
+  }
+
+  private починить(л: Полоса) {
+    л.враги = [];
+    л.заграждение = ЗАГРАЖДЕНИЕ_СЕК;
+  }
+
+  private зарядитьБерсерк() {
+    if (!this.навыки.has("berserk") || this.берсеркОсталось > 0) return;
+    if (++this.дорогДоБерсерка >= ДОРОГ_ДО_БЕРСЕРКА) { this.дорогДоБерсерка = 0; this.берсеркОсталось = БЕРСЕРК_СЕК; }
   }
 
   обновитьКонец(dt: number) { this.послеКонца += dt; }
@@ -326,6 +377,43 @@ export class БабкаДвижок {
         for (const д of л.деревья) рисоватьДерево(д, yc);
       }
     }
+    for (const f of this.отброшенные) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - f.t / 0.8);
+      рисоватьМашину({ x: f.x, вид: f.вид }, f.зеркало, y(f.полоса) + f.dy);
+      ctx.restore();
+    }
+    for (const л of this.полосы.values()) {
+      if (л.заграждение) эмодзи(ctx, "🚧", W / 2 + 40, y(л.индекс) + LH / 4, 30);
+    }
+
+    const hH = К.персонажи[this.персонаж].высота * 1.2;
+    const cx = W / 2;
+    const cy = y(this.позиция) + hH * (0.42 - 0.5) - (this.прыгает ? Math.sin(this.t * Math.PI) * 10 : 0);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    if (this.берсеркОсталось > 0) {
+      const пульс = 0.85 + 0.15 * Math.sin(this.время * 12);
+      const огонь = ctx.createRadialGradient(cx, cy, 10, cx, cy, 78);
+      огонь.addColorStop(0, `rgba(255,140,40,${(0.7 * пульс).toFixed(3)})`);
+      огонь.addColorStop(0.5, `rgba(255,80,20,${(0.35 * пульс).toFixed(3)})`);
+      огонь.addColorStop(1, "rgba(255,60,0,0)");
+      ctx.fillStyle = огонь;
+      ctx.beginPath(); ctx.arc(cx, cy, 78, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (this.берсеркОсталось / БЕРСЕРК_СЕК));
+      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(255,210,120,0.95)"; ctx.stroke();
+    }
+    if (this.вспышкаT < ВСПЫШКА_ВОСКРЕШЕНИЯ_СЕК) {
+      const p = this.вспышкаT / ВСПЫШКА_ВОСКРЕШЕНИЯ_СЕК;
+      const r = 40 + 90 * p;
+      const вспышка = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      вспышка.addColorStop(0, `rgba(255,230,120,${(0.95 * (1 - p)).toFixed(3)})`);
+      вспышка.addColorStop(1, "rgba(255,200,60,0)");
+      ctx.fillStyle = вспышка;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
 
     if (this.столкновение) {
       const sy = y(this.столкновение.y);
