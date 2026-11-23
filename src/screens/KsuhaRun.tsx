@@ -12,6 +12,7 @@ import { getGlobalRecord, Рекорд } from "../api/users";
 import { КСЮХА_РАН, КлючСложности } from "../config";
 import { бонусВремениСек } from "../game/effects";
 import { КсюхаРанДвижок, Фаза, посчитатьНаграду } from "../game/ksuhaRun";
+import { открытыеНавыки } from "../game/skills";
 import { getSafeTop } from "../lib/telegram";
 
 // Что показываем в окне результата
@@ -68,6 +69,7 @@ export default function KsuhaRun() {
   /** Кнопка «Старт» в меню. */
   const старт = () => {
     стат("plays_ksuha");
+    движок.current!.навыки = new Set(открытыеНавыки("ksuha", мастерство.уровень).map((н) => н.id));
     движок.current!.сброс(лимитВремени(сложность), сложность);
     setИтог(null);
     начатьЗабег();

@@ -5,6 +5,7 @@ import { КСЮХА_РАН as К, КлючСложности, ЭффектЗву
 import { Т } from "../texts";
 import { бонусЗарплатыПроц } from "./effects";
 import { видимыйПрямоугольник } from "../lib/spriteBox";
+import type { ИдНавыка } from "./skills";
 
 const ИГРОК = { x: 120, w: 40, h: 52 }; // позиция и размер героини (в «логических» пикселях)
 
@@ -61,6 +62,14 @@ export class КсюхаРанДвижок {
   мирВысота = 400;
   safeTopCss = 0;        // верхний отступ под кнопки Telegram (в css-пикселях)
 
+  навыки = new Set<ИдНавыка>();
+  щитСломан = false;
+  рывок = 0;
+  рывокСдвиг = 0;
+  следыРывка: { x: number; h: number; t: number }[] = [];
+  отброшенные: { картинка: number; x: number; y: number; ширина: number; высота: number; vx: number; vy: number; t: number }[] = [];
+  осколки: { x: number; y: number; vx: number; vy: number; r: number; t: number }[] = [];
+
   ключСложности: КлючСложности = "medium";
   // Хук для звуков: экран подключает сюда звуковой менеджер (звук прыжка, монеты, поражения)
   событие: ((имя: ЭффектЗвука) => void) | null = null;
@@ -110,6 +119,7 @@ export class КсюхаРанДвижок {
   сброс(лимитСек: number, сложность: КлючСложности) {
     this.ключСложности = сложность;
     this.подъём = 0; this.vy = 0; this.прыжков = 0; this.история = [];
+    this.рывок = 0; this.рывокСдвиг = 0; this.следыРывка = []; this.щитСломан = false; this.отброшенные = []; this.осколки = [];
     this.препятствия = []; this.монеты = []; this.всплывашки = [];
     this.скорость = К.скорость.старт * К.сложности[сложность].множительСкорости;
     this.пройдено = 0; this.монетСобрано = 0; this.суммаМонет = 0;
@@ -124,7 +134,15 @@ export class КсюхаРанДвижок {
 
   /** Прыжок (тап / пробел). Второй прыжок в воздухе — если разрешён в config. */
   прыжок() {
-    if (this.закончена || this.прыжков >= К.физика.максПрыжковПодряд) return;
+    if (this.закончена) return;
+    if (this.навыки.has("dash") && this.прыжков === К.физика.максПрыжковПодряд && this.подъём > 0 && this.рывок <= 0) {
+      this.рывок = 0.35;
+      this.vy = 0;
+      this.следыРывка = [];
+      this.событие?.("прыжок");
+      return;
+    }
+    if (this.прыжков >= К.физика.максПрыжковПодряд) return;
     this.vy = this.прыжков === 0 ? К.физика.силаПрыжка : К.физика.силаВторогоПрыжка;
     this.прыжков++;
     this.событие?.("прыжок");
@@ -153,6 +171,20 @@ export class КсюхаРанДвижок {
     if (this.закончена) return;
     const сл = К.сложности[this.ключСложности];
     this.время += dt;
+
+    if (this.рывок > 0) {
+      this.рывок = Math.max(0, this.рывок - dt);
+      this.рывокСдвиг = Math.sin((1 - this.рывок / 0.35) * Math.PI) * 70;
+      this.следыРывка.push({ x: this.рывокСдвиг, h: this.подъём, t: 0 });
+    } else {
+      this.рывокСдвиг = 0;
+    }
+    for (const с of this.следыРывка) с.t += dt;
+    this.следыРывка = this.следыРывка.filter((с) => с.t < 0.3);
+    for (const п of this.отброшенные) { п.x += п.vx * dt; п.y += п.vy * dt; п.vy += 1400 * dt; п.t += dt; }
+    this.отброшенные = this.отброшенные.filter((п) => п.t < 0.9);
+    for (const с of this.осколки) { с.x += с.vx * dt; с.y += с.vy * dt; с.vy += 900 * dt; с.t += dt; }
+    this.осколки = this.осколки.filter((с) => с.t < 0.6);
 
     // Таймер (мягкий лимит)
     if (this.лимит > 0) {
@@ -224,6 +256,15 @@ export class КсюхаРанДвижок {
       const ширина = о.size * о.вытяжка[0], высота = о.size * о.вытяжка[1];
       const барьер = видимыйПрямоугольник(барьеры[о.картинка], о.x, зем - высота + 14, ширина, высота);
       if (герой.x + пб < барьер.x + барьер.w - пб && барьер.x + пб < герой.x + герой.w - пб && герой.y + пб < барьер.y + барьер.h - пб && барьер.y + пб < герой.y + герой.h - пб) {
+        if (this.рывок > 0) continue;
+        if (this.навыки.has("armor") && !this.щитСломан) {
+          this.щитСломан = true;
+          const ширина = о.size * о.вытяжка[0], высота = о.size * о.вытяжка[1];
+          this.отброшенные.push({ картинка: о.картинка, x: о.x, y: this.земля - высота + 14, ширина, высота, vx: 260, vy: -380, t: 0 });
+          this.осколки = Array.from({ length: 18 }, () => ({ x: ИГРОК.x + ИГРОК.w / 2, y: this.земля - this.подъём - ИГРОК.h / 2, vx: случайно(-260, 260), vy: случайно(-420, 60), r: случайно(2, 5), t: 0 }));
+          о.x = -99999;
+          continue;
+        }
         this.событие?.("поражение");
         this.закончена = true; this.причина = "crash"; return;
       }
@@ -316,14 +357,80 @@ export class КсюхаРанДвижок {
     const упала = this.закончена ? Math.min(1, this.послеКонца * 4) : 0;
     const догнал = this.закончена ? Math.min(1, this.послеКонца / 0.6) : 0;
 
-    const hX = ИГРОК.x + ИГРОК.w / 2;
+    if (this.навыки.has("spiderSense") && фаза === "playing") {
+      let близость = 0;
+      for (const о of this.препятствия) if (о.x > W && о.x < W + 420) близость = Math.max(близость, 1 - (о.x - W) / 420);
+      if (близость > 0) {
+        const пульс = 0.75 + 0.25 * Math.sin(this.время * 14);
+        const градиент = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+        градиент.addColorStop(0, "rgba(255,0,40,0)");
+        градиент.addColorStop(1, `rgba(255,20,60,${(0.6 * близость * пульс).toFixed(3)})`);
+        ctx.save();
+        ctx.fillStyle = градиент;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+      }
+    }
+
+    const hX = ИГРОК.x + ИГРОК.w / 2 + this.рывокСдвиг;
     const hY = зем - this.подъём - кач(0) + 4;
     const дистанция = К.погоня.дистанция;
     const преслX = hX - дистанция + догнал * (дистанция - 10);
     const hПресл = this.закончена ? 0 : (this.история[0]?.h ?? 0);
     const преслY = зем - hПресл - кач(1.5) + 4;
     спрайт(ctx, мэнИмг, преслX, преслY, ИГРОК.h);
+    for (const с of this.следыРывка) {
+      ctx.save();
+      ctx.globalAlpha = 0.5 * (1 - с.t / 0.3);
+      ctx.shadowColor = "rgba(80,170,255,1)";
+      ctx.shadowBlur = 24;
+      спрайт(ctx, ксюхаИмг, ИГРОК.x + ИГРОК.w / 2 + с.x, зем - с.h + 4, ИГРОК.h, упала * (Math.PI / 2));
+      ctx.restore();
+    }
     спрайт(ctx, ксюхаИмг, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
+    if (this.рывок > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.shadowColor = "rgba(80,170,255,1)";
+      ctx.shadowBlur = 30;
+      спрайт(ctx, ксюхаИмг, hX, hY, ИГРОК.h, упала * (Math.PI / 2));
+      ctx.restore();
+    }
+
+    if (this.навыки.has("armor") && !this.щитСломан && фаза === "playing") {
+      const пульс = 0.8 + 0.2 * Math.sin(this.время * 8);
+      ctx.save();
+      ctx.shadowColor = "rgba(90,220,255,0.95)";
+      ctx.shadowBlur = 28;
+      ctx.strokeStyle = `rgba(120,230,255,${(0.9 * пульс).toFixed(3)})`;
+      ctx.lineWidth = 3;
+      ctx.fillStyle = "rgba(90,220,255,0.12)";
+      ctx.beginPath();
+      ctx.ellipse(hX, hY - ИГРОК.h / 2, ИГРОК.h * 0.62, ИГРОК.h * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const п of this.отброшенные) {
+      const img = барьеры[п.картинка];
+      if (!готова(img)) continue;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - п.t / 0.9);
+      ctx.drawImage(img, п.x, п.y, п.ширина, п.высота);
+      ctx.restore();
+    }
+    for (const с of this.осколки) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - с.t / 0.6);
+      ctx.shadowColor = "rgba(120,230,255,1)";
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = "#bff4ff";
+      ctx.translate(с.x, с.y);
+      ctx.rotate(с.t * 10);
+      ctx.fillRect(-с.r, -с.r, с.r * 2, с.r * 2);
+      ctx.restore();
+    }
     if (this.причина === "crash") эмодзи(ctx, "💥", hX + 20, зем - 10, 34);
 
     ctx.fillStyle = "rgba(255,255,255,0.8)";
