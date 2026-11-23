@@ -1,6 +1,10 @@
 import type { КолонкаРекорда } from "../api/users";
 import type { Мастерство } from "../lib/useMastery";
 import { useGlobalRecord } from "../lib/useGlobalRecord";
+import { useUser } from "../store/UserContext";
+import { МАСТЕРСТВО } from "../config";
+import { подсказкаТребования } from "../game/mastery";
+import LockIcon from "./LockIcon";
 import { Иконка } from "./Icon";
 import { Т } from "../texts";
 
@@ -23,6 +27,8 @@ export default function GameMenu({
   колонка, форматРекорда, мастерство, сложности, заголовокВыбора = "Сложность", выбрана, onВыбор, готово = true, onСтарт, onНазад,
 }: Props) {
   const рекорд = useGlobalRecord(колонка);
+  const { telegramId } = useUser();
+  const держатель = !!рекорд && рекорд.telegram_id === telegramId;
   const формат = форматРекорда ?? ((n: number) => n.toLocaleString("ru-RU"));
 
   return (
@@ -43,12 +49,23 @@ export default function GameMenu({
               <div className="text-lg font-extrabold text-amber-300">+{мастерство.процент}%</div>
             </div>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/50">
+          <div className={`mt-3 h-2 overflow-hidden rounded-full bg-black/50 ${мастерство.заблокирован ? "opacity-40 grayscale" : ""}`}>
             <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-[width] duration-500" style={{ width: `${Math.round(мастерство.прогресс * 100)}%` }} />
           </div>
+          {мастерство.заблокирован && (
+            <p className="mt-2 flex items-start gap-1.5 text-[11px] text-orange-300">
+              <LockIcon className="mt-px h-3.5 w-3.5 shrink-0" />
+              {подсказкаТребования(мастерство.следующее)}
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+        <div className="relative flex items-center gap-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+          {держатель && (
+            <span className="record-shimmer absolute -right-3 -top-3 z-10 rounded-full px-3 py-1 text-base font-black" style={{ transform: "rotate(-8deg)" }}>
+              +{Math.round(МАСТЕРСТВО.рекордБонус * 100)}%
+            </span>
+          )}
           <Иконка имя="лидерборд" размер={36} />
           <div className="min-w-0 flex-1">
             <div className="text-[11px] uppercase tracking-wider text-white/50">Глобальный рекорд</div>

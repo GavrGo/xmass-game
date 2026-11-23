@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "../store/UserContext";
 import { МАСТЕРСТВО } from "../config";
-import { инфоМастерства, type Ворота } from "../game/mastery";
+import { инфоМастерства, type Требование } from "../game/mastery";
 import { getGlobalRecord, type КолонкаРекорда } from "../api/users";
 
-export interface Мастерство { уровень: number; прогресс: number; процент: number; рекордПроц: number }
+export interface Мастерство { уровень: number; прогресс: number; процент: number; рекордПроц: number; заблокирован: boolean; следующее: Требование }
 
 export interface Срез {
   от: number;
   до: number;
-  перевести: (xp: number) => { уровень: number; прогресс: number; процент: number; заблокирован: boolean; нужно: Ворота | null };
+  перевести: (xp: number) => { уровень: number; прогресс: number; процент: number; заблокирован: boolean; следующее: Требование };
 }
 
 const КОЛОНКА_РЕКОРДА: Record<string, КолонкаРекорда> = {
@@ -63,6 +63,8 @@ export function useMastery(игра: string) {
     прогресс: инфо.прогресс,
     процент: Math.round((инфо.бонус - 1) * 100),
     рекордПроц: рекордЕсть ? Math.round(МАСТЕРСТВО.рекордБонус * 100) : 0,
+    заблокирован: инфо.заблокирован,
+    следующее: инфо.следующее,
   };
 
   const сохранить = async () => {
@@ -104,7 +106,7 @@ export function useMastery(игра: string) {
         до: старт + накоплено,
         перевести: (xp: number) => {
           const i = инфоМастерства(игра, { ...(userRef.current?.mastery ?? {}), [игра]: { xp } });
-          return { уровень: i.уровень, прогресс: i.прогресс, процент: Math.round((i.бонус - 1) * 100), заблокирован: i.заблокирован, нужно: i.нужно };
+          return { уровень: i.уровень, прогресс: i.прогресс, процент: Math.round((i.бонус - 1) * 100), заблокирован: i.заблокирован, следующее: i.следующее };
         },
       };
     },

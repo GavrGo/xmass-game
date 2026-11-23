@@ -1,5 +1,6 @@
 import type { КолонкаРекорда } from "../api/users";
 import type { Мастерство, Срез } from "../lib/useMastery";
+import { подсказкаТребования } from "../game/mastery";
 import { useEffect, useState } from "react";
 import { useGlobalRecord } from "../lib/useGlobalRecord";
 import { Иконка } from "./Icon";
@@ -57,19 +58,31 @@ function ШкалаМастерства({ срез }: { срез: Срез }) {
     кадр = requestAnimationFrame(шаг);
     return () => cancelAnimationFrame(кадр);
   }, [срез]);
+  const старт = срез.перевести(срез.от);
   const вид = срез.перевести(xp);
+  const поднялся = вид.уровень > старт.уровень;
+  const база = поднялся ? 1 : старт.прогресс;
+  const заезд = поднялся
+    ? { слева: 0, ширина: вид.прогресс }
+    : { слева: база, ширина: Math.max(0, вид.прогресс - база) };
   return (
     <div className="mt-4 rounded-2xl bg-white/5 px-4 py-3 text-left ring-1 ring-white/10">
       <div className="mb-1.5 flex items-baseline justify-between text-sm">
         <span className="font-bold">Мастерство · Ур. {вид.уровень}</span>
         <span className="font-bold text-cyan-300">+{вид.процент}%</span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-cyan-300" style={{ width: `${вид.прогресс * 100}%` }} />
+      <div className="relative h-3 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-600 to-sky-400" style={{ width: `${база * 100}%` }} />
+        <div
+          className="absolute inset-y-0 rounded-full bg-gradient-to-r from-sky-200 to-cyan-100 shadow-[0_0_8px_rgba(186,230,253,0.7)]"
+          style={{ left: `${заезд.слева * 100}%`, width: `${заезд.ширина * 100}%` }}
+        />
       </div>
-      {вид.заблокирован && вид.нужно && (
-        <p className="mt-1.5 text-[11px] text-orange-300">Открывается, когда другие игры будут на ур. {вид.нужно.наУровне}+ (нужно {вид.нужно.игр})</p>
-      )}
+      <div className="mt-1.5 flex gap-3 text-[10px] text-white/50">
+        <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-sky-500" />до забега</span>
+        <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-cyan-100" />за забег</span>
+      </div>
+      {вид.заблокирован && <p className="mt-1.5 text-[11px] text-orange-300">{подсказкаТребования(вид.следующее)}</p>}
     </div>
   );
 }

@@ -188,10 +188,12 @@ body {
 }
 
 .record-shimmer {
-  background: linear-gradient(110deg, #b45309 0%, #b45309 35%, #fde68a 50%, #b45309 65%, #b45309 100%);
+  background: linear-gradient(110deg, #a16207 0%, #facc15 22%, #fef9c3 36%, #eab308 50%, #a16207 66%, #facc15 84%, #a16207 100%);
   background-size: 250% 100%;
-  color: #1c1002;
-  box-shadow: 0 0 10px rgba(253, 230, 138, 0.45);
+  color: #3f2300;
+  text-shadow: 0 1px 0 rgba(255, 250, 205, 0.7);
+  border: 1px solid #fde68a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -2px 0 rgba(120, 53, 15, 0.55), 0 3px 0 #78350f, 0 6px 14px rgba(0, 0, 0, 0.4), 0 0 14px rgba(250, 204, 21, 0.55);
   animation: record-shimmer 2.6s linear infinite;
 }
 
