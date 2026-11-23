@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "../store/UserContext";
 import { МАСТЕРСТВО } from "../config";
-import { уровеньМастерства } from "../game/mastery";
+import { инфоМастерства, type Ворота } from "../game/mastery";
 import { getGlobalRecord, type КолонкаРекорда } from "../api/users";
 
 export interface Мастерство { уровень: number; прогресс: number; процент: number; рекордПроц: number }
+
+export interface Срез {
+  от: number;
+  до: number;
+  перевести: (xp: number) => { уровень: number; прогресс: number; процент: number; заблокирован: boolean; нужно: Ворота | null };
+}
 
 const КОЛОНКА_РЕКОРДА: Record<string, КолонкаРекорда> = {
   babka: "best_babka_crash",
@@ -46,9 +52,10 @@ export function useMastery(игра: string) {
   const userRef = useRef(user);
   userRef.current = user;
   const очки = useRef(0);
+  const забег = useRef({ старт: 0, накоплено: 0 });
   const держатели = useRecordHolders();
 
-  const инфо = уровеньМастерства(user?.mastery?.[игра]?.xp ?? 0);
+  const инфо = инфоМастерства(игра, user?.mastery);
   const рекордЕсть = держатели.has(игра);
   const бонус = инфо.бонус + (рекордЕсть ? МАСТЕРСТВО.рекордБонус : 0);
   const мастерство: Мастерство = {
@@ -82,8 +89,24 @@ export function useMastery(игра: string) {
   return {
     бонус,
     мастерство,
+    начатьЗабег: () => {
+      забег.current = { старт: (userRef.current?.mastery?.[игра]?.xp ?? 0) + очки.current, накоплено: 0 };
+    },
     начислить: (фишки: number) => {
-      очки.current += Math.floor(фишки / МАСТЕРСТВО.фишекНаОчко);
+      const n = Math.floor(фишки / МАСТЕРСТВО.фишекНаОчко);
+      очки.current += n;
+      забег.current.накоплено += n;
+    },
+    шкала: (): Срез => {
+      const { старт, накоплено } = забег.current;
+      return {
+        от: старт,
+        до: старт + накоплено,
+        перевести: (xp: number) => {
+          const i = инфоМастерства(игра, { ...(userRef.current?.mastery ?? {}), [игра]: { xp } });
+          return { уровень: i.уровень, прогресс: i.прогресс, процент: Math.round((i.бонус - 1) * 100), заблокирован: i.заблокирован, нужно: i.нужно };
+        },
+      };
     },
   };
 }

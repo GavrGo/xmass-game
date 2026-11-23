@@ -186,3 +186,16 @@ body {
   border-radius: 24px;
   box-shadow: 0 20px 40px rgba(0,0,0,.6);
 }
+
+.record-shimmer {
+  background: linear-gradient(110deg, #b45309 0%, #b45309 35%, #fde68a 50%, #b45309 65%, #b45309 100%);
+  background-size: 250% 100%;
+  color: #1c1002;
+  box-shadow: 0 0 10px rgba(253, 230, 138, 0.45);
+  animation: record-shimmer 2.6s linear infinite;
+}
+
+@keyframes record-shimmer {
+  from { background-position: 150% 0; }
+  to { background-position: -150% 0; }
+}

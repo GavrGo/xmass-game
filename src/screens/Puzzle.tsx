@@ -35,7 +35,7 @@ const мм = (с: number) => `${Math.floor(с / 60)}:${String(с % 60).padStart(
 
 export default function Puzzle() {
   const { user, change, telegramId } = useUser();
-  const { бонус, мастерство, начислить: начислитьМастерство } = useMastery("puzzle");
+  const { бонус, мастерство, начатьЗабег, шкала, начислить: начислитьМастерство } = useMastery("puzzle");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -76,6 +76,7 @@ export default function Puzzle() {
     конецRef.current = сейчас + лимит * 1000;
     setОсталось(лимит); setПрошло(0);
     завершено.current = false;
+    начатьЗабег();
     setФаза("playing");
   };
 
@@ -259,7 +260,7 @@ export default function Puzzle() {
           заголовок={итог.победа ? ТП.победа : ТП.времяВышло}
           база={итог.награда.база}
           прокачкаПроц={итог.награда.бонусПроц}
-          мастерство={мастерство}
+          мастерство={мастерство} шкала={шкала}
           итог={итог.награда.итого}
           прогресс={{ подпись: "Ходов", значение: String(итог.ходов) }}
           лучший={user.puzzles_solved ?? 0}

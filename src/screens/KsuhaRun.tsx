@@ -33,7 +33,7 @@ const число = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1
 
 export default function KsuhaRun() {
   const { user, change } = useUser();
-  const { бонус, мастерство, начислить: начислитьМастерство } = useMastery("ksuha");
+  const { бонус, мастерство, начатьЗабег, шкала, начислить: начислитьМастерство } = useMastery("ksuha");
   const navigate = useNavigate();
   const контейнер = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -70,6 +70,7 @@ export default function KsuhaRun() {
     стат("plays_ksuha");
     движок.current!.сброс(лимитВремени(сложность), сложность);
     setИтог(null);
+    начатьЗабег();
     setФаза("playing");
   };
 
@@ -272,7 +273,7 @@ export default function KsuhaRun() {
           заголовок={итог.причина === "time" ? ТК.итог.времяВышло : ТК.итог.догнали}
           база={итог.база}
           прокачкаПроц={итог.награда.бонусПроц}
-          мастерство={мастерство}
+          мастерство={мастерство} шкала={шкала}
           итог={итог.награда.итого}
           прогресс={{ подпись: "Препятствий", значение: String(итог.препятствий) }}
           лучший={итог.личныйРекорд}

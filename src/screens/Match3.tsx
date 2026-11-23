@@ -46,7 +46,7 @@ const кадр = () => new Promise<void>((r) => requestAnimationFrame(() => requ
 
 export default function Match3() {
   const { user, change } = useUser();
-  const { бонус, мастерство, начислить: начислитьМастерство } = useMastery("match3");
+  const { бонус, мастерство, начатьЗабег, шкала, начислить: начислитьМастерство } = useMastery("match3");
   const navigate = useNavigate();
   useNoSwipes(); // игра управляется только тапами
 
@@ -148,6 +148,7 @@ export default function Match3() {
     const п = начальноеПоле();
     полеRef.current = п; setПоле(п);
     setНовые(new Set()); setУдаляются(new Set()); setВыбранная(null);
+    начатьЗабег();
     setФаза("playing");
   };
 
@@ -525,7 +526,7 @@ export default function Match3() {
           заголовок={итог.причина === "ходы" ? ТМ.ходыЗакончились : ТМ.играЗавершена}
           база={итог.база}
           прокачкаПроц={0}
-          мастерство={мастерство}
+          мастерство={мастерство} шкала={шкала}
           итог={итог.фишек}
           прогресс={{ подпись: "Уровень", значение: String(итог.пройдено) }}
           лучший={user.best_match3 ?? 0}
