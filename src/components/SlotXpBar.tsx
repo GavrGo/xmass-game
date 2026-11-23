@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Modal from "./Modal";
 import { Иконка } from "./Icon";
-import { СЛОТ, ОПЫТ_СЛОТА } from "../config";
+import { Т } from "../texts";
+import { СЛОТ, ОПЫТ_СЛОТА, СИМВОЛЫ_СЛОТА } from "../config";
 import { уровеньОпытаСлота } from "../game/slotXp";
 
 type Искра = { id: number; x: number; dx: number; dy: number; размер: number; тип: "падает" | "взрыв" };
@@ -100,23 +101,43 @@ export default function SlotXpBar({ спинов, активна }: { спино
       </div>
 
       {открыт && createPortal(
-        <Modal onClose={() => setОткрыт(false)}>
-          <h3 className="mb-1 text-lg font-bold">Опыт слота</h3>
-          <p className="mb-3 text-xs text-muted">Каждый спин даёт опыт. На 4, 7 и 10 уровнях в барабан добавляются новые символы: коробка фишек, пачка билетов и мешок подарков. Чем выше уровень, тем больше сердец за выигрыш.</p>
-          <div className="mb-3 text-sm font-semibold">
-            Уровень {у.уровень} · {спинов} спинов
-            {у.следующийПорог !== null ? ` · до ${у.уровень + 1} ур. ещё ${у.следующийПорог - спинов}` : " · максимум"}
+        <Modal тон="calm" onClose={() => setОткрыт(false)}>
+          <h3 className="text-lg font-bold">Опыт слота</h3>
+          <p className="mb-4 text-xs text-white/60">Прокачка влияет только на получаемые сердца.</p>
+          <div className="mb-1.5 flex items-baseline justify-between text-sm font-bold">
+            <span>Ур. {у.уровень}</span>
+            <span className="tabular-nums">{у.следующийПорог !== null ? `${спинов}/${у.следующийПорог}` : "Макс"}</span>
           </div>
-          <ul className="space-y-1 text-left text-xs">
-            {ОПЫТ_СЛОТА.спинов.map((порог, i) => (
-              <li key={i} className={`flex justify-between rounded-lg px-2 py-1 ${i + 1 === у.уровень ? "bg-white/15 font-bold" : "text-muted"}`}>
-                <span>Ур. {i + 1} · от {порог} спинов</span>
-                <span className="inline-flex items-center gap-1">
-                  ×{ОПЫТ_СЛОТА.множители[i]} · {Math.round(СЛОТ.хэпэшекЗаТриСердца * ОПЫТ_СЛОТА.множители[i])}
-                  <Иконка имя="хэпэшки" размер={14} />
-                </span>
-              </li>
-            ))}
+          <div className="mb-4 h-2.5 overflow-hidden rounded-full bg-black/40 ring-1 ring-white/10">
+            <div className="h-full rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 transition-[width] duration-500" style={{ width: `${Math.round(у.прогресс * 100)}%` }} />
+          </div>
+          <ul className="space-y-1.5 text-left text-xs">
+            {ОПЫТ_СЛОТА.спинов.map((порог, i) => {
+              const ур = i + 1;
+              const пройден = ур < у.уровень;
+              const текущий = ур === у.уровень;
+              const новые = СИМВОЛЫ_СЛОТА.filter((с) => с.открытьНаУровне === ур);
+              return (
+                <li
+                  key={ур}
+                  className={`rounded-xl px-3 py-2 ${текущий ? "bg-amber-300/20 ring-1 ring-amber-300/70" : пройден ? "opacity-35" : "bg-white/5"}`}
+                >
+                  <div className={`flex items-center justify-between gap-2 ${пройден ? "line-through" : ""}`}>
+                    <span className="font-bold">Ур. {ур}</span>
+                    <span className="text-white/60">{порог} спинов</span>
+                    <span className="inline-flex items-center gap-1 font-bold text-amber-200">
+                      ×{ОПЫТ_СЛОТА.множители[i]} · {Math.round(СЛОТ.хэпэшекЗаТриСердца * ОПЫТ_СЛОТА.множители[i])}
+                      <Иконка имя="хэпэшки" размер={14} />
+                    </span>
+                  </div>
+                  {новые.map((с) => (
+                    <div key={с.id} className="mt-1 text-[11px] font-semibold text-emerald-300">
+                      + {с.эмодзи} {Т.слот.родительный[с.id] ?? с.id}
+                    </div>
+                  ))}
+                </li>
+              );
+            })}
           </ul>
         </Modal>,
         document.body,

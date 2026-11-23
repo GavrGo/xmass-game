@@ -179,7 +179,7 @@ export default function Home() {
     for (let i = 0; гарантия && !((итог.награда.hearts ?? 0) > 0) && i < 500; i++) итог = крутитьРаз();
     const nextPity = (итог.награда.hearts ?? 0) > 0 ? 0 : (user.slot_pity ?? 0) + 1;
     const м = опыт.множитель;
-    итог.награда.hearts = Math.round((итог.награда.hearts ?? 0) * м);
+    итог.награда.hearts = Math.floor((итог.награда.hearts ?? 0) * м + Math.random());
 
     setЗаморозка({ chips: user.chips, tickets: user.tickets - цена, hearts: user.hearts });
     if (бесплатная) setБесплатныеКрутки((n) => n - 1);

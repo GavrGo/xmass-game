@@ -75,7 +75,7 @@ export default function ЧёрныйРынок() {
                   <button
                     onClick={() => купить(ключ)}
                     disabled={занят || user.hearts < цена}
-                    className="btn bm-buy flex shrink-0 items-center gap-1.5 !rounded-xl !px-3 !py-2 text-sm"
+                    className="btn bm-buy flex shrink-0 items-center gap-1.5 !rounded-xl !px-3 !py-2 text-sm disabled:opacity-35 disabled:saturate-0 disabled:shadow-none"
                   >
                     <Иконка имя="хэпэшки" размер={16} />
                     {цена}
