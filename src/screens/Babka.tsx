@@ -225,7 +225,7 @@ export default function Babka() {
           основная={{
             подпись: Т.общее.игратьЕщё,
             disabled: итог.сохранение === "идёт",
-            onClick: () => { setИтог(null); движок.current!.сброс(0, персонаж); setФаза("menu"); },
+            onClick: старт,
           }}
           вторичная={{ подпись: Т.общее.кСпискуИгр, onClick: () => navigate("/games") }}
         />

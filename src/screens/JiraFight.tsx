@@ -54,7 +54,7 @@ export default function JiraFight() {
   useNoSwipes(); // игра управляется только тапами
 
   const [фаза, setФаза] = useState<Фаза>("menu");
-  const [режим, setРежим] = useState<Режим>("zen");
+  const [режим, setРежим] = useState<Режим>("timed");
   const [уровень, setУровень] = useState(1);
   const [доски, setДоски] = useState<Доски>([]);
   const [выбрана, setВыбрана] = useState<number | null>(null);
@@ -346,7 +346,7 @@ export default function JiraFight() {
           лучшийПодпись="Лучший ур."
           колонка="best_jira_level"
           форматРекорда={(n) => `Ур. ${n}`}
-          основная={{ подпись: Т.общее.игратьЕщё, onClick: () => { setИтог(null); setДоски([]); setФаза("menu"); } }}
+          основная={{ подпись: Т.общее.игратьЕщё, onClick: старт }}
           вторичная={{ подпись: Т.общее.кСпискуИгр, onClick: () => navigate("/games") }}
         />
       )}
