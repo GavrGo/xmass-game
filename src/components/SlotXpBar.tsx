@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Modal from "./Modal";
-import { Иконка } from "./Icon";
+import { Иконка, Картинка } from "./Icon";
 import { Т } from "../texts";
-import { СЛОТ, ОПЫТ_СЛОТА, СИМВОЛЫ_СЛОТА } from "../config";
+import { СЛОТ, ОПЫТ_СЛОТА, СИМВОЛЫ_СЛОТА, путьКартинкиСимвола } from "../config";
 import { уровеньОпытаСлота } from "../game/slotXp";
 
 type Искра = { id: number; x: number; dx: number; dy: number; размер: number; тип: "падает" | "взрыв" };
@@ -132,7 +132,7 @@ export default function SlotXpBar({ спинов, активна }: { спино
                   </div>
                   {новые.map((с) => (
                     <div key={с.id} className="mt-1 text-[11px] font-semibold text-emerald-300">
-                      + {с.эмодзи} {Т.слот.родительный[с.id] ?? с.id}
+                      + <Картинка путь={путьКартинкиСимвола(с.id)} fallback={<span>{с.эмодзи}</span>} className="inline-block h-4 w-4 object-contain align-[-3px]" /> {Т.слот.родительный[с.id] ?? с.id}
                     </div>
                   ))}
                 </li>

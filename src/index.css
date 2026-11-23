@@ -180,7 +180,7 @@ body {
   background-color: #141821;
   background-image:
     radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
-    radial-gradient(120% 70% at 50% 0%, #27324d 0%, #171c29 62%, #11141d 100%);
+    radial-gradient(120% 70% at 50% 0%, #55212b 0%, #2e1219 62%, #160709 100%);
   background-size: 14px 14px, 100% 100%;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 24px;

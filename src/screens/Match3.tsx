@@ -8,6 +8,7 @@ import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
 import { useMastery, сБонусом } from "../lib/useMastery";
+import { спиральныйПереход } from "../lib/spiralTransition";
 import { ТРИ_В_РЯД as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import { глобальныйРекорд } from "../game/records";
@@ -90,7 +91,7 @@ export default function Match3() {
   const цельRef = useRef(0);
   const этапRef = useRef(1);
   const занято = useRef(false);
-  const сессия = useRef({ пройдено: 0, фишек: 0 });
+  const сессия = useRef({ пройдено: 0, фишек: 0, сырых: 0 });
   const таймерТоста = useRef<ReturnType<typeof setTimeout>>();
   const свежее = useRef({ user, change });
   свежее.current = { user, change };
@@ -150,7 +151,7 @@ export default function Match3() {
 
   const старт = () => {
     стат("plays_match3");
-    сессия.current = { пройдено: 0, фишек: 0 };
+    сессия.current = { пройдено: 0, фишек: 0, сырых: 0 };
     setИтог(null);
     начатьЭтап(1);
   };
@@ -235,7 +236,7 @@ export default function Match3() {
     if (!u) return;
     const пройдено = сессия.current.пройдено;
     const личный = Math.max(u.best_match3 ?? 0, пройдено);
-    setИтог({ причина, пройдено, фишек: сессия.current.фишек, личный, глобальный: undefined });
+    setИтог({ причина, пройдено, фишек: сессия.current.фишек, база: сессия.current.сырых, личный, глобальный: undefined });
     setФаза("over");
     if (причина === "ходы") звук.sfx("поражение"); // ← звук проигрыша
     try {
@@ -253,7 +254,8 @@ export default function Match3() {
     const { user: u, change: изменить } = свежее.current;
     if (!u) return;
     const н = этапRef.current;
-    const награда = сБонусом(наградаЭтапа(н, ходыRef.current, u.salary_level), бонус);
+    const сырая = наградаЭтапа(н, ходыRef.current, u.salary_level);
+    const награда = сБонусом(сырая, бонус);
     const рекорд = u.best_match3 ?? 0;
     let сохранилось = true;
     let предупреждение: string | undefined;
@@ -269,13 +271,18 @@ export default function Match3() {
         } catch { сохранилось = false; }
       } else { сохранилось = false; }
     }
-    if (сохранилось) сессия.current.фишек += награда.итого;
+    if (сохранилось) {
+      сессия.current.фишек += награда.итого;
+      сессия.current.сырых += сырая.итого;
+    }
     сессия.current.пройдено = н;
     звук.sfx("победа");
     if (!сохранилось) показатьПопап(ТМ.ошибкаНаграды);
     else if (предупреждение) показатьПопап(предупреждение);
-    показатьБаннер(ТМ.баннерЭтапа(н + 1));
-    начатьЭтап(н + 1);
+    await спиральныйПереход(доскаRef.current, () => {
+      начатьЭтап(н + 1);
+      показатьБаннер(ТМ.баннерЭтапа(н + 1));
+    });
   };
 
   /** Ход игрока: обмен двух соседних клеток и вся цепочка последствий. */
@@ -495,7 +502,7 @@ export default function Match3() {
       {фаза === "menu" && (
         <GameMenu
           колонка="best_match3"
-          форматРекорда={(n) => `Этап ${n}`}
+          форматРекорда={(n) => `Уровень ${n}`}
           мастерство={мастерство}
           готово={готово}
           onСтарт={старт}
@@ -509,15 +516,15 @@ export default function Match3() {
       {фаза === "over" && итог && (
         <GameResult
           заголовок={итог.причина === "ходы" ? ТМ.ходыЗакончились : ТМ.играЗавершена}
-          база={итог.фишек}
+          база={итог.база}
           прокачкаПроц={0}
-          мастерство={{ ...мастерство, процент: 0, рекордПроц: 0 }}
+          мастерство={мастерство}
           итог={итог.фишек}
-          прогресс={{ подпись: "Этап", значение: String(итог.пройдено) }}
+          прогресс={{ подпись: "Уровень", значение: String(итог.пройдено) }}
           лучший={user.best_match3 ?? 0}
-          лучшийПодпись="Лучший этап"
+          лучшийПодпись="Лучший уровень"
           колонка="best_match3"
-          форматРекорда={(n) => `Этап ${n}`}
+          форматРекорда={(n) => `Уровень ${n}`}
           основная={{ подпись: Т.общее.игратьЕщё, onClick: () => { setИтог(null); setФаза("menu"); } }}
           вторичная={{ подпись: Т.общее.кСпискуИгр, onClick: () => navigate("/games") }}
         />
