@@ -21,6 +21,7 @@ interface Полоса {
   шаг: number;        // через сколько появится следующий противник
   деревья: { x: number; вид: number }[];
   закрыта?: boolean;
+  ямы?: { x: number; dy: number; r: number }[];
 }
 
 const ЗАПАС = 60; // за краем экрана противники появляются и пропадают
@@ -32,6 +33,7 @@ const загрузить = (файл: string) => Object.assign(new Image(), { sr
 const готова = (img: HTMLImageElement) => img.complete && img.naturalWidth > 0;
 const бабкаИмг = загрузить("Babka.png");
 const островИмг = загрузить("safe-island.png");
+const таблетка = загрузить("berserk-pill.png");
 const ДЕРЕВЬЯ = [загрузить("Tree-1.png"), загрузить("Tree-2.png"), загрузить("Bush-1.png"), загрузить("Bush-2.png")];
 const ДЕРЕВЬЯ_ВЫСОТА = [46, 42, 26, 26];
 const МАШИНЫ = [загрузить("Car-1.png"), загрузить("Car-2.png"), загрузить("Car-3.png"), загрузить("Car-4.png")];
@@ -97,7 +99,7 @@ export class БабкаДвижок {
   ремонтПолоса: number | null = null;
   предмет: { полоса: number } | null = null;
   искры: { x: number; wy: number; vx: number; vy: number; t: number; life: number; цвет: string; r: number }[] = [];
-  воскрешение: { фаза: number; t: number; откуда: number; куда: number } | null = null;
+  воскрешение: { фаза: number; t: number; откуда: number; куда: number; толчок: number } | null = null;
 
   private созданоДо = -1;
   private дорогСоздано = 0;
@@ -169,7 +171,7 @@ export class БабкаДвижок {
     л.скорость = база * рост * случайно(1 - К.скорость.разброс, 1 + К.скорость.разброс);
     л.шаг = this.новыйШаг(л.скорость, л.номерДороги);
     л.накоплено = случайно(0, л.шаг);
-    if (this.ремонтПолоса === null && this.навыки.has("repair")) { л.закрыта = true; this.ремонтПолоса = i; }
+    if (this.ремонтПолоса === null && this.навыки.has("repair")) { л.закрыта = true; л.ямы = this.создатьЯмы(); this.ремонтПолоса = i; }
     if (л.закрыта) return л;
     let x = -ЗАПАС + случайно(0, л.шаг);
     while (x < W + ЗАПАС) {
@@ -196,7 +198,7 @@ export class БабкаДвижок {
     this.создатьДо(до + 3);
     for (let i = от; i <= до; i++) {
       const л = this.полосы.get(i);
-      if (!л || !л.дорога) continue;
+      if (!л || !л.дорога || л.закрыта) continue;
       const d = л.направление * л.скорость * dt;
       for (const в of л.враги) в.x += d;
       л.накоплено += л.скорость * dt;
@@ -267,7 +269,7 @@ export class БабкаДвижок {
         if (Math.abs(м.центр - геройЦентр) < ((геройШир + м.ширина) / 2) * k) {
           this.взрыв(в.x, i * К.мир.высотаПолосы, 30);
           if (this.берсеркОсталось > 0) { this.отбросить(л, в); continue; }
-          if (this.навыки.has("resurrection") && !this.воскрешениеИспользовано) { this.воскрешениеИспользовано = true; this.начатьВоскрешение(); return; }
+          if (this.навыки.has("resurrection") && !this.воскрешениеИспользовано) { this.воскрешениеИспользовано = true; this.начатьВоскрешение(м.центр < геройЦентр ? 1 : -1); return; }
           this.закончена = true;
           this.причина = "crash";
           this.событие?.("поражение");
@@ -283,8 +285,13 @@ export class БабкаДвижок {
     this.отброшенные.push({ вид: в.вид, x: в.x, полоса: л.индекс, dy: 0, vx: (в.x < this.мирШирина / 2 ? -1 : 1) * 320, vy: -260, t: 0, зеркало: л.направление === -1 });
   }
 
+  private создатьЯмы() {
+    return Array.from({ length: 6 }, () => ({ x: 0.15 + Math.random() * 0.7, dy: (Math.random() - 0.5) * 0.4, r: 6 + Math.random() * 7 }));
+  }
+
   private починить(л: Полоса) {
     л.закрыта = false;
+    л.ямы = [];
     this.ремонтИспользован = true;
     this.взрыв(this.мирШирина / 2, л.индекс * К.мир.высотаПолосы, 24);
   }
@@ -296,17 +303,16 @@ export class БабкаДвижок {
   }
 
   private положитьПредмет() {
-    let k = this.полоса + 2;
-    for (;;) {
-      this.создатьДо(k);
-      if (this.полосы.get(k)?.дорога === false) break;
-      k++;
-    }
+    const верх = Math.floor(this.позиция + this.мирВысота * К.мир.якорьЭкрана / К.мир.высотаПолосы) - 1;
+    this.создатьДо(верх);
+    let k = верх;
+    while (k > this.полоса + 1 && this.полосы.get(k)?.дорога !== false) k--;
     this.предмет = { полоса: k };
   }
 
-  private начатьВоскрешение() {
-    this.воскрешение = { фаза: 0, t: 0, откуда: this.позиция, куда: this.предыдущаяБезопасная() };
+  private начатьВоскрешение(толчок: number) {
+    this.воскрешение = { фаза: 0, t: 0, откуда: this.позиция, куда: this.предыдущаяБезопасная(), толчок };
+    this.столкновение = { x: this.мирШирина / 2 - толчок * 20, y: this.позиция };
     this.прыгает = false;
     this.буфер = false;
   }
@@ -348,6 +354,18 @@ export class БабкаДвижок {
     if (в.фаза === 0) return Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[0]);
     if (в.фаза === 3) return 1 - Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[3]);
     return 1;
+  }
+
+  private сдвигВоскрешения(): number {
+    const в = this.воскрешение;
+    if (!в) return 0;
+    const даль = 30 * в.толчок;
+    if (в.фаза === 0) {
+      const p = Math.min(1, в.t / 0.25);
+      return даль * (1 - (1 - p) * (1 - p));
+    }
+    if (в.фаза === 1) return даль * (1 - Math.min(1, в.t / ФАЗЫ_ВОСКРЕШЕНИЯ[1]));
+    return 0;
   }
 
   private масштабВоскрешения(): number {
@@ -406,49 +424,38 @@ export class БабкаДвижок {
     }
   }
 
-  private рисоватьРемонт(ctx: CanvasRenderingContext2D, W: number, yc: number, LH: number) {
+  private рисоватьРемонт(ctx: CanvasRenderingContext2D, л: Полоса, W: number, yc: number, LH: number) {
     ctx.save();
-    for (const fx of [0.12, 0.34, 0.58, 0.8]) {
-      const x = W * fx;
-      const y0 = yc + (((fx * 37) % 1) - 0.5) * LH * 0.4;
-      ctx.fillStyle = "rgba(20,16,12,0.85)";
-      ctx.strokeStyle = "rgba(255,255,255,0.3)";
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(x, y0, 16, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    }
-    ctx.strokeStyle = "rgba(20,16,12,0.9)";
-    ctx.lineWidth = 2;
-    for (const fx of [0.05, 0.27, 0.46, 0.67, 0.93]) {
-      let x = W * fx;
-      let y0 = yc - LH * 0.3;
-      ctx.beginPath(); ctx.moveTo(x, y0);
-      for (let k = 0; k < 5; k++) { x += 14; y0 += (k % 2 ? -1 : 1) * 9; ctx.lineTo(x, y0); }
-      ctx.stroke();
-    }
-    const bh = LH * 0.42;
-    ctx.fillStyle = "#e53935";
-    ctx.fillRect(0, yc - bh / 2, W, bh);
-    ctx.fillStyle = "#ffffff";
-    for (let x = -bh; x < W; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, yc + bh / 2); ctx.lineTo(x + 20, yc + bh / 2);
-      ctx.lineTo(x + 20 + bh * 0.6, yc - bh / 2); ctx.lineTo(x + bh * 0.6, yc - bh / 2);
-      ctx.closePath(); ctx.fill();
+    for (const я of л.ямы ?? []) {
+      const x = W * я.x;
+      const y0 = yc + я.dy * LH;
+      ctx.fillStyle = "rgba(20,18,16,0.9)";
+      ctx.beginPath(); ctx.ellipse(x, y0, я.r, я.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(20,18,16,0.85)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x + я.r * 0.8, y0); ctx.lineTo(x + я.r * 2.2, y0 + 5); ctx.lineTo(x + я.r * 3.2, y0 - 3); ctx.stroke();
     }
     ctx.restore();
+    эмодзи(ctx, "🚧", W * 0.07, yc + LH / 2 - 4, 30);
+    эмодзи(ctx, "🚧", W * 0.93, yc + LH / 2 - 4, 30);
   }
 
   private рисоватьПредмет(ctx: CanvasRenderingContext2D, yc: number, W: number) {
     const p = 0.85 + 0.15 * Math.sin(this.время * 6);
+    const cy = yc - 20 + Math.sin(this.время * 4) * 6;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    const гл = ctx.createRadialGradient(W / 2, yc - 20, 4, W / 2, yc - 20, 46 * p);
-    гл.addColorStop(0, "rgba(255,200,90,0.8)");
+    const гл = ctx.createRadialGradient(W / 2, cy, 4, W / 2, cy, 70 * p);
+    гл.addColorStop(0, "rgba(255,200,90,0.9)");
     гл.addColorStop(1, "rgba(255,160,40,0)");
     ctx.fillStyle = гл;
-    ctx.beginPath(); ctx.arc(W / 2, yc - 20, 46 * p, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(W / 2, cy, 70 * p, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-    эмодзи(ctx, "🪓", W / 2, yc + 14, 38);
+    if (готова(таблетка)) {
+      const s = 56;
+      ctx.drawImage(таблетка, W / 2 - s / 2, cy - s / 2, s, s);
+    } else {
+      эмодзи(ctx, "💊", W / 2, cy + 22, 44);
+    }
   }
 
   private зарядитьБерсерк() {
@@ -476,7 +483,7 @@ export class БабкаДвижок {
       const yc = y(i);
       ctx.fillStyle = i % 2 ? "#727176" : "#7D7C80";
       ctx.fillRect(0, yc - LH / 2, W, LH);
-      if (л.закрыта) this.рисоватьРемонт(ctx, W, yc, LH);
+      if (л.закрыта) this.рисоватьРемонт(ctx, л, W, yc, LH);
       if (this.полосы.get(i + 1)?.дорога) {
         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.setLineDash([18, 18]);
         ctx.beginPath(); ctx.moveTo(0, yc - LH / 2); ctx.lineTo(W, yc - LH / 2); ctx.stroke(); ctx.setLineDash([]);
@@ -497,7 +504,7 @@ export class БабкаДвижок {
     }
 
     const рисоватьГероя = () => {
-      const px = W / 2;
+      const px = W / 2 + this.сдвигВоскрешения();
       const дуга = this.прыгает ? Math.sin(this.t * Math.PI) * 10 : 0;
       const размерП = п.высота * 1.2;
       const низ = y(this.позиция) + размерП * 0.42 - дуга;
@@ -531,7 +538,7 @@ export class БабкаДвижок {
     for (let i = iМакс; i >= iМин; i--) {
       const л = this.полосы.get(i);
       const yc = y(i);
-      if (Math.floor(this.позиция) === i) рисоватьГероя();
+      if (Math.floor(this.позиция) === i && !(this.воскрешение && this.воскрешение.фаза >= 1)) рисоватьГероя();
       if (!л) continue;
       if (л.дорога) {
         for (const в of л.враги) рисоватьМашину(в, л.направление === -1, yc);
@@ -598,11 +605,12 @@ export class БабкаДвижок {
         const гц = ст - вс / 2;
         ctx.save();
         ctx.globalAlpha = this.воскрешение.фаза === 3 ? 1 - Math.min(1, this.воскрешение.t / ФАЗЫ_ВОСКРЕШЕНИЯ[3]) : 1;
-        const гл = ctx.createRadialGradient(W / 2, гц, 10, W / 2, гц, вс * k);
+        const сд = this.сдвигВоскрешения();
+        const гл = ctx.createRadialGradient(W / 2 + сд, гц, 10, W / 2 + сд, гц, вс * k);
         гл.addColorStop(0, "rgba(255,225,120,0.9)");
         гл.addColorStop(1, "rgba(255,190,40,0)");
         ctx.fillStyle = гл;
-        ctx.beginPath(); ctx.arc(W / 2, гц, вс * k, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(W / 2 + сд, гц, вс * k, 0, Math.PI * 2); ctx.fill();
         ctx.translate(W / 2, ст); ctx.scale(k, k); ctx.translate(-W / 2, -ст);
         рисоватьГероя();
         ctx.restore();
