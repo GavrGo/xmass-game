@@ -2,7 +2,7 @@ import { ПЛЮС_НАВЫКИ } from "../config";
 
 export type ИграСНавыками = "ksuha" | "babka" | "match3";
 
-export type ИдНавыка = "dash" | "armor" | "spiderSense" | "resurrection" | "repair" | "berserk" | "piggy" | "boom" | "tactic" | "piggyPlus" | "boomPlus" | "tacticPlus" | "resurrectionPlus" | "repairPlus" | "berserkPlus";
+export type ИдНавыка = "dash" | "armor" | "spiderSense" | "resurrection" | "repair" | "berserk" | "piggy" | "boom" | "tactic" | "piggyPlus" | "boomPlus" | "tacticPlus" | "resurrectionPlus" | "repairPlus" | "berserkPlus" | "dashPlus" | "armorPlus" | "spiderSensePlus";
 
 export interface Навык {
   id: ИдНавыка;
@@ -140,6 +140,33 @@ export const НАВЫКИ: Навык[] = [
     название: "Берсерк+",
     описание: "Режим берсерка длится на 50% дольше",
     иконка: "🔥",
+  },
+  {
+    id: "dashPlus",
+    игра: "ksuha",
+    плюсДля: "dash",
+    уровень: ПЛЮС_НАВЫКИ.уровни.рывокПлюс,
+    название: "Рывок+",
+    описание: "Рывок в 2 раза мощнее: дальше и быстрее",
+    иконка: "💨",
+  },
+  {
+    id: "armorPlus",
+    игра: "ksuha",
+    плюсДля: "armor",
+    уровень: ПЛЮС_НАВЫКИ.уровни.броняПлюс,
+    название: "Броня+",
+    описание: "Щит восстанавливается после 15 пройденных препятствий",
+    иконка: "🛡️",
+  },
+  {
+    id: "spiderSensePlus",
+    игра: "ksuha",
+    плюсДля: "spiderSense",
+    уровень: ПЛЮС_НАВЫКИ.уровни.паучьеЧутьёПлюс,
+    название: "Паучье чутьё+",
+    описание: "Монетки и подарки притягиваются к игроку как магнит",
+    иконка: "🕸️",
   },
 ];
 
