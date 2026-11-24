@@ -17,6 +17,7 @@ import ПолосаОчков from "../components/MatchProgress";
 import GameMenu from "../components/GameMenu";
 import GameResult from "../components/GameResult";
 import LevelBanner from "../components/LevelBanner";
+import { навыкиИгры, открытыеНавыки } from "../game/skills";
 import { createPortal } from "react-dom";
 import {
   КОЛ, СТР, Поле, соседи, поменять, найтиСерии, разрушения, упасть, естьХод, начальноеПоле, перемешатьПоле,
@@ -48,6 +49,7 @@ export default function Match3() {
   const { user, change } = useUser();
   const { бонус, мастерство, начатьЗабег, шкала, начислить: начислитьМастерство } = useMastery("match3");
   const navigate = useNavigate();
+  const открытые = new Set(открытыеНавыки("match3", мастерство.уровень).map((н) => н.id));
   useNoSwipes(); // игра управляется только тапами
 
   const [фаза, setФаза] = useState<Фаза>("menu");
@@ -91,6 +93,8 @@ export default function Match3() {
   const очкиRef = useRef(0);
   const ходыRef = useRef(0);
   const цельRef = useRef(0);
+  const переносRef = useRef(0);
+  const тактикRef = useRef(true);
   const этапRef = useRef(1);
   const занято = useRef(false);
   const сессия = useRef({ пройдено: 0, фишек: 0, сырых: 0 });
@@ -144,7 +148,7 @@ export default function Match3() {
     этапRef.current = n; setЭтап(n);
     цельRef.current = цельЭтапа(n); setЦель(цельRef.current);
     ходыRef.current = ходовЭтапа(n); setХоды(ходыRef.current);
-    очкиRef.current = 0; визРef.current = 0; визТокен.current++; setОчки(0);
+    очкиRef.current = переносRef.current; переносRef.current = 0; тактикRef.current = true; визРef.current = 0; визТокен.current++; setОчки(очкиRef.current);
     const п = начальноеПоле();
     полеRef.current = п; setПоле(п);
     setНовые(new Set()); setУдаляются(new Set()); setВыбранная(null);
@@ -257,6 +261,7 @@ export default function Match3() {
     const { user: u, change: изменить } = свежее.current;
     if (!u) return;
     const н = этапRef.current;
+    переносRef.current = открытые.has("piggy") ? Math.max(0, очкиRef.current - цельRef.current) : 0;
     const сырая = наградаЭтапа(н, ходыRef.current, u.salary_level);
     const награда = сБонусом(сырая, бонус);
     const рекорд = u.best_match3 ?? 0;
@@ -300,6 +305,15 @@ export default function Match3() {
       await пауза(К.анимацияМс);
 
       let серии = найтиСерии(п);
+      if (!серии.length && открытые.has("tactic") && тактикRef.current) {
+        тактикRef.current = false;
+        звук.sfx("ход");
+        ходыRef.current -= 1;
+        setХоды(ходыRef.current);
+        if (ходыRef.current <= 0) await завершить("ходы");
+        return;
+      }
+
       if (!серии.length) {
         // Совпадения нет — возвращаем обратно, ход не тратится
         п = поменять(п, a, b);
@@ -315,7 +329,7 @@ export default function Match3() {
       let каскад = 1;
       let центры = [a, b];
       while (серии.length) {
-        const р = разрушения(п, серии, центры);
+        const р = разрушения(п, серии, центры, открытые.has("boom") ? К.радиусВзрыва + 1 : К.радиусВзрыва);
         центры = [];
         const очкиБатча = очкиЗаШаг(р.индексы.size, каскад);
         очкиRef.current += очкиБатча;
@@ -504,6 +518,7 @@ export default function Match3() {
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
         <GameMenu
+          навыки={навыкиИгры("match3")}
           колонка="best_match3"
           название={Т.игры.три_в_ряд.название}
           форматРекорда={(n) => `Уровень ${n}`}
