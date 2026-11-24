@@ -2,7 +2,7 @@ import { ПЛЮС_НАВЫКИ } from "../config";
 
 export type ИграСНавыками = "ksuha" | "babka" | "match3";
 
-export type ИдНавыка = "dash" | "armor" | "spiderSense" | "resurrection" | "repair" | "berserk" | "piggy" | "boom" | "tactic" | "piggyPlus" | "boomPlus" | "tacticPlus";
+export type ИдНавыка = "dash" | "armor" | "spiderSense" | "resurrection" | "repair" | "berserk" | "piggy" | "boom" | "tactic" | "piggyPlus" | "boomPlus" | "tacticPlus" | "resurrectionPlus" | "repairPlus" | "berserkPlus";
 
 export interface Навык {
   id: ИдНавыка;
@@ -113,6 +113,33 @@ export const НАВЫКИ: Навык[] = [
     название: "Тактик+",
     описание: "За этап можно сделать два свободных обмена фишек без комбинаций вместо одного",
     иконка: "🧭",
+  },
+  {
+    id: "resurrectionPlus",
+    игра: "babka",
+    плюсДля: "resurrection",
+    уровень: ПЛЮС_НАВЫКИ.уровни.воскрешениеПлюс,
+    название: "Воскрешение+",
+    описание: "Два воскрешения за забег вместо одного",
+    иконка: "✨",
+  },
+  {
+    id: "repairPlus",
+    игра: "babka",
+    плюсДля: "repair",
+    уровень: ПЛЮС_НАВЫКИ.уровни.ремонтПлюс,
+    название: "Ремонт+",
+    описание: "Дороги закрываются на ремонт в 2 раза чаще",
+    иконка: "🔧",
+  },
+  {
+    id: "berserkPlus",
+    игра: "babka",
+    плюсДля: "berserk",
+    уровень: ПЛЮС_НАВЫКИ.уровни.берсеркПлюс,
+    название: "Берсерк+",
+    описание: "Режим берсерка длится на 50% дольше",
+    иконка: "🔥",
   },
 ];
 
