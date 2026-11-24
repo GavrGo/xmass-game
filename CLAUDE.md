@@ -43,7 +43,8 @@
 - `src/store/UserContext.tsx` — состояние пользователя.
 - `src/lib/` — хуки и утилиты: `useMastery.ts`, `useGlobalRecord.ts`, `useDuelNotices.ts`, `useIncomingDuels.ts`, `useNoSwipes.ts`, `useFinalFreeze.ts`, `sound.ts`, `haptic.ts`, `telegram.ts`, `format.ts`, `stats.ts`, `assets.ts`, `spriteBox.ts`, `spiralTransition.ts`, `final.ts`.
 - `api/broadcast.js`, `api/notify.js` — серверные функции Vercel (уведомления в Telegram через бота).
-- `migrations/` — миграции `002`–`012`, `supabase.sql` — базовая схема.
+- `migrations/` — миграции `002`–`013`, `supabase.sql` — базовая схема. `013` — таблица `record_notices` и триггеры смены глобального рекорда.
+- `src/api/records.ts`, `src/components/RecordToast.tsx` — уведомления о смене глобального рекорда (Telegram + всплывашка при входе в игру).
 
 ### Админка
 - `src/admin/` — `AdminPage.tsx`, `AdminStats.tsx`, `AdminBroadcast.tsx`.

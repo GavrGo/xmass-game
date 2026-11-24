@@ -5,6 +5,7 @@ const ШАБЛОНЫ = {
   missed: (n) => `⌛ ${n} ждал вас на дуэли до последнего, но вы не пришли... ⌛`,
   won: (n, s) => `🎉🎉🎉 ${n} принял вашу дуэль, и вы победили! Вам достаётся ${s} хэпэшек. 🎉🎉🎉`,
   lost: (n, s) => `😭😭😭 ${n} принял вашу дуэль и победил. Ваша ставка ушла ему (всего ${s} хэпэшек) 😭😭😭.`,
+  record: (n, _s, игра, кто) => `🏆 ${n}, твой рекорд в «${игра}» побил пользователь ${кто}!`,
   draw: (n) => `🤝 ${n} принял вашу дуэль — ничья! Ставки вернулись игрокам.🤝`,
 };
 
@@ -36,11 +37,11 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: "BOT_TOKEN не задан" });
   }
 
-  const { kind, to, name, amount } = req.body || {};
+  const { kind, to, name, amount, game, by } = req.body || {};
   const шаблон = ШАБЛОНЫ[kind];
   if (!шаблон || !Number.isFinite(Number(to))) return res.status(400).json({ ok: false, error: "bad request" });
 
-  const text = шаблон(String(name ?? "").slice(0, 40), Math.floor(Number(amount) || 0));
+  const text = шаблон(String(name ?? "").slice(0, 40), Math.floor(Number(amount) || 0), String(game ?? "").slice(0, 60), String(by ?? "").slice(0, 40));
   const payload = { chat_id: Number(to), text };
   try {
     const j = await телеграм("sendMessage", payload);

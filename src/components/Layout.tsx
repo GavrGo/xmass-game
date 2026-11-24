@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import BottomNav from "./BottomNav";
 import ДуэльнаяПлашка from "./DuelToast";
+import RecordToast from "./RecordToast";
 import { useFinalFreeze } from "../lib/useFinalFreeze";
 import ВерхняяПанель from "./TopBar";
 import БалансыПилюли from "./BalancePills";
@@ -26,6 +27,7 @@ export default function Layout() {
       <Outlet />
       <BottomNav />
       <ДуэльнаяПлашка />
+      <RecordToast />
     </div>
   );
 }

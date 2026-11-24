@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { getTelegramId } from "../lib/telegram";
 import { getUser, createUser, updateUser, isAdmin as проверитьАдмина } from "../api/users";
 import { supabase } from "../lib/supabase";
+import { отправитьУведомленияОРекордах } from "../api/records";
 import type { User } from "../types";
 import { Т } from "../texts";
 
@@ -99,6 +100,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       await updateUser(текущий.telegram_id, {
         chips: новый.chips, tickets: новый.tickets, hearts: новый.hearts, ...extra,
       });
+      if (Object.keys(extra).some((k) => k.startsWith("best_"))) {
+        отправитьУведомленияОРекордах(текущий.telegram_id).catch((e) => console.warn("record notify:", e));
+      }
     } catch (e) {
       записать(текущий); // не сохранилось — откатываем
       throw e;
