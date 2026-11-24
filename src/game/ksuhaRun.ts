@@ -30,8 +30,8 @@ const загрузить = (путь: string) => Object.assign(new Image(), { sr
 const готова = (img: HTMLImageElement) => img.complete && img.naturalWidth > 0;
 const фонИмг = загрузить(ПУТЬ_АССЕТОВ + "BG.png");
 const дорогаИмг = загрузить(ПУТЬ_АССЕТОВ + "Road.png");
-const КАДРЫ_КСЮХИ = Array.from({ length: 6 }, (_, i) => загрузить(`ksuha-run-${i + 1}.png`));
-const КАДРЫ_МЭНА = Array.from({ length: 6 }, (_, i) => загрузить(`man-run-${i + 1}.png`));
+const КАДРЫ_КСЮХИ = Array.from({ length: 6 }, (_, i) => загрузить(ПУТЬ_АССЕТОВ + `ksuha-run-${i + 1}.png`));
+const КАДРЫ_МЭНА = Array.from({ length: 6 }, (_, i) => загрузить(ПУТЬ_АССЕТОВ + `man-run-${i + 1}.png`));
 const ФПС_СТАРТ = 12;
 const ФПС_МИН = 4;
 const ФПС_МАКС = 14;
