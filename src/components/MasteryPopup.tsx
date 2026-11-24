@@ -18,7 +18,7 @@ export default function MasteryPopup({ название, инфо, держат�
   return createPortal(
     <Modal тон="calm" onClose={onClose}>
           <div className={инфо.заблокирован ? "brightness-75" : ""}>
-          <h3 className="text-lg font-bold">Мастерство · {название}</h3>
+          <h3 className="pr-10 text-lg font-bold">Мастерство · {название}</h3>
           {инфо.заблокирован ? (
             <p className="mb-4 flex items-start gap-2 rounded-xl bg-black/40 px-3 py-2 text-xs font-semibold text-orange-200 ring-1 ring-orange-300/40">
               <LockIcon className="mt-px h-3.5 w-3.5 shrink-0" />

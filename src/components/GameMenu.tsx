@@ -30,20 +30,29 @@ interface Props {
 
 function НавыкиПанель({ навыки, мастерство }: { навыки: Навык[]; мастерство: Мастерство }) {
   const [открытый, setОткрытый] = useState<string | null>(null);
-  const выбранный = навыки.find((н) => н.id === открытый && мастерство.уровень >= н.уровень);
+  const элементы = навыки.filter((н) => !н.плюсДля).map((базовый) => {
+    const плюс = навыки.find((н) => н.плюсДля === базовый.id);
+    const плюсОткрыт = !!плюс && мастерство.уровень >= плюс.уровень;
+    return {
+      базовый,
+      плюсОткрыт,
+      открыт: мастерство.уровень >= базовый.уровень,
+      показ: (плюсОткрыт && плюс) || базовый,
+    };
+  });
+  const выбранный = элементы.find((э) => э.базовый.id === открытый && э.открыт)?.показ;
 
   return (
     <div className="relative mt-4 w-full max-w-sm">
       <div className="flex justify-between px-2">
-        {навыки.map((н) => {
-          const открыт = мастерство.уровень >= н.уровень;
+        {элементы.map(({ базовый: н, плюсОткрыт, открыт }) => {
           return (
             <div key={н.id} className="flex w-20 flex-col items-center">
               <button
                 type="button"
                 disabled={!открыт}
                 onClick={() => setОткрытый(открытый === н.id ? null : н.id)}
-                className={`relative flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-2xl ring-1 ring-white/10 ${открыт ? "" : "opacity-40 grayscale"}`}
+                className={`relative flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-2xl ring-1 ring-white/10 ${открыт ? (плюсОткрыт ? "skill-plus" : "") : "opacity-40 grayscale"}`}
               >
                 {н.иконка}
                 {!открыт && (
@@ -85,7 +94,7 @@ export default function GameMenu({
       {навыки && навыки.length > 0 && <НавыкиПанель навыки={навыки} мастерство={мастерство} />}
 
       <div className="mt-6 grid w-full max-w-sm gap-3">
-        <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+        <div role="button" onClick={() => setПопапОткрыт(true)} className="cursor-pointer rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
           <div className="flex items-end justify-between">
             <div>
               <div className="text-[11px] uppercase tracking-wider text-white/50">Мастерство</div>
@@ -96,7 +105,7 @@ export default function GameMenu({
               <div className="text-lg font-extrabold text-amber-300">+{мастерство.процент}%</div>
             </div>
           </div>
-          <div role="button" onClick={() => setПопапОткрыт(true)} className={`mt-3 h-2 cursor-pointer overflow-hidden rounded-full bg-black/50 ${мастерство.заблокирован ? "opacity-40 grayscale" : ""}`}>
+          <div className={`mt-3 h-2 cursor-pointer overflow-hidden rounded-full bg-black/50 ${мастерство.заблокирован ? "opacity-40 grayscale" : ""}`}>
             <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-[width] duration-500" style={{ width: `${Math.round(мастерство.прогресс * 100)}%` }} />
           </div>
           {мастерство.заблокирован && (
