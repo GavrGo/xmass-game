@@ -90,6 +90,9 @@ export default function Blackjack() {
   const рИ = useRef<Карта[]>([]);
   const рТ = useRef<Карта[]>([]);
   const комиссияRef = useRef(комиссия);
+  const раундАктивен = useRef(false);
+  const patchRef = useRef(patch);
+  patchRef.current = patch;
   const занят = useRef(false);
   const жив = useRef(true);
   const счётчик = useRef(0);
@@ -104,7 +107,16 @@ export default function Blackjack() {
   useEffect(() => {
     жив.current = true;
     раздать();
-    return () => { жив.current = false; clearTimeout(таймерРеплики.current); };
+    return () => {
+      жив.current = false;
+      clearTimeout(таймерРеплики.current);
+      setTimeout(() => {
+        if (!жив.current && раундАктивен.current) {
+          раундАктивен.current = false;
+          сдвинутьКомиссию(БЛЭКДЖЕК.шагКомиссииПроигрышПроцентов);
+        }
+      }, 0);
+    };
   }, []);
 
   const взять = (кому: "и" | "т") => {
@@ -121,7 +133,18 @@ export default function Blackjack() {
     таймерРеплики.current = setTimeout(() => setРеплика(null), БЛЭКДЖЕК.показФразыСек * 1000);
   };
 
+  const сдвинутьКомиссию = (сдвиг: number) => {
+    const было = комиссияRef.current;
+    const стало = Math.min(ОБМЕН.максимальнаяКомиссияПроцентов, Math.max(ОБМЕН.минимальнаяКомиссияПроцентов, было + сдвиг));
+    if (стало === было) return;
+    комиссияRef.current = стало;
+    setКомиссия(стало);
+    setДельта({ id: ++счётчик.current, v: стало - было });
+    patchRef.current({ exchange_fee: стало }).catch((e: any) => setОшибка(ТБ.ошибкаСохранения(e?.message ?? "")));
+  };
+
   const завершить = async () => {
+    раундАктивен.current = false;
     const п = рИ.current;
     const т = рТ.current;
     const вид = исход(п, т);
@@ -132,15 +155,8 @@ export default function Blackjack() {
       : блэкджек(т) && вид === "lose" ? ТБ.блэкджекТорговца
       : "";
 
-    const было = комиссияRef.current;
     const сдвиг = вид === "lose" ? БЛЭКДЖЕК.шагКомиссииПроигрышПроцентов : вид === "win" ? -БЛЭКДЖЕК.шагКомиссииПобедаПроцентов : 0;
-    const стало = Math.min(ОБМЕН.максимальнаяКомиссияПроцентов, Math.max(ОБМЕН.минимальнаяКомиссияПроцентов, было + сдвиг));
-    if (стало !== было) {
-      комиссияRef.current = стало;
-      setКомиссия(стало);
-      setДельта({ id: ++счётчик.current, v: стало - было });
-      patch({ exchange_fee: стало }).catch((e: any) => setОшибка(ТБ.ошибкаСохранения(e?.message ?? "")));
-    }
+    сдвинутьКомиссию(сдвиг);
 
     setИтог({ вид, подпись });
     setФаза("done");
@@ -194,6 +210,7 @@ export default function Blackjack() {
     setФаза("dealing");
     стат("plays_blackjack");
     колода.current = новаяКолода();
+    раундАктивен.current = true;
 
     await пауза(150);
     for (const кому of ["и", "т", "и", "т"] as const) {

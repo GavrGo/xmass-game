@@ -48,7 +48,7 @@ export default function MerchantStage({
         const x = 50 + сдвиг + c * 28;
         const y = 5 + r * 15;
         if (x < -12 || x > 112) continue;
-        точки.push({ x, y, задержка: Math.hypot((x - 50) / 50, (y - 50) / 50) * 0.25 });
+        точки.push({ x, y, задержка: Math.hypot((x - 50) / 50, (y - 50) / 50) * 0.45 });
       }
     }
     return точки;
@@ -57,6 +57,23 @@ export default function MerchantStage({
   return (
     <div className="relative w-full" style={{ height: высота }}>
       <div className="absolute inset-0 overflow-hidden">
+        {картинка === "обменБлэкджек" ? шахматка.map((т, i) => (
+          <div key={`${процент}-${i}`} className="pointer-events-none absolute select-none font-black"
+            style={{ left: `${т.x}%`, top: `${т.y}%`, transform: "translate(-50%, -50%)", lineHeight: 1, whiteSpace: "nowrap" }}>
+            <span className="bj-wave inline-block"
+              style={{ fontSize: высота * 0.15, animationDelay: `${т.задержка}s`, background: "linear-gradient(to bottom, rgba(255,96,80,.42) 0%, rgba(120,12,22,.2) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              {процент}%
+            </span>
+          </div>
+        )) : (
+          <div key={процент} className="pointer-events-none absolute left-1/2 select-none font-black"
+            style={{ top: 8, transform: "translateX(-50%)", lineHeight: 0.9, whiteSpace: "nowrap" }}>
+            <span className="bj-pct inline-block"
+              style={{ fontSize: "46vw", background: "linear-gradient(to bottom, rgba(255,96,80,.75) 0%, rgba(120,12,22,.35) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              {процент}%
+            </span>
+          </div>
+        )}
         <div className="absolute inset-0" style={{ maskImage: маска, WebkitMaskImage: маска }}>
         <div className="bj-flame absolute inset-0" style={{ background: "radial-gradient(ellipse 75% 85% at 50% 75%, rgba(214,32,40,.55), rgba(120,10,20,.25) 55%, transparent 80%)" }} />
         <div className="bj-flame bj-flame-b absolute inset-0" style={{ background: "radial-gradient(ellipse 45% 60% at 30% 90%, rgba(255,70,40,.35), transparent 70%), radial-gradient(ellipse 45% 60% at 72% 95%, rgba(230,40,60,.3), transparent 70%)" }} />
@@ -65,23 +82,6 @@ export default function MerchantStage({
             style={{ width: высота * 0.95, height: высота * 0.95, background: "radial-gradient(circle, rgba(200,28,40,.5) 0%, rgba(110,10,20,.35) 60%, transparent 72%)" }} />
         )}
         </div>
-        {картинка === "обменБлэкджек" ? шахматка.map((т, i) => (
-          <div key={i} className="pointer-events-none absolute select-none font-black"
-            style={{ left: `${т.x}%`, top: `${т.y}%`, transform: "translate(-50%, -50%)", lineHeight: 1, whiteSpace: "nowrap" }}>
-            <span className="bj-wave inline-block"
-              style={{ fontSize: высота * 0.15, animationDelay: `${т.задержка}s`, background: "linear-gradient(to bottom, rgba(255,96,80,.42) 0%, rgba(120,12,22,.2) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              {процент}%
-            </span>
-          </div>
-        )) : (
-          <div className="pointer-events-none absolute select-none font-black"
-            style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)", lineHeight: 1, whiteSpace: "nowrap" }}>
-            <span className="bj-pct inline-block"
-              style={{ fontSize: высота * 0.5, background: "linear-gradient(to bottom, rgba(255,96,80,.75) 0%, rgba(120,12,22,.35) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              {процент}%
-            </span>
-          </div>
-        )}
         {искры.map((и, i) => (
           <span key={i} className="bj-spark" style={{
             left: `${и.left}%`, width: и.размер, height: и.размер,
