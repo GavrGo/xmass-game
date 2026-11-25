@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { АССЕТЫ, РАСКЛАДКА_ТОРГОВЦА } from "../config";
 import { Картинка } from "./Icon";
@@ -54,26 +54,39 @@ export default function MerchantStage({
     return точки;
   }, []);
 
+  const [показано, setПоказано] = useState<number[]>(() => шахматка.map(() => процент));
+  useEffect(() => {
+    const таймеры = шахматка.map((т, i) => setTimeout(() => {
+      setПоказано((прев) => {
+        const новый = [...прев];
+        новый[i] = процент;
+        return новый;
+      });
+    }, т.задержка * 1000));
+    return () => таймеры.forEach(clearTimeout);
+  }, [процент, шахматка]);
+
   return (
     <div className="relative w-full" style={{ height: высота }}>
+      {картинка !== "обменБлэкджек" && (
+        <div key={процент} className="pointer-events-none absolute left-1/2 select-none font-black"
+          style={{ top: -16, transform: "translateX(-50%)", lineHeight: 0.9, whiteSpace: "nowrap" }}>
+          <span className="bj-pct inline-block"
+            style={{ fontSize: "52vw", background: "linear-gradient(to bottom, rgba(255,96,80,.75) 0%, rgba(120,12,22,.35) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            {процент}%
+          </span>
+        </div>
+      )}
       <div className="absolute inset-0 overflow-hidden">
-        {картинка === "обменБлэкджек" ? шахматка.map((т, i) => (
-          <div key={`${процент}-${i}`} className="pointer-events-none absolute select-none font-black"
+        {картинка === "обменБлэкджек" && шахматка.map((т, i) => (
+          <div key={i} className="pointer-events-none absolute select-none font-black"
             style={{ left: `${т.x}%`, top: `${т.y}%`, transform: "translate(-50%, -50%)", lineHeight: 1, whiteSpace: "nowrap" }}>
-            <span className="bj-wave inline-block"
-              style={{ fontSize: высота * 0.15, animationDelay: `${т.задержка}s`, background: "linear-gradient(to bottom, rgba(255,96,80,.42) 0%, rgba(120,12,22,.2) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              {процент}%
+            <span key={показано[i]} className="bj-wave inline-block"
+              style={{ fontSize: высота * 0.15, background: "linear-gradient(to bottom, rgba(255,96,80,.42) 0%, rgba(120,12,22,.2) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              {показано[i]}%
             </span>
           </div>
-        )) : (
-          <div key={процент} className="pointer-events-none absolute left-1/2 select-none font-black"
-            style={{ top: 0, transform: "translateX(-50%)", lineHeight: 0.9, whiteSpace: "nowrap" }}>
-            <span className="bj-pct inline-block"
-              style={{ fontSize: "60vw", background: "linear-gradient(to bottom, rgba(255,96,80,.75) 0%, rgba(120,12,22,.35) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              {процент}%
-            </span>
-          </div>
-        )}
+        ))}
         <div className="absolute inset-0" style={{ maskImage: маска, WebkitMaskImage: маска }}>
         <div className="bj-flame absolute inset-0" style={{ background: "radial-gradient(ellipse 75% 85% at 50% 75%, rgba(214,32,40,.55), rgba(120,10,20,.25) 55%, transparent 80%)" }} />
         <div className="bj-flame bj-flame-b absolute inset-0" style={{ background: "radial-gradient(ellipse 45% 60% at 30% 90%, rgba(255,70,40,.35), transparent 70%), radial-gradient(ellipse 45% 60% at 72% 95%, rgba(230,40,60,.3), transparent 70%)" }} />
