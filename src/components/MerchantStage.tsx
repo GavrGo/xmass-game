@@ -42,7 +42,7 @@ export default function MerchantStage({
 
   const шахматка = useMemo(() => {
     const точки: { x: number; y: number; задержка: number }[] = [];
-    for (let r = 0; r < 7; r++) {
+    for (let r = 0; r < 6; r++) {
       const сдвиг = r % 2 ? 14 : 0;
       for (let c = -2; c <= 2; c++) {
         const x = 50 + сдвиг + c * 28;
@@ -67,9 +67,9 @@ export default function MerchantStage({
           </div>
         )) : (
           <div key={процент} className="pointer-events-none absolute left-1/2 select-none font-black"
-            style={{ top: 8, transform: "translateX(-50%)", lineHeight: 0.9, whiteSpace: "nowrap" }}>
+            style={{ top: 0, transform: "translateX(-50%)", lineHeight: 0.9, whiteSpace: "nowrap" }}>
             <span className="bj-pct inline-block"
-              style={{ fontSize: "46vw", background: "linear-gradient(to bottom, rgba(255,96,80,.75) 0%, rgba(120,12,22,.35) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ fontSize: "60vw", background: "linear-gradient(to bottom, rgba(255,96,80,.75) 0%, rgba(120,12,22,.35) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               {процент}%
             </span>
           </div>
