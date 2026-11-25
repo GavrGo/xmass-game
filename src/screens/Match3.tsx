@@ -149,7 +149,7 @@ export default function Match3() {
     этапRef.current = n; setЭтап(n);
     цельRef.current = цельЭтапа(n); setЦель(цельRef.current);
     ходыRef.current = ходовЭтапа(n); setХоды(ходыRef.current);
-    очкиRef.current = переносRef.current; переносRef.current = 0; тактикRef.current = открытые.has("tacticPlus") ? 2 : 1; визРef.current = 0; визТокен.current++; setОчки(очкиRef.current);
+    очкиRef.current = переносRef.current; переносRef.current = 0; тактикRef.current = открытые.has("tacticPlus") ? 2 : 1; визРef.current = очкиRef.current; визТокен.current++; setОчки(очкиRef.current);
     const п = начальноеПоле();
     полеRef.current = п; setПоле(п);
     setНовые(new Set()); setУдаляются(new Set()); setВыбранная(null);
