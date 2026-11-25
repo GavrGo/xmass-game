@@ -7,6 +7,7 @@ import { стат } from "../lib/stats";
 import { звук } from "../lib/sound";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { useUser } from "../store/UserContext";
+import { бонусЗарплатыПроц } from "../game/effects";
 import { useMastery, сБонусом } from "../lib/useMastery";
 import { спиральныйПереход } from "../lib/spiralTransition";
 import { ТРИ_В_РЯД as К } from "../config";
@@ -549,7 +550,7 @@ export default function Match3() {
         <GameResult
           заголовок={итог.причина === "ходы" ? ТМ.ходыЗакончились : ТМ.играЗавершена}
           база={итог.база}
-          прокачкаПроц={0}
+          прокачкаПроц={бонусЗарплатыПроц({ salary_level: user?.salary_level ?? 0 })}
           мастерство={мастерство} шкала={шкала}
           итог={итог.фишек}
           прогресс={{ подпись: "Уровень", значение: String(итог.пройдено) }}

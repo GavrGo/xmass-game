@@ -13,7 +13,7 @@ import { useMastery, сБонусом } from "../lib/useMastery";
 import { ДЖИРА_ФАЙТ as К } from "../config";
 import { getGlobalRecord, Рекорд } from "../api/users";
 import { глобальныйРекорд } from "../game/records";
-import { бонусВремениСек } from "../game/effects";
+import { бонусВремениСек, бонусЗарплатыПроц } from "../game/effects";
 import type { User } from "../types";
 import {
   Доски, Режим, завершена, можноПерелить, перелить, верхняяПорция, естьХод, уровеньРешён,
@@ -338,7 +338,7 @@ export default function JiraFight() {
         <GameResult
           заголовок={итог.причина === "время" ? ТЖ.итог.времяВышло : итог.причина === "нет ходов" ? ТЖ.итог.нетХодов : ТЖ.итог.завершена}
           база={итог.база}
-          прокачкаПроц={0}
+          прокачкаПроц={бонусЗарплатыПроц({ salary_level: user?.salary_level ?? 0 })}
           мастерство={мастерство} шкала={шкала}
           итог={итог.фишек}
           прогресс={{ подпись: "Уровень", значение: String(итог.уровней) }}
