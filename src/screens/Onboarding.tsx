@@ -103,7 +103,7 @@ export default function Onboarding() {
             {эмодзи}
           </div>
 
-          <button onClick={крутить} disabled={кончились || крутится} className="btn btn-primary mt-3 w-full">{Т.онбординг.аватар.крутить}</button>
+          <button onClick={крутить} disabled={кончились || крутится} className="btn btn-secondary mt-3 w-full">{Т.онбординг.аватар.крутить}</button>
           <button onClick={подтвердить} disabled={!выбрано || крутится || сохраняем} className="btn btn-primary mt-2 w-full">
             {сохраняем ? Т.онбординг.аватар.сохраняем : Т.онбординг.аватар.продолжить}
           </button>
