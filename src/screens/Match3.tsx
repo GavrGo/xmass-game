@@ -258,11 +258,12 @@ export default function Match3() {
   };
 
   /** Этап пройден: награда сразу зачисляется (и рекорд обновляется). */
-  const этапПройден = async () => {
+  const этапПройден = async (пропуск = false) => {
     const { user: u, change: изменить } = свежее.current;
     if (!u) return;
     const н = этапRef.current;
-    переносRef.current = открытые.has("piggy") ? Math.floor(Math.max(0, очкиRef.current - цельRef.current) * (открытые.has("piggyPlus") ? ПЛЮС_НАВЫКИ.копилкаПлюсМножитель : 1)) : 0;
+    const избыток = Math.max(0, очкиRef.current - цельRef.current);
+    переносRef.current = открытые.has("piggy") ? (пропуск ? избыток : Math.floor(избыток * (открытые.has("piggyPlus") ? ПЛЮС_НАВЫКИ.копилкаПлюсМножитель : 1))) : 0;
     const сырая = наградаЭтапа(н, ходыRef.current, u.salary_level);
     const награда = сБонусом(сырая, бонус);
     const рекорд = u.best_match3 ?? 0;
@@ -288,6 +289,11 @@ export default function Match3() {
     звук.sfx("победа");
     if (!сохранилось) показатьПопап(ТМ.ошибкаНаграды);
     else if (предупреждение) показатьПопап(предупреждение);
+    if (переносRef.current >= цельЭтапа(н + 1)) {
+      начатьЭтап(н + 1);
+      await этапПройден(true);
+      return;
+    }
     await спиральныйПереход(доскаRef.current, () => {
       начатьЭтап(н + 1);
       показатьБаннер(ТМ.баннерЭтапа(н + 1));
