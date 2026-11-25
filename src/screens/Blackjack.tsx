@@ -186,6 +186,11 @@ export default function Blackjack() {
     setТорговец([]);
     setЗакрыта(true);
     setИтог(null);
+    if (комиссияRef.current <= ОБМЕН.минимальнаяКомиссияПроцентов) {
+      показатьФразу(ТБ.минимум(ОБМЕН.минимальнаяКомиссияПроцентов));
+      setФаза("done");
+      return;
+    }
     setФаза("dealing");
     стат("plays_blackjack");
     колода.current = новаяКолода();

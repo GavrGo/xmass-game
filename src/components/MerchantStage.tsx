@@ -40,6 +40,19 @@ export default function MerchantStage({
     []
   );
 
+  const шахматка = useMemo(() => {
+    const точки: { x: number; y: number; задержка: number }[] = [];
+    for (let r = 0; r < 4; r++) {
+      const сдвиг = r % 2 ? 20 : 10;
+      for (let c = 0; c < (r % 2 ? 4 : 5); c++) {
+        const x = сдвиг + c * 20;
+        const y = 12 + r * 25;
+        точки.push({ x, y, задержка: Math.hypot((x - 50) / 50, (y - 50) / 50) * 0.25 });
+      }
+    }
+    return точки;
+  }, []);
+
   return (
     <div className="relative w-full" style={{ height: высота }}>
       <div className="absolute inset-0 overflow-hidden">
@@ -51,12 +64,15 @@ export default function MerchantStage({
             style={{ width: высота * 0.95, height: высота * 0.95, background: "radial-gradient(circle, rgba(200,28,40,.5) 0%, rgba(110,10,20,.35) 60%, transparent 72%)" }} />
         )}
         </div>
-        <div className="pointer-events-none absolute inset-x-0 select-none text-center font-black" style={{ top: -высота * 0.04, fontSize: высота * 1.12, lineHeight: 0.85, whiteSpace: "nowrap" }}>
-          <span key={процент} className="bj-pct inline-block"
-            style={{ background: "linear-gradient(to bottom, rgba(170,24,34,.6) 0%, rgba(70,8,14,.3) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            {процент}%
-          </span>
-        </div>
+        {шахматка.map((т, i) => (
+          <div key={i} className="pointer-events-none absolute select-none font-black"
+            style={{ left: `${т.x}%`, top: `${т.y}%`, transform: "translate(-50%, -50%)", lineHeight: 1, whiteSpace: "nowrap" }}>
+            <span key={`${процент}-${i}`} className="bj-wave inline-block"
+              style={{ fontSize: высота * 0.15, animationDelay: `${т.задержка}s`, background: "linear-gradient(to bottom, rgba(255,96,80,.75) 0%, rgba(120,12,22,.35) 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              {процент}%
+            </span>
+          </div>
+        ))}
         {искры.map((и, i) => (
           <span key={i} className="bj-spark" style={{
             left: `${и.left}%`, width: и.размер, height: и.размер,
