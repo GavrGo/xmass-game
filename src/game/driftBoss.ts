@@ -121,6 +121,10 @@ export const DRIFT = {
   repairReach: 26,
   smokeMax: 90,
   sparkMax: 160,
+  distPerPoint: 100,
+  coinPoints: 10,
+  copKillPoints: 30,
+  popLife: 1.1,
 };
 
 const VEC = [
@@ -279,6 +283,13 @@ interface Hist {
   route: number;
 }
 
+export interface Pop {
+  x: number;
+  y: number;
+  z: number;
+  age: number;
+}
+
 export interface Game extends Pose {
   track: Track;
   route: number;
@@ -307,6 +318,8 @@ export interface Game extends Pose {
   marks: Mark[];
   health: number;
   boomT: number;
+  kills: number;
+  pops: Pop[];
 }
 
 function clamp(v: number, lo: number, hi: number) {
@@ -608,6 +621,8 @@ export function createGame(): Game {
     marks: [],
     health: DRIFT.maxHealth,
     boomT: 0,
+    kills: 0,
+    pops: [],
   };
 }
 
@@ -770,6 +785,8 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
       if (distSeg(x, y, ax, ay, bx, by) > DRIFT.policeReach) continue;
       if (byPlayer && !p.struck) {
         p.struck = true;
+        g.kills++;
+        g.pops.push({ x: p.x, y: p.y, z: p.lift + 16, age: 0 });
         g.health = Math.max(0, g.health - 1);
         if (g.health === 0) {
           g.phase = "boom";
@@ -1138,6 +1155,8 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.fallT = 0;
     c.fallSide = sideOf(c, pts[c.idx]);
     emitSplash(g, c.x, c.y);
+    g.kills++;
+    g.pops.push({ x: c.x, y: c.y, z: c.ground + 16, age: 0 });
   }
   if (c.phase === "enter" && c.age > DRIFT.copEnterTau * 3) c.phase = "chase";
 }
@@ -1284,6 +1303,8 @@ function emitWreckSmoke(g: Game, dt: number) {
 }
 
 function tail(g: Game, dt: number) {
+  for (const q of g.pops) q.age += dt;
+  g.pops = g.pops.filter((q) => q.age < DRIFT.popLife);
   stepCops(g, dt);
   updateProps(g, dt);
   updateSparks(g, dt);
@@ -1310,7 +1331,7 @@ export function step(g: Game, holding: boolean, dt: number) {
 }
 
 export function scoreOf(g: Game) {
-  return Math.floor(g.dist / 10) + g.coins * 10;
+  return Math.floor(g.dist / DRIFT.distPerPoint) + g.coins * DRIFT.coinPoints + g.kills * DRIFT.copKillPoints;
 }
 
 export function посчитатьНаградуДрифта(очки: number, уровеньЗП: number) {

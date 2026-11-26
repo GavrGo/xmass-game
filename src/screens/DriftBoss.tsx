@@ -260,38 +260,42 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const c = arr[i + 1];
     return Math.abs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) > 1e-6;
   };
-  const tracePoly = (q: [number, number][]) => {
-    ctx.beginPath();
-    q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.closePath();
-  };
   const alt = g.track.alt;
   const routesAt = (i: number): Pt[][] => (alt[i] !== pts[i] || alt[i + 1] !== pts[i + 1] ? [pts, alt] : [pts]);
-  const MARGIN = 120 * s;
-  const visible = (q: [number, number][]) => {
-    for (const [x, y] of q) if (x > -MARGIN && x < W + MARGIN && y > -MARGIN && y < H + MARGIN) return true;
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const [x, y] of q) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    return x0 < W && x1 > 0 && y0 < H && y1 > 0;
-  };
   const dotVisible = (x: number, y: number, z: number, m = 60) => {
     const [sx, sy] = P(x, y, z);
     return sx > -m * s && sx < W + m * s && sy > -m * s && sy < H + m * s;
   };
-  const roadShapes = (a: number, b: number, dz: number) => {
-    const out: [number, number][][] = [];
-    for (let i = a; i < b; i++) {
+  const addQuad = (q: [number, number][]) => {
+    q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+  };
+  const roadPath = (dz: number) => {
+    ctx.beginPath();
+    for (let i = from; i < to; i++) for (const arr of routesAt(i)) addQuad(segQuad(arr, i, dz));
+  };
+  const bendCaps = (dz: number, color: string) => {
+    ctx.fillStyle = color;
+    for (let i = from + 1; i < to; i++) {
       for (const arr of routesAt(i)) {
-        const q = segQuad(arr, i, dz);
-        if (visible(q)) out.push(q);
-        if (i > a && bendsAt(arr, i)) {
-          const p = arr[i];
-          const c = regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz));
-          if (visible(c)) out.push(c);
-        }
+        if (!bendsAt(arr, i)) continue;
+        const p = arr[i];
+        ctx.beginPath();
+        addQuad(regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz)));
+        ctx.fill();
       }
     }
-    return out;
+  };
+  const edgeLine = (arr: Pt[], side: number) => {
+    ctx.beginPath();
+    for (let i = from; i < to; i++) {
+      const [x, y] = segPoint(arr, i, 0, side, 0);
+      if (i === from) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    const [x, y] = segPoint(arr, to - 1, 1, side, 0);
+    ctx.lineTo(x, y);
+    ctx.stroke();
   };
 
   const drawVehicle = (v: Pose, pal: Palette, bar: boolean) => {
@@ -758,11 +762,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       ctx.strokeStyle = "#c9ffd6";
       ctx.lineWidth = 3 * s;
       ctx.beginPath();
-      ctx.moveTo(0, -4 * s);
+      ctx.moveTo(0, -2 * s);
       ctx.lineTo(0, 9 * s);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(0, -7 * s, 4 * s, 0, Math.PI * 2);
+      ctx.arc(0, -6 * s, 4.5 * s, -Math.PI / 2 + 0.6, (Math.PI * 3) / 2 - 0.6);
       ctx.stroke();
       ctx.restore();
     }
@@ -770,20 +774,18 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   if (carBehind) drawPlayer();
   for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
 
-  const top = roadShapes(from, to, 0);
-  for (const q of roadShapes(from, to, -WALL_H)) poly(q, WALL);
+  roadPath(-WALL_H);
+  ctx.fillStyle = WALL;
+  ctx.fill();
+  bendCaps(-WALL_H, WALL);
+  roadPath(0);
+  ctx.fillStyle = ASPHALT;
+  ctx.fill();
+  bendCaps(0, ASPHALT);
   ctx.lineJoin = "round";
   ctx.strokeStyle = ROAD_EDGE;
   ctx.lineWidth = 2.4 * s;
-  for (const q of top) {
-    tracePoly(q);
-    ctx.stroke();
-  }
-  for (const q of top) {
-    tracePoly(q);
-    ctx.fillStyle = ASPHALT;
-    ctx.fill();
-  }
+  for (const arr of [pts, alt]) for (const side of [-1, 1]) edgeLine(arr, side);
   for (let i = from; i < to; i++) {
     if (!dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
     for (const arr of routesAt(i)) {
@@ -819,14 +821,16 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.globalCompositeOperation = "lighter";
   for (const c of g.cops) if (c.phase !== "fall") drawCopGlow(c);
   ctx.globalCompositeOperation = "source-over";
-  for (let i = from; i < to; i++) {
-    const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
-    if (crest <= 0 || !dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
-    for (const arr of routesAt(i)) {
-      tracePoly(segQuad(arr, i, 0));
-      ctx.fillStyle = `rgba(255,255,255,${(0.3 * crest).toFixed(3)})`;
-      ctx.fill();
+  const CREST_BANDS = 10;
+  for (let b = 1; b <= CREST_BANDS; b++) {
+    ctx.beginPath();
+    for (let i = from; i < to; i++) {
+      const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
+      if (Math.ceil(crest * CREST_BANDS) !== b) continue;
+      for (const arr of routesAt(i)) addQuad(segQuad(arr, i, 0));
     }
+    ctx.fillStyle = `rgba(255,255,255,${((0.3 * b) / CREST_BANDS).toFixed(3)})`;
+    ctx.fill();
   }
 
   const drawMarks = (list: Mark[]) => {
@@ -936,6 +940,20 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
   for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
   if (!carBehind) drawPlayer();
+  for (const pop of g.pops) {
+    const k = pop.age / DRIFT.popLife;
+    const [px, py] = P(pop.x, pop.y, pop.z + k * 40);
+    const label = `+${DRIFT.copKillPoints}`;
+    ctx.font = `900 ${Math.round(16 * s)}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 4 * s;
+    ctx.strokeStyle = `rgba(20,10,0,${(0.85 * (1 - k) * alpha).toFixed(3)})`;
+    ctx.strokeText(label, px, py);
+    ctx.fillStyle = `rgba(255,214,70,${((1 - k) * alpha).toFixed(3)})`;
+    ctx.fillText(label, px, py);
+  }
   if (g.phase === "play") {
     const [hx, hy] = P(g.x, g.y, g.z + 40);
     const bw = 44 * s;
@@ -957,7 +975,7 @@ export default function DriftBoss() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const coinsRef = useRef<HTMLSpanElement>(null);
-  const distRef = useRef<HTMLSpanElement>(null);
+  const scoreRef = useRef<HTMLSpanElement>(null);
   const gameRef = useRef<Game | null>(null);
   const statusRef = useRef<Status>("menu");
   const holdingRef = useRef(false);
@@ -1070,7 +1088,7 @@ export default function DriftBoss() {
       bw = g.phase === "play" || (g.phase === "boom" && g.boomT < 0.5) ? 0 : Math.min(1, bw + dt * 1.2);
       canvas.style.filter = bw > 0 ? `grayscale(${bw})` : "";
       if (coinsRef.current) coinsRef.current.textContent = String(g.coins);
-      if (distRef.current) distRef.current.textContent = String(Math.floor(g.dist / 10));
+      if (scoreRef.current) scoreRef.current.textContent = String(scoreOf(g));
       draw(ctx, g, W, H, time);
       raf = requestAnimationFrame(frame);
     };
@@ -1104,7 +1122,7 @@ export default function DriftBoss() {
             <span className="h-7 w-7 rounded-full bg-gradient-to-b from-yellow-200 to-yellow-500 ring-2 ring-yellow-700" />
             <span ref={coinsRef} className="text-base font-extrabold text-white">0</span>
           </div>
-          <span ref={distRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
+          <span ref={scoreRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
             0
           </span>
         </div>
