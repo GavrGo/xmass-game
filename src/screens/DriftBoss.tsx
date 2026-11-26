@@ -1,19 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { CAR, DRIFT, createGame, scoreOf, step, type Game, type Pt } from "../game/driftBoss";
+import { DRIFT, WHEEL_POS, createGame, scoreOf, step, type Game, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
-const ROAD = "#a9d6f5";
-const ROAD_DARK = "#7fb9e6";
-const EDGE = "#1f3d6b";
-const CAR_TOP = "#5fd35a";
-const CAR_SIDE = "#2f9a3a";
 
 type Status = "idle" | "play" | "over";
-
 const isoX = (x: number, y: number) => (x - y) * 0.866;
 const isoY = (x: number, y: number) => (x + y) * 0.5;
+
+const ROAD = "#a9d6f5";
+const ROAD_DARK = "#7fb9e6";
+const WALL = "#1f3d6b";
+const WALL_H = 10;
+const COLS = 6;
+const CELL = 3;
+const BACK = 120;
+const AHEAD = 200;
+const CAR_TOP = "#6ee06a";
+const CAR_CABIN = "#8ef08a";
+const CAR_SIDE = "#3fae4a";
+const CAR_END = "#2f8f3c";
+const STRIPE = "#f4fff0";
+const GLASS = "#22344a";
+const TIRE = "#1d1d22";
+const HUB = "#c9ced8";
+const LIGHT = "#fff6b3";
+const TAIL = "#ff3b3b";
 
 function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
   const cam = g.phase === "play" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
@@ -25,8 +38,8 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     (isoY(x, y) - cy) * s + H / 2 - z * s * 1.5,
   ];
   const pts = g.track.pts;
-  const from = Math.max(0, g.idx - 160);
-  const to = Math.min(pts.length - 2, g.idx + 260);
+  const from = Math.max(0, g.idx - BACK);
+  const to = Math.min(pts.length - 2, g.idx + AHEAD);
   const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / DRIFT.fallTime) : 1;
 
   const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -35,40 +48,41 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  const edge = (i: number, f: number, dy: number): [number, number] => {
+  const poly = (q: [number, number][], color: string) => {
+    ctx.beginPath();
+    q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.8;
+    ctx.fill();
+    ctx.stroke();
+  };
+  const edge = (i: number, f: number, dz: number): [number, number] => {
     const p = pts[i];
     const r = (p.w / 2) * f;
     const nx = p.dir ? 1 : 0;
     const ny = p.dir ? 0 : -1;
-    const [x, y] = P(p.x + nx * r, p.y + ny * r, p.lift);
-    return [x, y + dy * s];
-  };
-  const quad = (i: number, f0: number, f1: number, dy: number) => {
-    const a = edge(i, f0, dy);
-    const b = edge(i + 1, f0, dy);
-    const c = edge(i + 1, f1, dy);
-    const d = edge(i, f1, dy);
-    ctx.beginPath();
-    ctx.moveTo(a[0], a[1]);
-    ctx.lineTo(b[0], b[1]);
-    ctx.lineTo(c[0], c[1]);
-    ctx.lineTo(d[0], d[1]);
-    ctx.closePath();
-    ctx.fill();
+    return P(p.x + nx * r, p.y + ny * r, p.lift + dz);
   };
 
-  ctx.fillStyle = EDGE;
-  for (let i = from; i < to; i++) quad(i, -1, 1, 12);
-  const cols = [-1, -0.5, 0, 0.5, 1];
+  ctx.globalAlpha = alpha;
   for (let i = from; i < to; i++) {
-    const band = Math.floor(i / 4);
-    for (let c = 0; c < 4; c++) {
-      ctx.fillStyle = (band + c) % 2 === 0 ? ROAD : ROAD_DARK;
-      quad(i, cols[c], cols[c + 1], 0);
+    poly([edge(i, -1, 0), edge(i + 1, -1, 0), edge(i + 1, -1, -WALL_H), edge(i, -1, -WALL_H)], WALL);
+    poly([edge(i, 1, 0), edge(i + 1, 1, 0), edge(i + 1, 1, -WALL_H), edge(i, 1, -WALL_H)], WALL);
+  }
+  for (let i = from; i < to; i++) {
+    const row = Math.floor(i / CELL);
+    for (let k = 0; k < COLS; k++) {
+      const f0 = -1 + (2 * k) / COLS;
+      const f1 = -1 + (2 * (k + 1)) / COLS;
+      poly(
+        [edge(i, f0, 0), edge(i + 1, f0, 0), edge(i + 1, f1, 0), edge(i, f1, 0)],
+        (row + k) % 2 === 0 ? ROAD : ROAD_DARK,
+      );
     }
   }
 
-  ctx.globalAlpha = alpha;
   ctx.strokeStyle = "rgba(25,25,30,0.8)";
   ctx.lineWidth = 4 * s;
   for (let k = 1; k < g.marks.length; k++) {
@@ -117,33 +131,156 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
   const c = Math.cos(g.h);
   const sn = Math.sin(g.h);
-  const hl = CAR.len / 2;
-  const hw = CAR.width / 2;
-  const hh = CAR.height;
-  const C = (a: number, b: number, lift: number): [number, number] =>
-    P(g.x + c * a - sn * b, g.y + sn * a + c * b, g.z + lift);
-  const quadCar = (q: [number, number][], color: string) => {
-    ctx.beginPath();
-    q.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+  const C = (a: number, b: number, z: number): [number, number] =>
+    P(g.x + c * a - sn * b, g.y + sn * a + c * b, g.z + z);
+  const quadAt = (q: [number, number, number][], color: string) => poly(q.map(([a, b, z]) => C(a, b, z)), color);
+  const sideVisible = (sb: number) => (sb > 0 ? c - sn > 0 : sn - c > 0);
+  const frontVisible = c + sn > 0;
+  const backVisible = -c - sn > 0;
+  const box = (
+    a0: number,
+    a1: number,
+    b0: number,
+    b1: number,
+    z0: number,
+    z1: number,
+    top: string,
+    side: string,
+    end: string,
+  ) => {
+    quadAt(
+      [
+        [a0, b0, z1],
+        [a1, b0, z1],
+        [a1, b1, z1],
+        [a0, b1, z1],
+      ],
+      top,
+    );
+    if (sideVisible(1))
+      quadAt(
+        [
+          [a0, b1, z0],
+          [a1, b1, z0],
+          [a1, b1, z1],
+          [a0, b1, z1],
+        ],
+        side,
+      );
+    if (sideVisible(-1))
+      quadAt(
+        [
+          [a0, b0, z0],
+          [a1, b0, z0],
+          [a1, b0, z1],
+          [a0, b0, z1],
+        ],
+        side,
+      );
+    if (frontVisible)
+      quadAt(
+        [
+          [a1, b0, z0],
+          [a1, b1, z0],
+          [a1, b1, z1],
+          [a1, b0, z1],
+        ],
+        end,
+      );
+    if (backVisible)
+      quadAt(
+        [
+          [a0, b0, z0],
+          [a0, b1, z0],
+          [a0, b1, z1],
+          [a0, b0, z1],
+        ],
+        end,
+      );
   };
-  const faces: { n: [number, number]; a: [number, number]; b: [number, number] }[] = [
-    { n: [c, sn], a: [hl, -hw], b: [hl, hw] },
-    { n: [-sn, c], a: [hl, hw], b: [-hl, hw] },
-    { n: [-c, -sn], a: [-hl, hw], b: [-hl, -hw] },
-    { n: [sn, -c], a: [-hl, -hw], b: [hl, -hw] },
-  ];
-  for (const f of faces) {
-    if (f.n[0] + f.n[1] <= 0) continue;
-    quadCar([C(f.a[0], f.a[1], 0), C(f.b[0], f.b[1], 0), C(f.b[0], f.b[1], hh), C(f.a[0], f.a[1], hh)], CAR_SIDE);
+
+  box(-20, 20, -10, 10, 2, 7, CAR_TOP, CAR_SIDE, CAR_END);
+  for (const sb of [-1, 1]) {
+    quadAt(
+      [
+        [-20, sb * 2.2, 7],
+        [20, sb * 2.2, 7],
+        [20, sb * 3.8, 7],
+        [-20, sb * 3.8, 7],
+      ],
+      STRIPE,
+    );
   }
-  quadCar([C(hl, hw, hh), C(hl, -hw, hh), C(-hl, -hw, hh), C(-hl, hw, hh)], CAR_TOP);
-  for (const b of [-hw * 0.4, hw * 0.4]) {
-    quadCar([C(hl, b - 1.8, hh), C(hl, b + 1.8, hh), C(-hl, b + 1.8, hh), C(-hl, b - 1.8, hh)], "#f4fff0");
+  for (const [a, b] of WHEEL_POS) {
+    const sb = Math.sign(b);
+    if (!sideVisible(sb)) continue;
+    quadAt(
+      [
+        [a - 4, b * 1.04, 0],
+        [a + 4, b * 1.04, 0],
+        [a + 4, b * 1.04, 7],
+        [a - 4, b * 1.04, 7],
+      ],
+      TIRE,
+    );
+    quadAt(
+      [
+        [a - 2, b * 1.06, 2],
+        [a + 2, b * 1.06, 2],
+        [a + 2, b * 1.06, 5],
+        [a - 2, b * 1.06, 5],
+      ],
+      HUB,
+    );
   }
-  quadCar([C(hl * 0.25, hw * 0.75, hh), C(hl * 0.25, -hw * 0.75, hh), C(hl * 0.6, -hw * 0.75, hh), C(hl * 0.6, hw * 0.75, hh)], "#2a3a4a");
+  box(-9, 8, -8.5, 8.5, 7, 12, CAR_CABIN, CAR_SIDE, CAR_END);
+  for (const sb of [-1, 1]) {
+    if (!sideVisible(sb)) continue;
+    quadAt(
+      [
+        [-6, sb * 8.6, 8],
+        [6, sb * 8.6, 8],
+        [6, sb * 8.6, 11],
+        [-6, sb * 8.6, 11],
+      ],
+      GLASS,
+    );
+  }
+  if (frontVisible) {
+    quadAt(
+      [
+        [8.1, -6, 8],
+        [8.1, 6, 8],
+        [8.1, 6, 11],
+        [8.1, -6, 11],
+      ],
+      GLASS,
+    );
+    for (const sb of [-1, 1]) {
+      quadAt(
+        [
+          [20.1, sb * 4, 3],
+          [20.1, sb * 7, 3],
+          [20.1, sb * 7, 5],
+          [20.1, sb * 4, 5],
+        ],
+        LIGHT,
+      );
+    }
+  }
+  if (backVisible) {
+    for (const sb of [-1, 1]) {
+      quadAt(
+        [
+          [-20.1, sb * 4, 3],
+          [-20.1, sb * 7, 3],
+          [-20.1, sb * 7, 5],
+          [-20.1, sb * 4, 5],
+        ],
+        TAIL,
+      );
+    }
+  }
 
   ctx.globalAlpha = 1;
 }
