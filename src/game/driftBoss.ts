@@ -49,7 +49,8 @@ export const DRIFT = {
   copLag: 0.5,
   copEnterLag: 1.4,
   copEnterTau: 1.2,
-  copSpawnEvery: 5,
+  copSpawnFirst: 5,
+  copSpawnEvery: 10,
   copWearTime: 35,
   copWornGrip: 0.2,
   copSlide: 0.5,
@@ -69,6 +70,12 @@ export const DRIFT = {
   propKickUp: 170,
   propDrag: 2.2,
   propLife: 2.2,
+  policeChance: 0.2,
+  policeHalf: 20,
+  policeFence: 14,
+  policeReach: 12,
+  policeFling: 150,
+  policeLift: 120,
   sparkCount: 14,
   sparkLife: 0.5,
   sparkGravity: 500,
@@ -105,7 +112,7 @@ export interface Pt {
   taken: boolean;
 }
 
-export type PropKind = "barrel" | "crate" | "bin";
+export type PropKind = "barrel" | "crate" | "bin" | "police";
 
 export interface Prop {
   kind: PropKind;
@@ -119,6 +126,7 @@ export interface Prop {
   vz: number;
   rot: number;
   spin: number;
+  tilt: number;
   age: number;
 }
 
@@ -266,9 +274,10 @@ function push(t: Track) {
   t.sinceProp++;
   if (idx >= DRIFT.propStartIdx && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
     t.sinceProp = 0;
-    const lat = (Math.random() * 2 - 1) * (w / 2 - 16);
+    const police = Math.random() < DRIFT.policeChance;
+    const lat = (Math.random() * 2 - 1) * (w / 2 - (police ? DRIFT.policeHalf + 4 : 16));
     t.props.push({
-      kind: PROP_KINDS[Math.floor(Math.random() * PROP_KINDS.length)],
+      kind: police ? "police" : PROP_KINDS[Math.floor(Math.random() * PROP_KINDS.length)],
       idx,
       x: t.dir === 0 ? pt.x : pt.x + lat,
       y: t.dir === 0 ? pt.y + lat : pt.y,
@@ -279,6 +288,7 @@ function push(t: Track) {
       vz: 0,
       rot: 0,
       spin: 0,
+      tilt: 0,
       age: 0,
     });
   }
@@ -347,7 +357,7 @@ export function createGame(): Game {
     t: 0,
     hist: [],
     cops: [],
-    copTimer: DRIFT.copSpawnEvery,
+    copTimer: DRIFT.copSpawnFirst,
     leaves: [],
     smoke: [],
     sparks: [],
@@ -480,10 +490,45 @@ function updateSparks(g: Game, dt: number) {
   g.sparks = g.sparks.filter((s) => s.age < s.life);
 }
 
+export function policeGeom(p: Prop, pt: Pt) {
+  const lat = pt.dir === 0 ? [0, 1] : [1, 0];
+  const fx = -VEC[pt.dir].x * DRIFT.policeFence;
+  const fy = -VEC[pt.dir].y * DRIFT.policeFence;
+  const seg = (ox: number, oy: number): [number, number, number, number] => [
+    p.x + ox - lat[0] * DRIFT.policeHalf,
+    p.y + oy - lat[1] * DRIFT.policeHalf,
+    p.x + ox + lat[0] * DRIFT.policeHalf,
+    p.y + oy + lat[1] * DRIFT.policeHalf,
+  ];
+  return { car: seg(0, 0), fence: seg(fx, fy), lat, h: pt.dir === 0 ? Math.PI / 2 : 0 };
+}
+
+function policeTouch(p: Prop, pt: Pt, x: number, y: number) {
+  const g = policeGeom(p, pt);
+  const [ax, ay, bx, by] = g.car;
+  const [cx, cy, dx, dy] = g.fence;
+  return Math.min(distSeg(x, y, ax, ay, bx, by), distSeg(x, y, cx, cy, dx, dy));
+}
+
 function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius: number) {
   const pts = g.track.pts;
   for (const p of g.track.props) {
     if (p.state !== "idle") continue;
+    if (p.kind === "police") {
+      if (policeTouch(p, pts[p.idx], x, y) > DRIFT.policeReach) continue;
+      const lat = policeGeom(p, pts[p.idx]).lat;
+      const side = (x - p.x) * lat[0] + (y - p.y) * lat[1] >= 0 ? 1 : -1;
+      p.state = "flying";
+      p.age = 0;
+      p.z = pts[p.idx].lift;
+      p.vx = lat[0] * side * DRIFT.policeFling + vx * 0.2;
+      p.vy = lat[1] * side * DRIFT.policeFling + vy * 0.2;
+      p.vz = DRIFT.policeLift;
+      p.spin = 0;
+      p.tilt = side * 0.7;
+      emitSparks(g, x, y, p.z + 6);
+      continue;
+    }
     const dx = p.x - x;
     const dy = p.y - y;
     const d = Math.hypot(dx, dy);

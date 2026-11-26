@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, createGame, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import { DRIFT, createGame, policeGeom, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
 
@@ -88,7 +88,7 @@ function regular(n: number, r: number): [number, number][] {
   });
 }
 
-const PROP_SHAPE: Record<PropKind, { ring: [number, number][]; h: number; side: string; top: string }> = {
+const PROP_SHAPE: Record<Exclude<PropKind, "police">, { ring: [number, number][]; h: number; side: string; top: string }> = {
   barrel: { ring: regular(8, 6), h: 14, side: "#8a3f1d", top: "#9a5a33" },
   crate: {
     ring: [
@@ -355,23 +355,23 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fill();
 
     const beamCone = (b: number) => {
-      const [ox, oy] = toW(20.5, b, 4);
+      const [ox, oy, oz] = toW(20.5, b, 4);
       const ex = ox + cc * 150;
       const ey = oy + ss * 150;
       const lx = -ss * 20;
       const ly = cc * 20;
       const wx = -ss * 2.5;
       const wy = cc * 2.5;
-      const o = P(ox, oy, v.ground);
+      const o = P(ox, oy, oz);
       const e = P(ex, ey, v.ground);
       const grad = ctx.createLinearGradient(o[0], o[1], e[0], e[1]);
       grad.addColorStop(0, `rgba(255,236,170,${0.22 * alpha})`);
       grad.addColorStop(1, "rgba(255,236,170,0)");
       const q = [
-        P(ox + wx, oy + wy, v.ground),
+        P(ox + wx, oy + wy, oz),
         P(ex + lx, ey + ly, v.ground),
         P(ex - lx, ey - ly, v.ground),
-        P(ox - wx, oy - wy, v.ground),
+        P(ox - wx, oy - wy, oz),
       ];
       ctx.beginPath();
       q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -480,7 +480,41 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.globalCompositeOperation = "source-over";
   };
 
+  const drawPolice = (pr: Prop) => {
+    const pt = pts[pr.idx];
+    const geo = policeGeom(pr, pt);
+    const flying = pr.state === "flying";
+    const z0 = flying ? pr.z : pt.lift;
+    ctx.globalAlpha = alpha * (flying ? clamp01((DRIFT.propLife - pr.age) / 0.6) : 1);
+    drawVehicle({ x: pr.x, y: pr.y, z: z0, h: geo.h, roll: pr.tilt, pitch: 0, ground: pt.lift, air: flying }, COP_PAL, true);
+    const [ax, ay, bx, by] = geo.fence;
+    const fenceH = 7;
+    const panels = 4;
+    for (let k = 0; k < panels; k++) {
+      const t0 = k / panels;
+      const t1 = (k + 1) / panels;
+      const x0 = ax + (bx - ax) * t0;
+      const y0 = ay + (by - ay) * t0;
+      const x1 = ax + (bx - ax) * t1;
+      const y1 = ay + (by - ay) * t1;
+      poly([P(x0, y0, z0), P(x1, y1, z0), P(x1, y1, z0 + fenceH), P(x0, y0, z0 + fenceH)], k % 2 ? "#f2f2f2" : "#e0482b");
+    }
+    const [t0x, t0y] = P(ax, ay, z0 + fenceH);
+    const [t1x, t1y] = P(bx, by, z0 + fenceH);
+    ctx.beginPath();
+    ctx.moveTo(t0x, t0y);
+    ctx.lineTo(t1x, t1y);
+    ctx.strokeStyle = "#2b2b2b";
+    ctx.lineWidth = 1.2 * s;
+    ctx.stroke();
+    ctx.globalAlpha = alpha;
+  };
+
   const drawProp = (pr: Prop) => {
+    if (pr.kind === "police") {
+      drawPolice(pr);
+      return;
+    }
     const shape = PROP_SHAPE[pr.kind];
     ctx.globalAlpha = alpha * (pr.state === "flying" ? clamp01((DRIFT.propLife - pr.age) / 0.6) : 1);
     const z0 = pr.state === "flying" ? pr.z : pts[pr.idx].lift;
@@ -594,6 +628,19 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
       ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.28)";
       ctx.fill();
+    }
+  }
+
+  for (let i = from; i < to; i++) {
+    for (const side of [-1, 1]) {
+      const [ax, ay] = edge(i, side, 0);
+      const [bx, by] = edge(i + 1, side, 0);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.strokeStyle = "rgba(150,185,230,0.38)";
+      ctx.lineWidth = 1.2 * s;
+      ctx.stroke();
     }
   }
 
