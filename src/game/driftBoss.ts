@@ -15,15 +15,15 @@ export const DRIFT = {
   turnFollow: 8,
   turnAccel: 20,
   grip: 8,
-  slideGrip: 1.8,
+  slideGrip: 3.5,
   airGrip: 1.5,
   startStraight: 500,
   segMin: 180,
   segMax: 420,
   wideWidth: 150,
   narrowWidth: 85,
-  narrowFrom: 1500,
-  narrowTo: 4000,
+  wideFirst: 150,
+  zoneLen: 100,
   coinEvery: 9,
   coinChance: 0.75,
   coinPickup: 24,
@@ -39,6 +39,7 @@ export const DRIFT = {
   fallTime: 1,
   fallDrop: 120,
   wheelsOffToFall: 2,
+  edgeGrace: 0.25,
 };
 
 const VEC = [
@@ -102,15 +103,15 @@ export interface Game {
   coins: number;
   phase: "play" | "fall" | "over";
   fallT: number;
+  offT: number;
   smoke: Smoke[];
   marks: Mark[];
 }
 
 function widthAt(d: number) {
-  if (d <= DRIFT.narrowFrom) return DRIFT.wideWidth;
-  if (d >= DRIFT.narrowTo) return DRIFT.narrowWidth;
-  const k = (d - DRIFT.narrowFrom) / (DRIFT.narrowTo - DRIFT.narrowFrom);
-  return DRIFT.wideWidth + (DRIFT.narrowWidth - DRIFT.wideWidth) * k;
+  const s = d / 10;
+  if (s < DRIFT.wideFirst) return DRIFT.wideWidth;
+  return Math.floor((s - DRIFT.wideFirst) / DRIFT.zoneLen) % 2 === 0 ? DRIFT.narrowWidth : DRIFT.wideWidth;
 }
 
 function push(t: Track) {
@@ -184,6 +185,7 @@ export function createGame(): Game {
     coins: 0,
     phase: "play",
     fallT: 0,
+    offT: 0,
     smoke: [],
     marks: [],
   };
@@ -323,7 +325,9 @@ export function step(g: Game, holding: boolean, dt: number) {
   }
   g.ground = ground;
 
-  if (!g.air && offRoadWheels(g, best) >= DRIFT.wheelsOffToFall) {
+  const off = !g.air && offRoadWheels(g, best) >= DRIFT.wheelsOffToFall;
+  g.offT = off ? g.offT + dt : 0;
+  if (g.offT > DRIFT.edgeGrace) {
     g.phase = "fall";
     g.fallT = 0;
     updateSmoke(g, dt);

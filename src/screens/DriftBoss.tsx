@@ -18,7 +18,7 @@ const CELL = 3;
 const BACK = 120;
 const AHEAD = 200;
 const CAR_TOP = "#6ee06a";
-const CAR_CABIN = "#8ef08a";
+const CAR_CABIN = "#9ef59a";
 const CAR_SIDE = "#3fae4a";
 const CAR_END = "#2f8f3c";
 const STRIPE = "#f4fff0";
@@ -27,6 +27,30 @@ const TIRE = "#1d1d22";
 const HUB = "#c9ced8";
 const LIGHT = "#fff6b3";
 const TAIL = "#ff3b3b";
+
+type Local = [number, number, number];
+type Face = { pts: [number, number][]; color: string; depth: number };
+
+const BODY_PROF: [number, number][] = [
+  [-20, 2],
+  [20, 2],
+  [20, 6.5],
+  [10, 7],
+  [-14, 7],
+  [-20, 7.5],
+];
+const CABIN_PROF: [number, number][] = [
+  [-14, 7],
+  [-6, 12],
+  [3, 12],
+  [10, 7],
+];
+const CABIN_GLASS: [number, number][] = [
+  [-11.5, 7.9],
+  [-6.2, 11.2],
+  [2.2, 11.2],
+  [7.6, 8],
+];
 
 function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
   const cam = g.phase === "play" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
@@ -47,6 +71,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   bg.addColorStop(1, "#e9a04c");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = alpha;
 
   const poly = (q: [number, number][], color: string) => {
     ctx.beginPath();
@@ -66,7 +91,141 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     return P(p.x + nx * r, p.y + ny * r, p.lift + dz);
   };
 
-  ctx.globalAlpha = alpha;
+  const cc = Math.cos(g.h);
+  const ss = Math.sin(g.h);
+  const drawCar = () => {
+    const faces: Face[] = [];
+    const toW = (a: number, b: number, z: number): [number, number, number] => [
+      g.x + cc * a - ss * b,
+      g.y + ss * a + cc * b,
+      g.z + z,
+    ];
+    const addFace = (local: Local[], n: Local, color: string) => {
+      const wn = [n[0] * cc - n[1] * ss, n[0] * ss + n[1] * cc, n[2]];
+      if (wn[0] + wn[1] + 1.5 * wn[2] <= 0) return;
+      const w = local.map(([a, b, z]) => toW(a, b, z));
+      const k = w.length;
+      const mx = w.reduce((t, p) => t + p[0], 0) / k;
+      const my = w.reduce((t, p) => t + p[1], 0) / k;
+      const mz = w.reduce((t, p) => t + p[2], 0) / k;
+      faces.push({ pts: w.map(([x, y, z]) => P(x, y, z)), color, depth: mx + my + 1.5 * mz });
+    };
+    const prism = (prof: [number, number][], b0: number, b1: number, colors: string[], cap: string) => {
+      const n = prof.length;
+      const ca = prof.reduce((t, p) => t + p[0], 0) / n;
+      const cz = prof.reduce((t, p) => t + p[1], 0) / n;
+      for (let i = 0; i < n; i++) {
+        const [pa, pz] = prof[i];
+        const [qa, qz] = prof[(i + 1) % n];
+        let na = qz - pz;
+        let nz = pa - qa;
+        const ma = (pa + qa) / 2 - ca;
+        const mz = (pz + qz) / 2 - cz;
+        if (na * ma + nz * mz < 0) {
+          na = -na;
+          nz = -nz;
+        }
+        const len = Math.hypot(na, nz);
+        addFace(
+          [
+            [pa, b0, pz],
+            [qa, b0, qz],
+            [qa, b1, qz],
+            [pa, b1, pz],
+          ],
+          [na / len, 0, nz / len],
+          colors[i],
+        );
+      }
+      addFace(
+        prof.map(([a, z]) => [a, b1, z] as Local),
+        [0, 1, 0],
+        cap,
+      );
+      addFace(
+        prof.map(([a, z]) => [a, b0, z] as Local),
+        [0, -1, 0],
+        cap,
+      );
+    };
+
+    const [shx, shy] = P(g.x, g.y, g.ground);
+    ctx.beginPath();
+    ctx.ellipse(shx, shy, 24 * s, 13 * s, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0,0,0,${0.3 * (g.air ? 0.5 : 1) * alpha})`;
+    ctx.fill();
+
+    prism(BODY_PROF, -10, 10, [CAR_SIDE, CAR_END, CAR_TOP, CAR_TOP, CAR_TOP, CAR_END], CAR_SIDE);
+    prism(CABIN_PROF, -8.5, 8.5, [GLASS, CAR_TOP, GLASS, CAR_SIDE], CAR_CABIN);
+    for (const [b0, b1] of [
+      [-3.6, -2.2],
+      [2.2, 3.6],
+    ] as [number, number][]) {
+      addFace(
+        [
+          [-13, b0, 7.02],
+          [9, b0, 7.02],
+          [9, b1, 7.02],
+          [-13, b1, 7.02],
+        ],
+        [0, 0, 1],
+        STRIPE,
+      );
+    }
+    for (const sb of [-1, 1]) {
+      addFace(
+        CABIN_GLASS.map(([a, z]) => [a, sb * 8.65, z] as Local),
+        [0, sb, 0],
+        GLASS,
+      );
+    }
+    for (const [b0, b1] of [
+      [4, 7],
+      [-7, -4],
+    ] as [number, number][]) {
+      addFace(
+        [
+          [20.1, b0, 3],
+          [20.1, b1, 3],
+          [20.1, b1, 5],
+          [20.1, b0, 5],
+        ],
+        [1, 0, 0],
+        LIGHT,
+      );
+      addFace(
+        [
+          [-20.1, b0, 3],
+          [-20.1, b1, 3],
+          [-20.1, b1, 5],
+          [-20.1, b0, 5],
+        ],
+        [-1, 0, 0],
+        TAIL,
+      );
+    }
+    for (const aw of [-12, 12]) {
+      for (const sb of [-1, 1]) {
+        const ring: Local[] = [];
+        const hub: Local[] = [];
+        for (let k = 0; k < 14; k++) {
+          const t = (k / 14) * Math.PI * 2;
+          ring.push([aw + 4 * Math.cos(t), sb * 10.3, 4 + 4 * Math.sin(t)]);
+          hub.push([aw + 1.8 * Math.cos(t), sb * 10.5, 4 + 1.8 * Math.sin(t)]);
+        }
+        addFace(ring, [0, sb, 0], TIRE);
+        addFace(hub, [0, sb, 0], HUB);
+      }
+    }
+
+    faces.sort((p, q) => p.depth - q.depth);
+    for (const f of faces) poly(f.pts, f.color);
+  };
+
+  const near = pts[g.idx];
+  const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
+  if (carBehind) drawCar();
+
   for (let i = from; i < to; i++) {
     poly([edge(i, -1, 0), edge(i + 1, -1, 0), edge(i + 1, -1, -WALL_H), edge(i, -1, -WALL_H)], WALL);
     poly([edge(i, 1, 0), edge(i + 1, 1, 0), edge(i + 1, 1, -WALL_H), edge(i, 1, -WALL_H)], WALL);
@@ -119,169 +278,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const k = p.age / p.life;
     ctx.beginPath();
     ctx.arc(sx, sy, p.r * s * (1 + k * 2.2), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(220,222,235,${0.45 * (1 - k)})`;
+    ctx.fillStyle = `rgba(220,222,235,${0.45 * (1 - k) * alpha})`;
     ctx.fill();
   }
 
-  const [shx, shy] = P(g.x, g.y, g.ground);
-  ctx.beginPath();
-  ctx.ellipse(shx, shy, 24 * s, 13 * s, 0, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(0,0,0,${0.3 * (g.air ? 0.5 : 1)})`;
-  ctx.fill();
-
-  const c = Math.cos(g.h);
-  const sn = Math.sin(g.h);
-  const C = (a: number, b: number, z: number): [number, number] =>
-    P(g.x + c * a - sn * b, g.y + sn * a + c * b, g.z + z);
-  const quadAt = (q: [number, number, number][], color: string) => poly(q.map(([a, b, z]) => C(a, b, z)), color);
-  const sideVisible = (sb: number) => (sb > 0 ? c - sn > 0 : sn - c > 0);
-  const frontVisible = c + sn > 0;
-  const backVisible = -c - sn > 0;
-  const box = (
-    a0: number,
-    a1: number,
-    b0: number,
-    b1: number,
-    z0: number,
-    z1: number,
-    top: string,
-    side: string,
-    end: string,
-  ) => {
-    quadAt(
-      [
-        [a0, b0, z1],
-        [a1, b0, z1],
-        [a1, b1, z1],
-        [a0, b1, z1],
-      ],
-      top,
-    );
-    if (sideVisible(1))
-      quadAt(
-        [
-          [a0, b1, z0],
-          [a1, b1, z0],
-          [a1, b1, z1],
-          [a0, b1, z1],
-        ],
-        side,
-      );
-    if (sideVisible(-1))
-      quadAt(
-        [
-          [a0, b0, z0],
-          [a1, b0, z0],
-          [a1, b0, z1],
-          [a0, b0, z1],
-        ],
-        side,
-      );
-    if (frontVisible)
-      quadAt(
-        [
-          [a1, b0, z0],
-          [a1, b1, z0],
-          [a1, b1, z1],
-          [a1, b0, z1],
-        ],
-        end,
-      );
-    if (backVisible)
-      quadAt(
-        [
-          [a0, b0, z0],
-          [a0, b1, z0],
-          [a0, b1, z1],
-          [a0, b0, z1],
-        ],
-        end,
-      );
-  };
-
-  box(-20, 20, -10, 10, 2, 7, CAR_TOP, CAR_SIDE, CAR_END);
-  for (const sb of [-1, 1]) {
-    quadAt(
-      [
-        [-20, sb * 2.2, 7],
-        [20, sb * 2.2, 7],
-        [20, sb * 3.8, 7],
-        [-20, sb * 3.8, 7],
-      ],
-      STRIPE,
-    );
-  }
-  for (const [a, b] of WHEEL_POS) {
-    const sb = Math.sign(b);
-    if (!sideVisible(sb)) continue;
-    quadAt(
-      [
-        [a - 4, b * 1.04, 0],
-        [a + 4, b * 1.04, 0],
-        [a + 4, b * 1.04, 7],
-        [a - 4, b * 1.04, 7],
-      ],
-      TIRE,
-    );
-    quadAt(
-      [
-        [a - 2, b * 1.06, 2],
-        [a + 2, b * 1.06, 2],
-        [a + 2, b * 1.06, 5],
-        [a - 2, b * 1.06, 5],
-      ],
-      HUB,
-    );
-  }
-  box(-9, 8, -8.5, 8.5, 7, 12, CAR_CABIN, CAR_SIDE, CAR_END);
-  for (const sb of [-1, 1]) {
-    if (!sideVisible(sb)) continue;
-    quadAt(
-      [
-        [-6, sb * 8.6, 8],
-        [6, sb * 8.6, 8],
-        [6, sb * 8.6, 11],
-        [-6, sb * 8.6, 11],
-      ],
-      GLASS,
-    );
-  }
-  if (frontVisible) {
-    quadAt(
-      [
-        [8.1, -6, 8],
-        [8.1, 6, 8],
-        [8.1, 6, 11],
-        [8.1, -6, 11],
-      ],
-      GLASS,
-    );
-    for (const sb of [-1, 1]) {
-      quadAt(
-        [
-          [20.1, sb * 4, 3],
-          [20.1, sb * 7, 3],
-          [20.1, sb * 7, 5],
-          [20.1, sb * 4, 5],
-        ],
-        LIGHT,
-      );
-    }
-  }
-  if (backVisible) {
-    for (const sb of [-1, 1]) {
-      quadAt(
-        [
-          [-20.1, sb * 4, 3],
-          [-20.1, sb * 7, 3],
-          [-20.1, sb * 7, 5],
-          [-20.1, sb * 4, 5],
-        ],
-        TAIL,
-      );
-    }
-  }
-
+  if (!carBehind) drawCar();
   ctx.globalAlpha = 1;
 }
 
