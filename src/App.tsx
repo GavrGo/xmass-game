@@ -15,6 +15,7 @@ import Match3 from "./screens/Match3";
 import JiraFight from "./screens/JiraFight";
 import Babka from "./screens/Babka";
 import Blackjack from "./screens/Blackjack";
+import DriftBoss from "./screens/DriftBoss";
 import AdminPage from "./admin/AdminPage";
 import { ПРЕЛОАДЕР } from "./config";
 import { Т } from "./texts";

@@ -15,7 +15,7 @@ import { useRecordHolders } from "../lib/useMastery";
 // Обложка: public/assets/ui/game-<id>.png. Нет файла — большой эмодзи.
 // Чтобы добавить новую игру — добавьте ещё один объект в список ниже.
 export default function MiniGames() {
-  const { user } = useUser();
+  const { user, isAdmin } = useUser();
   const держатели = useRecordHolders();
   const [открыта, setОткрыта] = useState<string | null>(null);
   if (!user) return null;
@@ -59,6 +59,12 @@ export default function MiniGames() {
           </Link>
         ); })}
       </div>
+      {isAdmin && (
+        <Link to="/games/drift-boss" className="card mt-3 flex items-center gap-3 p-3 active:brightness-125">
+          <span className="text-3xl">🚗</span>
+          <span className="text-sm font-bold">{Т.дрифтБосс.карточка}</span>
+        </Link>
+      )}
       {открытаИгра && инфоОткрытой && (
         <MasteryPopup
           навыки={открытаИгра.id === "ksuha" ? навыкиИгры("ksuha") : открытаИгра.id === "match3" ? навыкиИгры("match3") : []}
