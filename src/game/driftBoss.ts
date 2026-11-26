@@ -92,6 +92,12 @@ export const DRIFT = {
   leafLife: 3.2,
   leafCull: 1800,
   leafBehind: 1000,
+  forkChance: 0.3,
+  forkSteps: 48,
+  forkRamp: 10,
+  forkGap: 36,
+  forkMinGap: 80,
+  routeSlack: 2,
 };
 
 const VEC = [
@@ -132,6 +138,9 @@ export interface Prop {
 
 export interface Track {
   pts: Pt[];
+  alt: Pt[];
+  fork: { a: number; b: number; side: number } | null;
+  lastFork: number;
   props: Prop[];
   x: number;
   y: number;
@@ -202,6 +211,7 @@ export interface Cop extends Pose {
   vx: number;
   vy: number;
   idx: number;
+  route: number;
   offT: number;
   speed: number;
   phase: "enter" | "chase" | "halt" | "fall";
@@ -224,10 +234,12 @@ interface Hist {
   y: number;
   h: number;
   v: number;
+  route: number;
 }
 
 export interface Game extends Pose {
   track: Track;
+  route: number;
   idx: number;
   av: number;
   vx: number;
@@ -263,16 +275,46 @@ function widthAt(d: number) {
   return Math.floor((s - DRIFT.wideFirst) / DRIFT.zoneLen) % 2 === 0 ? DRIFT.narrowWidth : DRIFT.wideWidth;
 }
 
+export function routePts(track: Track, route: number) {
+  return route ? track.alt : track.pts;
+}
+
+function routeDist(x: number, y: number, pts: Pt[], i: number) {
+  const k = clamp(i, 0, pts.length - 2);
+  return distSeg(x, y, pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y);
+}
+
 function push(t: Track) {
+  const j = t.pts.length;
+  const fork = t.fork && j >= t.fork.a && j < t.fork.b ? t.fork : null;
   t.sinceCoin++;
-  const coin = t.sinceCoin >= DRIFT.coinEvery && Math.random() < DRIFT.coinChance;
+  const coin = !fork && t.sinceCoin >= DRIFT.coinEvery && Math.random() < DRIFT.coinChance;
   if (coin) t.sinceCoin = 0;
-  const w = widthAt(t.pts.length * DRIFT.sample);
-  const idx = t.pts.length;
+  const w = widthAt(j * DRIFT.sample);
+  const idx = j;
   const pt: Pt = { x: t.x, y: t.y, dir: t.dir, w, lift: 0, coin, taken: false };
   t.pts.push(pt);
+  if (fork) {
+    const n = fork.b - fork.a;
+    const k = j - fork.a;
+    const r =
+      Math.sin((Math.PI / 2) * Math.min(1, k / DRIFT.forkRamp)) *
+      Math.sin((Math.PI / 2) * Math.min(1, (n - 1 - k) / DRIFT.forkRamp));
+    const off = fork.side * r * (w + DRIFT.forkGap);
+    t.alt.push({
+      x: t.x + (t.dir === 0 ? 0 : off),
+      y: t.y + (t.dir === 0 ? off : 0),
+      dir: t.dir,
+      w,
+      lift: 0,
+      coin: false,
+      taken: false,
+    });
+  } else {
+    t.alt.push(pt);
+  }
   t.sinceProp++;
-  if (idx >= DRIFT.propStartIdx && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
+  if (idx >= DRIFT.propStartIdx && !fork && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
     t.sinceProp = 0;
     const police = Math.random() < DRIFT.policeChance;
     const lat = (Math.random() * 2 - 1) * (w / 2 - (police ? DRIFT.policeHalf + 4 : 16));
@@ -306,6 +348,14 @@ function advance(t: Track, len: number, dir: number) {
 }
 
 function addSegment(t: Track) {
+  if (Math.random() < DRIFT.forkChance && t.pts.length - t.lastFork >= DRIFT.forkMinGap) {
+    const a = t.pts.length;
+    t.lastFork = a;
+    t.fork = { a, b: a + DRIFT.forkSteps, side: Math.random() < 0.5 ? -1 : 1 };
+    advance(t, DRIFT.forkSteps * DRIFT.sample, 1 - t.dir);
+    t.fork = null;
+    return;
+  }
   const len = DRIFT.segMin + Math.random() * (DRIFT.segMax - DRIFT.segMin);
   const start = t.pts.length;
   const steps = advance(t, len, 1 - t.dir);
@@ -324,7 +374,19 @@ function growTrack(t: Track, minLen: number) {
 }
 
 function createTrack(): Track {
-  const t: Track = { pts: [], props: [], x: 0, y: 0, dir: 0, sinceCoin: 0, sinceProp: 0, lastRamp: -1e9 };
+  const t: Track = {
+    pts: [],
+    alt: [],
+    fork: null,
+    lastFork: -1e9,
+    props: [],
+    x: 0,
+    y: 0,
+    dir: 0,
+    sinceCoin: 0,
+    sinceProp: 0,
+    lastRamp: -1e9,
+  };
   push(t);
   advance(t, DRIFT.startStraight, 0);
   growTrack(t, 400);
@@ -334,6 +396,7 @@ function createTrack(): Track {
 export function createGame(): Game {
   return {
     track: createTrack(),
+    route: 0,
     idx: 0,
     x: 0,
     y: 0,
@@ -415,19 +478,21 @@ function surfaceAt(pts: Pt[], i: number, x: number, y: number) {
   };
 }
 
-function offRoadWheels(p: { x: number; y: number; h: number }, pts: Pt[], best: number) {
+function offRoadWheels(p: { x: number; y: number; h: number }, track: Track, best: number) {
   const c = Math.cos(p.h);
   const s = Math.sin(p.h);
-  const half = pts[best].w / 2;
+  const half = track.pts[best].w / 2;
   const lo = Math.max(0, best - 3);
-  const hi = Math.min(pts.length - 2, best + 3);
+  const hi = Math.min(track.pts.length - 2, best + 3);
   let n = 0;
   for (const [a, b] of WHEEL_POS) {
     const wx = p.x + c * a - s * b;
     const wy = p.y + s * a + c * b;
     let d = Infinity;
-    for (let i = lo; i <= hi; i++) {
-      d = Math.min(d, distSeg(wx, wy, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y));
+    for (const arr of [track.pts, track.alt]) {
+      for (let i = lo; i <= hi; i++) {
+        d = Math.min(d, distSeg(wx, wy, arr[i].x, arr[i].y, arr[i + 1].x, arr[i + 1].y));
+      }
     }
     if (d > half) n++;
   }
@@ -606,7 +671,7 @@ function updateSplash(g: Game, dt: number) {
 }
 
 function beginFall(g: Game, best: number) {
-  const p = g.track.pts[best];
+  const p = routePts(g.track, g.route)[best];
   emitSplash(g, g.x, g.y);
   g.phase = "fall";
   g.fallT = 0;
@@ -633,7 +698,12 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
   g.x += g.vx * dt;
   g.y += g.vy * dt;
 
-  const pts = g.track.pts;
+  const other = 1 - g.route;
+  const near = nearestIdx(routePts(g.track, g.route), g.x, g.y, Math.max(0, g.idx - 8), Math.min(g.track.pts.length - 1, g.idx + 40));
+  if (routeDist(g.x, g.y, routePts(g.track, other), near) + DRIFT.routeSlack < routeDist(g.x, g.y, routePts(g.track, g.route), near)) {
+    g.route = other;
+  }
+  const pts = routePts(g.track, g.route);
   const best = nearestIdx(pts, g.x, g.y, Math.max(0, g.idx - 8), Math.min(pts.length - 1, g.idx + 40));
   g.idx = best;
   g.dist = Math.max(g.dist, best * DRIFT.sample);
@@ -659,7 +729,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
   const pitchTarget = g.air ? Math.atan2(g.vz, speed) : Math.atan(sf.slope);
   g.pitch += (clamp(pitchTarget, -DRIFT.pitchMax, DRIFT.pitchMax) - g.pitch) * Math.min(1, DRIFT.pitchRate * dt);
 
-  const off = !g.air && offRoadWheels(g, pts, best) >= DRIFT.wheelsOffToFall;
+  const off = !g.air && offRoadWheels(g, g.track, best) >= DRIFT.wheelsOffToFall;
   g.offT = off ? g.offT + dt : 0;
   if (g.offT > DRIFT.edgeGrace) {
     beginFall(g, best);
@@ -676,7 +746,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
 
   if (!g.air) hitProps(g, g.x, g.y, g.vx, g.vy, DRIFT.carRadius);
 
-  g.hist.push({ t: g.t, x: g.x, y: g.y, h: g.h, v: speed });
+  g.hist.push({ t: g.t, x: g.x, y: g.y, h: g.h, v: speed, route: g.route });
   while (g.hist.length > 1 && g.hist[0].t < g.t - DRIFT.copEnterLag - 1) g.hist.shift();
 
   const slip = Math.abs(angleDiff(Math.atan2(g.vy, g.vx), g.h));
@@ -725,13 +795,14 @@ function sampleHist(hist: Hist[], t: number): Hist {
     y: a.y + (b.y - a.y) * f,
     h: a.h + angleDiff(b.h, a.h) * f,
     v: a.v + (b.v - a.v) * f,
+    route: (f < 0.5 ? a : b).route,
   };
 }
 
 function spawnCop(g: Game) {
   if (g.hist.length === 0) return;
-  const pts = g.track.pts;
   const s = sampleHist(g.hist, g.t - DRIFT.copEnterLag);
+  const pts = routePts(g.track, s.route);
   const idx = nearestIdx(pts, s.x, s.y, Math.max(0, g.idx - 200), g.idx);
   const sf = surfaceAt(pts, idx, s.x, s.y);
   const home = (Math.random() * 2 - 1) * DRIFT.copLane;
@@ -748,6 +819,7 @@ function spawnCop(g: Game) {
     vx: Math.cos(s.h) * s.v,
     vy: Math.sin(s.h) * s.v,
     idx,
+    route: s.route,
     offT: 0,
     speed: s.v,
     phase: "enter",
@@ -766,7 +838,6 @@ function spawnCop(g: Game) {
 }
 
 function copDrive(g: Game, c: Cop, dt: number) {
-  const pts = g.track.pts;
   c.age += dt;
   const wear = clamp(c.age / DRIFT.copWearTime, 0, 1);
   const x0 = c.x;
@@ -783,6 +854,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.lag = lag;
     const tt = Math.min(g.t - lag, g.hist[g.hist.length - 1].t);
     const s = sampleHist(g.hist, tt);
+    c.route = s.route;
     const omega = angleDiff(s.h, c.h) / dt;
     c.h = s.h;
     c.av = omega;
@@ -791,7 +863,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
       c.laneT = 1.5 + Math.random() * 2;
       c.laneTarget = c.home + (Math.random() * 2 - 1) * DRIFT.copWander;
     }
-    const cur = pts[c.idx];
+    const cur = routePts(g.track, c.route)[c.idx];
     const histLat = cur.dir ? s.x - cur.x : cur.y - s.y;
     const roadHalf = Math.max(0, cur.w / 2 - 12);
     const slideTarget = clamp(histLat + c.laneTarget, -roadHalf, roadHalf) - histLat;
@@ -813,6 +885,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.speed = Math.hypot(c.vx, c.vy);
   }
 
+  const pts = routePts(g.track, c.route);
   c.idx = nearestIdx(pts, c.x, c.y, Math.max(0, c.idx - 8), Math.min(pts.length - 1, c.idx + 40));
   const sf = surfaceAt(pts, c.idx, c.x, c.y);
   c.ground = sf.lift;
@@ -821,7 +894,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
   c.roll += (clamp(-c.av * DRIFT.rollPerAv, -DRIFT.rollMax, DRIFT.rollMax) - c.roll) * Math.min(1, DRIFT.rollRate * dt);
   skid(g, c, Math.abs(c.av) > DRIFT.copSkidRate, c.marks);
 
-  const off = offRoadWheels(c, pts, c.idx) >= DRIFT.wheelsOffToFall;
+  const off = offRoadWheels(c, g.track, c.idx) >= DRIFT.wheelsOffToFall;
   c.offT = off ? c.offT + dt : 0;
   if ((c.phase === "enter" || c.phase === "chase") && c.offT > DRIFT.edgeGrace) {
     c.phase = "fall";

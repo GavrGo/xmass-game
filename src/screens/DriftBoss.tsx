@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, createGame, policeGeom, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import { DRIFT, createGame, policeGeom, routePts, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
 
@@ -211,13 +211,15 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fill();
     ctx.stroke();
   };
-  const edge = (i: number, f: number, dz: number): [number, number] => {
-    const p = pts[i];
+  const edgeOn = (arr: Pt[], i: number, f: number, dz: number): [number, number] => {
+    const p = arr[i];
     const r = (p.w / 2) * f;
     const nx = p.dir ? 1 : 0;
     const ny = p.dir ? 0 : -1;
     return P(p.x + nx * r, p.y + ny * r, p.lift + dz);
   };
+  const alt = g.track.alt;
+  const routesAt = (i: number): Pt[][] => (alt[i] !== pts[i] || alt[i + 1] !== pts[i + 1] ? [pts, alt] : [pts]);
 
   const drawVehicle = (v: Pose, pal: Palette, bar: boolean) => {
     const cc = Math.cos(v.h);
@@ -610,31 +612,37 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.globalAlpha = alpha;
   };
 
-  const near = pts[g.idx];
+  const near = routePts(g.track, g.route)[g.idx];
   const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
-  const behindCop = (c: Cop) => c.phase === "fall" && c.x + c.y > pts[c.idx].x + pts[c.idx].y;
+  const behindCop = (c: Cop) => c.phase === "fall" && c.x + c.y > routePts(g.track, c.route)[c.idx].x + routePts(g.track, c.route)[c.idx].y;
   if (carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
   for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
 
   for (let i = from; i < to; i++) {
-    poly([edge(i, -1, 0), edge(i + 1, -1, 0), edge(i + 1, -1, -WALL_H), edge(i, -1, -WALL_H)], WALL);
-    poly([edge(i, 1, 0), edge(i + 1, 1, 0), edge(i + 1, 1, -WALL_H), edge(i, 1, -WALL_H)], WALL);
+    for (const arr of routesAt(i)) {
+      const e = (k: number, f: number, dz: number) => edgeOn(arr, k, f, dz);
+      poly([e(i, -1, 0), e(i + 1, -1, 0), e(i + 1, -1, -WALL_H), e(i, -1, -WALL_H)], WALL);
+      poly([e(i, 1, 0), e(i + 1, 1, 0), e(i + 1, 1, -WALL_H), e(i, 1, -WALL_H)], WALL);
+    }
   }
   for (let i = from; i < to; i++) {
-    poly([edge(i, -1, 0), edge(i + 1, -1, 0), edge(i + 1, 1, 0), edge(i, 1, 0)], shadeHex(ASPHALT, 0.9 + 0.16 * hash(i)));
-    for (let j = 0; j < 4; j++) {
-      const [sx, sy] = edge(i, -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
-      ctx.beginPath();
-      ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
-      ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.28)";
-      ctx.fill();
+    for (const arr of routesAt(i)) {
+      const e = (k: number, f: number, dz: number) => edgeOn(arr, k, f, dz);
+      poly([e(i, -1, 0), e(i + 1, -1, 0), e(i + 1, 1, 0), e(i, 1, 0)], shadeHex(ASPHALT, 0.9 + 0.16 * hash(i)));
+      for (let j = 0; j < 4; j++) {
+        const [sx, sy] = e(i, -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
+        ctx.beginPath();
+        ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
+        ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.28)";
+        ctx.fill();
+      }
     }
   }
 
   for (let i = from; i < to; i++) {
-    for (const side of [-1, 1]) {
-      const [ax, ay] = edge(i, side, 0);
-      const [bx, by] = edge(i + 1, side, 0);
+    for (const arr of routesAt(i)) for (const side of [-1, 1]) {
+      const [ax, ay] = edgeOn(arr, i, side, 0);
+      const [bx, by] = edgeOn(arr, i + 1, side, 0);
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.lineTo(bx, by);
@@ -669,14 +677,16 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   for (let i = from; i < to; i++) {
     const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
     if (crest <= 0) continue;
-    ctx.beginPath();
-    ctx.moveTo(...edge(i, -1, 0));
-    ctx.lineTo(...edge(i + 1, -1, 0));
-    ctx.lineTo(...edge(i + 1, 1, 0));
-    ctx.lineTo(...edge(i, 1, 0));
-    ctx.closePath();
-    ctx.fillStyle = `rgba(255,255,255,${(0.3 * crest).toFixed(3)})`;
-    ctx.fill();
+    for (const arr of routesAt(i)) {
+      ctx.beginPath();
+      ctx.moveTo(...edgeOn(arr, i, -1, 0));
+      ctx.lineTo(...edgeOn(arr, i + 1, -1, 0));
+      ctx.lineTo(...edgeOn(arr, i + 1, 1, 0));
+      ctx.lineTo(...edgeOn(arr, i, 1, 0));
+      ctx.closePath();
+      ctx.fillStyle = `rgba(255,255,255,${(0.3 * crest).toFixed(3)})`;
+      ctx.fill();
+    }
   }
 
   const drawMarks = (list: Mark[]) => {
