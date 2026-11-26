@@ -23,7 +23,15 @@ const TIRE = "#1d1d22";
 const HUB = "#c9ced8";
 const LIGHT = "#fff6b3";
 const TAIL = "#ff3b3b";
-const LEAF_TONES = ["#8b5a2b", "#c96f2d", "#e3b449", "#6f8f3a", "#a4472a"];
+type Litter = { kind: "paper" | "bag" | "pack"; color: string; w: number; h: number };
+const LITTER: Litter[] = [
+  { kind: "paper", color: "#f4f3ee", w: 6, h: 5 },
+  { kind: "paper", color: "#e6e2d3", w: 5, h: 7 },
+  { kind: "bag", color: "#dcecf5", w: 8, h: 7 },
+  { kind: "pack", color: "#e0433a", w: 6, h: 4 },
+  { kind: "pack", color: "#2f7fd1", w: 5, h: 4 },
+  { kind: "pack", color: "#f2b632", w: 5, h: 4 },
+];
 const ASPHALT = "#4b4e56";
 const hash = (n: number) => {
   const v = Math.sin(n * 12.9898) * 43758.5453;
@@ -372,6 +380,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
   const drawProp = (pr: Prop) => {
     const shape = PROP_SHAPE[pr.kind];
+    ctx.globalAlpha = alpha * (pr.state === "flying" ? clamp01((DRIFT.propLife - pr.age) / 0.6) : 1);
     const z0 = pr.state === "flying" ? pr.z : pts[pr.idx].lift;
     const z1 = z0 + shape.h;
     const c = Math.cos(pr.rot);
@@ -462,6 +471,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       ctx.fillStyle = "#c9d1c4";
       ctx.fill();
     }
+    ctx.globalAlpha = alpha;
   };
 
   const near = pts[g.idx];
@@ -507,6 +517,19 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.globalCompositeOperation = "lighter";
   for (const c of g.cops) if (c.phase !== "fall") drawCopGlow(c);
   ctx.globalCompositeOperation = "source-over";
+  for (let i = from; i < to; i++) {
+    const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
+    if (crest <= 0) continue;
+    ctx.beginPath();
+    ctx.moveTo(...edge(i, -1, 0));
+    ctx.lineTo(...edge(i + 1, -1, 0));
+    ctx.lineTo(...edge(i + 1, 1, 0));
+    ctx.lineTo(...edge(i, 1, 0));
+    ctx.closePath();
+    ctx.fillStyle = `rgba(255,255,255,${(0.3 * crest).toFixed(3)})`;
+    ctx.fill();
+  }
+
   const drawMarks = (list: Mark[]) => {
     ctx.strokeStyle = "rgba(25,25,30,0.8)";
     ctx.lineWidth = 4 * s;
@@ -530,13 +553,34 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   for (const c of g.cops) if (c.phase !== "fall") drawMarks(c.marks);
 
   for (const l of g.leaves) {
-    const [sx, sy] = P(l.x, l.y, l.z + 0.5);
-    const fade = l.fly ? Math.max(0, 1 - l.age / DRIFT.leafLife) : 1;
+    const L = LITTER[l.tone];
+    const fade = l.fly ? clamp01(1 - l.age / DRIFT.leafLife) : 1;
+    const c = Math.cos(l.rot);
+    const sn = Math.sin(l.rot);
+    const at = (a: number, b: number): [number, number] =>
+      P(l.x + c * a - sn * b, l.y + sn * a + c * b, l.z + 0.5);
+    const { w, h } = L;
+    const outline: [number, number][] =
+      L.kind === "bag"
+        ? [[-w, -h * 0.6], [w * 0.4, -h], [w, -h * 0.2], [w * 0.7, h], [-w * 0.2, h * 0.9], [-w, h * 0.3]]
+        : L.kind === "pack"
+          ? [[-w, -h], [w, -h], [w * 0.8, 0], [w, h], [-w, h], [-w * 0.8, 0]]
+          : [[-w, -h], [w, -h], [w, h], [-w, h]];
     ctx.beginPath();
-    ctx.ellipse(sx, sy, 3.2 * s, (1.5 + Math.abs(Math.cos(l.rot * 1.7))) * s, l.rot, 0, Math.PI * 2);
-    ctx.fillStyle = LEAF_TONES[l.tone];
-    ctx.globalAlpha = alpha * fade;
+    outline.forEach(([a, b], k) => {
+      const [px, py] = at(a, b);
+      if (k) ctx.lineTo(px, py);
+      else ctx.moveTo(px, py);
+    });
+    ctx.closePath();
+    ctx.globalAlpha = alpha * fade * (L.kind === "bag" ? 0.8 : 1);
+    ctx.fillStyle = L.color;
     ctx.fill();
+    if (L.kind === "bag") {
+      ctx.strokeStyle = "rgba(90,120,140,0.6)";
+      ctx.lineWidth = 0.7 * s;
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = alpha;
   for (let i = from; i <= to; i++) {

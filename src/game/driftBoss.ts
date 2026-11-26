@@ -46,9 +46,10 @@ export const DRIFT = {
   fallRoll: 1.2,
   pitchRate: 8,
   pitchMax: 0.5,
-  copLag: 0.12,
+  copLag: 0.5,
   copEnterLag: 1.4,
   copEnterTau: 1.2,
+  copEnterGap: 0.3,
   copSpawnEvery: 5,
   copWearTime: 35,
   copWornGrip: 0.2,
@@ -68,12 +69,14 @@ export const DRIFT = {
   sparkCount: 14,
   sparkLife: 0.5,
   sparkGravity: 500,
-  leafCount: 46,
-  leafAhead: 70,
+  leafCount: 60,
+  leafNear: 100,
+  leafAhead: 90,
   leafRadius: 26,
   leafKick: 260,
   leafLife: 3.2,
-  leafCull: 700,
+  leafCull: 1800,
+  leafBehind: 1000,
 };
 
 const VEC = [
@@ -189,6 +192,7 @@ export interface Cop extends Pose {
   age: number;
   slide: number;
   slideV: number;
+  lag: number;
   fallT: number;
   fallSide: number;
   marks: Mark[];
@@ -651,10 +655,31 @@ function spawnCop(g: Game) {
     age: 0,
     slide: 0,
     slideV: 0,
+    lag: DRIFT.copEnterLag,
     fallT: 0,
     fallSide: 0,
     marks: [],
   });
+}
+
+function nearestLeader(g: Game, c: Cop): Cop | null {
+  const fx = Math.cos(c.h);
+  const fy = Math.sin(c.h);
+  let best: Cop | null = null;
+  let bestAhead = Infinity;
+  for (const o of g.cops) {
+    if (o === c || o.phase === "fall") continue;
+    const dx = o.x - c.x;
+    const dy = o.y - c.y;
+    const ahead = dx * fx + dy * fy;
+    const side = -dx * fy + dy * fx;
+    if (ahead <= 0 || ahead > DRIFT.copRadius * 12 || Math.abs(side) > DRIFT.copRadius * 2) continue;
+    if (ahead < bestAhead) {
+      bestAhead = ahead;
+      best = o;
+    }
+  }
+  return best;
 }
 
 function copDrive(g: Game, c: Cop, dt: number) {
@@ -671,7 +696,12 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.x += c.vx * dt;
     c.y += c.vy * dt;
   } else {
-    const lag = DRIFT.copLag + (DRIFT.copEnterLag - DRIFT.copLag) * Math.exp(-c.age / DRIFT.copEnterTau);
+    let lag = DRIFT.copLag + (DRIFT.copEnterLag - DRIFT.copLag) * Math.exp(-c.age / DRIFT.copEnterTau);
+    if (c.phase === "enter") {
+      const leader = nearestLeader(g, c);
+      if (leader) lag = Math.max(lag, leader.lag + DRIFT.copEnterGap);
+    }
+    c.lag = lag;
     const tt = Math.min(g.t - lag, g.hist[g.hist.length - 1].t);
     const s = sampleHist(g.hist, tt);
     const omega = angleDiff(s.h, c.h) / dt;
@@ -716,6 +746,15 @@ function copFall(c: Cop, dt: number) {
   c.z -= DRIFT.fallDrop * dt;
 }
 
+function shoveLateral(c: Cop, amt: number) {
+  if (c.phase === "halt") {
+    c.x -= Math.sin(c.h) * amt;
+    c.y += Math.cos(c.h) * amt;
+  } else {
+    c.slide += amt;
+  }
+}
+
 function collideCops(cops: Cop[]) {
   const R = DRIFT.copRadius * 2;
   for (let i = 0; i < cops.length; i++) {
@@ -726,22 +765,12 @@ function collideCops(cops: Cop[]) {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.hypot(dx, dy);
-      if (d >= R || d < 1e-3) continue;
-      const nx = dx / d;
-      const ny = dy / d;
-      const push = (R - d) / 2;
-      a.x -= nx * push;
-      a.y -= ny * push;
-      b.x += nx * push;
-      b.y += ny * push;
-      const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-      if (vn < 0) {
-        const imp = vn * 0.5;
-        a.vx += nx * imp;
-        a.vy += ny * imp;
-        b.vx -= nx * imp;
-        b.vy -= ny * imp;
-      }
+      if (d >= R) continue;
+      const overlap = R - Math.max(d, 1e-3);
+      const la = -dx * Math.sin(a.h) + dy * Math.cos(a.h);
+      const sgn = la < 0 ? -1 : 1;
+      shoveLateral(a, (-sgn * overlap) / 2);
+      shoveLateral(b, (sgn * overlap) / 2);
     }
   }
 }
@@ -785,7 +814,7 @@ function stirLeaves(g: Game, x: number, y: number, speed: number) {
 function spawnLeaves(g: Game) {
   const pts = g.track.pts;
   while (g.leaves.length < DRIFT.leafCount) {
-    const p = pts[g.idx + 4 + Math.floor(Math.random() * DRIFT.leafAhead)];
+    const p = pts[g.idx + DRIFT.leafNear + Math.floor(Math.random() * DRIFT.leafAhead)];
     const lat = (Math.random() * 2 - 1) * (p.w / 2 - 6);
     g.leaves.push({
       x: p.dir === 0 ? p.x : p.x + lat,
@@ -799,7 +828,7 @@ function spawnLeaves(g: Game) {
       spin: 0,
       age: 0,
       fly: false,
-      tone: Math.floor(Math.random() * 5),
+      tone: Math.floor(Math.random() * 6),
     });
   }
 }
@@ -824,7 +853,13 @@ function updateLeaves(g: Game, dt: number) {
       l.spin *= 0.5;
     }
   }
-  g.leaves = g.leaves.filter((l) => (l.fly ? l.age < DRIFT.leafLife : Math.hypot(l.x - g.x, l.y - g.y) < DRIFT.leafCull));
+  const fx = Math.cos(g.h);
+  const fy = Math.sin(g.h);
+  g.leaves = g.leaves.filter((l) => {
+    if (l.fly) return l.age < DRIFT.leafLife;
+    const fwd = (l.x - g.x) * fx + (l.y - g.y) * fy;
+    return fwd > -DRIFT.leafBehind && Math.hypot(l.x - g.x, l.y - g.y) < DRIFT.leafCull;
+  });
   spawnLeaves(g);
 }
 
