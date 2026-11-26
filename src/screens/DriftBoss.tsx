@@ -5,7 +5,7 @@ import { DRIFT, createGame, scoreOf, step, type Cop, type Game, type Pose, type 
 
 const BEST_KEY = "driftBossBest";
 
-type Status = "idle" | "play" | "over";
+type Status = "idle" | "play" | "stamp" | "over";
 const isoX = (x: number, y: number) => (x - y) * 0.866;
 const isoY = (x: number, y: number) => (x + y) * 0.5;
 
@@ -27,6 +27,8 @@ const TIRE = "#1d1d22";
 const HUB = "#c9ced8";
 const LIGHT = "#fff6b3";
 const TAIL = "#ff3b3b";
+const LEAF_TONES = ["#8b5a2b", "#c96f2d", "#e3b449", "#6f8f3a", "#a4472a"];
+const STAMP_HOLD = 2.4;
 
 type Local = [number, number, number];
 type Face = { pts: [number, number][]; color: string; depth: number };
@@ -373,9 +375,13 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const z1 = z0 + shape.h;
     const c = Math.cos(pr.rot);
     const sn = Math.sin(pr.rot);
-    const ring = shape.ring.map(([a, b]) => [pr.x + c * a - sn * b, pr.y + sn * a + c * b] as [number, number]);
+    const at = (a: number, b: number, k = 1): [number, number] => [
+      pr.x + (c * a - sn * b) * k,
+      pr.y + (sn * a + c * b) * k,
+    ];
+    const ring = shape.ring.map(([a, b]) => at(a, b));
     const n = ring.length;
-    const faces: { q: [number, number][]; d: number; color: string }[] = [];
+    const faces: { ax: number; ay: number; bx: number; by: number; d: number; color: string }[] = [];
     for (let i = 0; i < n; i++) {
       const [ax, ay] = ring[i];
       const [bx, by] = ring[(i + 1) % n];
@@ -392,18 +398,69 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       }
       if (nx + ny <= 0) continue;
       const lit = 0.7 + 0.3 * clamp01(nx * 0.5 + ny * 0.5);
-      faces.push({
-        q: [P(ax, ay, z0), P(bx, by, z0), P(bx, by, z1), P(ax, ay, z1)],
-        d: mx + my,
-        color: shadeHex(shape.side, lit),
-      });
+      faces.push({ ax, ay, bx, by, d: mx + my, color: shadeHex(shape.side, lit) });
     }
     faces.sort((a, b) => a.d - b.d);
-    for (const f of faces) poly(f.q, f.color);
-    poly(
-      ring.map(([x, y]) => P(x, y, z1)),
-      shape.top,
-    );
+    const seam = shadeHex(shape.side, 0.5);
+    const hi = "rgba(255,240,215,0.45)";
+    for (const f of faces) {
+      poly([P(f.ax, f.ay, z0), P(f.bx, f.by, z0), P(f.bx, f.by, z1), P(f.ax, f.ay, z1)], f.color);
+      const seg = (t0: number, za: number, t1: number, zb: number, col: string, w: number) => {
+        const p0 = P(f.ax + (f.bx - f.ax) * t0, f.ay + (f.by - f.ay) * t0, za);
+        const p1 = P(f.ax + (f.bx - f.ax) * t1, f.ay + (f.by - f.ay) * t1, zb);
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w * s;
+        ctx.stroke();
+      };
+      if (pr.kind === "barrel") {
+        seg(0, z0 + 3, 1, z0 + 3, seam, 1.4);
+        seg(0, z1 - 3, 1, z1 - 3, seam, 1.4);
+        seg(0.3, z0 + 2, 0.3, z1 - 2, hi, 1.2);
+      } else if (pr.kind === "crate") {
+        seg(0, z0 + shape.h / 3, 1, z0 + shape.h / 3, seam, 1);
+        seg(0, z0 + (2 * shape.h) / 3, 1, z0 + (2 * shape.h) / 3, seam, 1);
+        seg(0.5, z0, 0.5, z1, seam, 0.8);
+      } else {
+        for (const t of [0.2, 0.4, 0.6, 0.8]) seg(t, z0 + 1, t, z1 - 3, seam, 0.8);
+        seg(0, z1 - 2, 1, z1 - 2, seam, 1);
+      }
+    }
+    const topP = ring.map(([x, y]) => P(x, y, z1));
+    poly(topP, shape.top);
+    if (pr.kind === "barrel") {
+      poly(
+        shape.ring.map(([a, b]) => {
+          const [x, y] = at(a, b, 0.55);
+          return P(x, y, z1);
+        }),
+        "#b8582a",
+      );
+    } else if (pr.kind === "crate") {
+      ctx.beginPath();
+      ctx.moveTo(topP[0][0], topP[0][1]);
+      ctx.lineTo(topP[2][0], topP[2][1]);
+      ctx.moveTo(topP[1][0], topP[1][1]);
+      ctx.lineTo(topP[3][0], topP[3][1]);
+      ctx.strokeStyle = seam;
+      ctx.lineWidth = s;
+      ctx.stroke();
+    } else {
+      poly(
+        shape.ring.map(([a, b]) => {
+          const [x, y] = at(a, b, 0.6);
+          return P(x, y, z1);
+        }),
+        "#4f5c4c",
+      );
+      ctx.beginPath();
+      const [kx, ky] = P(pr.x, pr.y, z1 + 1);
+      ctx.arc(kx, ky, 1.6 * s, 0, Math.PI * 2);
+      ctx.fillStyle = "#c9d1c4";
+      ctx.fill();
+    }
   };
 
   const near = pts[g.idx];
@@ -428,6 +485,28 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     }
   }
 
+  const drawCopGlow = (c: Cop) => {
+    const k = (Math.sin(time * 16 + c.idx) + 1) / 2;
+    const fx = Math.cos(c.h);
+    const fy = Math.sin(c.h);
+    const blob = (x: number, y: number, z: number, r: number, col: string, a: number) => {
+      const [gx, gy] = P(x, y, z);
+      const grd = ctx.createRadialGradient(gx, gy, 0, gx, gy, r * s);
+      grd.addColorStop(0, `rgba(${col},${a})`);
+      grd.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(gx, gy, r * s, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    blob(c.x - fy * 9, c.y + fx * 9, c.ground + 1, 90, "255,30,30", 0.7 * k);
+    blob(c.x + fy * 9, c.y - fx * 9, c.ground + 1, 90, "30,110,255", 0.7 * (1 - k));
+    blob(c.x - fy * 5, c.y + fx * 5, c.ground + 18, 34, "255,30,30", 0.95 * k);
+    blob(c.x + fy * 5, c.y - fx * 5, c.ground + 18, 34, "30,110,255", 0.95 * (1 - k));
+  };
+  ctx.globalCompositeOperation = "lighter";
+  for (const c of g.cops) if (c.phase !== "fall") drawCopGlow(c);
+  ctx.globalCompositeOperation = "source-over";
   ctx.strokeStyle = "rgba(25,25,30,0.8)";
   ctx.lineWidth = 4 * s;
   for (let k = 1; k < g.marks.length; k++) {
@@ -446,6 +525,16 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.stroke();
   }
 
+  for (const l of g.leaves) {
+    const [sx, sy] = P(l.x, l.y, l.z + 0.5);
+    const fade = l.fly ? Math.max(0, 1 - l.age / DRIFT.leafLife) : 1;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 3.2 * s, (1.5 + Math.abs(Math.cos(l.rot * 1.7))) * s, l.rot, 0, Math.PI * 2);
+    ctx.fillStyle = LEAF_TONES[l.tone];
+    ctx.globalAlpha = alpha * fade;
+    ctx.fill();
+  }
+  ctx.globalAlpha = alpha;
   for (let i = from; i <= to; i++) {
     const p: Pt = pts[i];
     if (!p.coin || p.taken) continue;
@@ -543,6 +632,8 @@ export default function DriftBoss() {
     let raf = 0;
     let last = performance.now();
     let time = 0;
+    let bw = 0;
+    let stampAt = 0;
     const frame = (now: number) => {
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
@@ -552,18 +643,27 @@ export default function DriftBoss() {
       if (statusRef.current === "play") {
         step(g, holdingRef.current, dt);
         if (g.phase === "over") {
-          statusRef.current = "over";
+          statusRef.current = "stamp";
+          stampAt = time;
           holdingRef.current = false;
           const score = scoreOf(g);
           const prev = Number(localStorage.getItem(BEST_KEY)) || 0;
           const best = Math.max(prev, score);
           localStorage.setItem(BEST_KEY, String(best));
           setResult({ score, best });
+          setStatus("stamp");
+        }
+      } else if (statusRef.current === "stamp") {
+        step(g, false, dt);
+        if (time - stampAt > STAMP_HOLD) {
+          statusRef.current = "over";
           setStatus("over");
         }
       } else if (statusRef.current === "over") {
         step(g, false, dt);
       }
+      bw = g.phase === "play" ? 0 : Math.min(1, bw + dt * 1.2);
+      canvas.style.filter = bw > 0 ? `grayscale(${bw})` : "";
       if (coinsRef.current) coinsRef.current.textContent = String(g.coins);
       if (distRef.current) distRef.current.textContent = String(Math.floor(g.dist / 10));
       draw(ctx, g, W, H, time);
@@ -608,6 +708,25 @@ export default function DriftBoss() {
           <div className="text-3xl font-extrabold text-white">{Т.дрифтБосс.название}</div>
           <div className="max-w-xs text-sm text-white/85">{Т.дрифтБосс.подсказка}</div>
           <div className="mt-2 text-sm font-bold text-brand-yellow">{Т.дрифтБосс.старт}</div>
+        </div>
+      )}
+
+      {status === "stamp" && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <style>{`@keyframes driftStamp{0%{transform:scale(2.6) rotate(-14deg);opacity:0}55%{transform:scale(0.92) rotate(-8deg);opacity:1}75%{transform:scale(1.05) rotate(-8deg)}100%{transform:scale(1) rotate(-8deg);opacity:1}}`}</style>
+          <div
+            className="text-6xl font-black"
+            style={{
+              animation: "driftStamp 0.38s cubic-bezier(0.2,0.9,0.3,1.2) both",
+              fontFamily: "Impact, 'Arial Black', sans-serif",
+              color: "#ffd21f",
+              WebkitTextStroke: "3px #000",
+              textShadow: "5px 5px 0 #b3120f, 0 0 22px rgba(255,40,40,0.7)",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {Т.дрифтБосс.потрачено}
+          </div>
         </div>
       )}
 

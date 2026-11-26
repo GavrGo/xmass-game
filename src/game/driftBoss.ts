@@ -47,11 +47,14 @@ export const DRIFT = {
   pitchRate: 8,
   pitchMax: 0.5,
   copLag: 0.12,
-  copSpawnLag: 0.3,
-  copSpawnEvery: 10,
+  copEnterLag: 1.4,
+  copEnterSpeed: 1.6,
+  copSpawnEvery: 5,
   copGap: 14,
   copSpeedGain: 0.8,
-  copTurnAccel: 12,
+  copWearTime: 35,
+  copWornGrip: 0.2,
+  copWornTurnAccel: 3,
   copHaltGain: 2.2,
   copRadius: 16,
   carRadius: 20,
@@ -66,6 +69,12 @@ export const DRIFT = {
   sparkCount: 14,
   sparkLife: 0.5,
   sparkGravity: 500,
+  leafCount: 46,
+  leafAhead: 70,
+  leafRadius: 26,
+  leafKick: 260,
+  leafLife: 3.2,
+  leafCull: 700,
 };
 
 const VEC = [
@@ -135,6 +144,21 @@ export interface Spark {
   life: number;
 }
 
+export interface Leaf {
+  x: number;
+  y: number;
+  z: number;
+  floor: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  rot: number;
+  spin: number;
+  age: number;
+  fly: boolean;
+  tone: number;
+}
+
 export interface Mark {
   ax: number;
   ay: number;
@@ -162,7 +186,8 @@ export interface Cop extends Pose {
   idx: number;
   offT: number;
   speed: number;
-  phase: "chase" | "halt" | "fall";
+  phase: "enter" | "chase" | "halt" | "fall";
+  age: number;
   fallT: number;
   fallSide: number;
 }
@@ -193,6 +218,7 @@ export interface Game extends Pose {
   hist: Hist[];
   cops: Cop[];
   copTimer: number;
+  leaves: Leaf[];
   smoke: Smoke[];
   sparks: Spark[];
   marks: Mark[];
@@ -301,6 +327,7 @@ export function createGame(): Game {
     hist: [],
     cops: [],
     copTimer: DRIFT.copSpawnEvery,
+    leaves: [],
     smoke: [],
     sparks: [],
     marks: [],
@@ -480,7 +507,7 @@ function beginFall(g: Game, best: number) {
   g.phase = "fall";
   g.fallT = 0;
   g.fallSide = sideOf(g, p);
-  for (const c of g.cops) if (c.phase === "chase") c.phase = "halt";
+  for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
 }
 
 function playerDrive(g: Game, holding: boolean, dt: number) {
@@ -546,7 +573,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
   if (!g.air) hitProps(g, g.x, g.y, g.vx, g.vy, DRIFT.carRadius);
 
   g.hist.push({ t: g.t, x: g.x, y: g.y, h: g.h, v: speed });
-  while (g.hist.length > 1 && g.hist[0].t < g.t - DRIFT.copSpawnLag - 1) g.hist.shift();
+  while (g.hist.length > 1 && g.hist[0].t < g.t - DRIFT.copEnterLag - 1) g.hist.shift();
 
   const slip = Math.abs(angleDiff(Math.atan2(g.vy, g.vx), g.h));
   const skidding = !g.air && slip > DRIFT.smokeSlip;
@@ -597,7 +624,7 @@ function sampleHist(hist: Hist[], t: number): Hist {
 function spawnCop(g: Game) {
   if (g.hist.length === 0) return;
   const pts = g.track.pts;
-  const s = sampleHist(g.hist, g.t - DRIFT.copSpawnLag);
+  const s = sampleHist(g.hist, g.t - DRIFT.copEnterLag);
   const idx = nearestIdx(pts, s.x, s.y, Math.max(0, g.idx - 200), g.idx);
   const sf = surfaceAt(pts, idx, s.x, s.y);
   g.cops.push({
@@ -615,7 +642,8 @@ function spawnCop(g: Game) {
     idx,
     offT: 0,
     speed: s.v,
-    phase: "chase",
+    phase: "enter",
+    age: 0,
     fallT: 0,
     fallSide: 0,
   });
@@ -623,6 +651,8 @@ function spawnCop(g: Game) {
 
 function copDrive(g: Game, c: Cop, dt: number) {
   const pts = g.track.pts;
+  c.age += dt;
+  const wear = clamp(c.age / DRIFT.copWearTime, 0, 1);
   const tt = c.phase === "halt" ? Math.min(g.t - DRIFT.copLag, g.hist[g.hist.length - 1].t) : g.t - DRIFT.copLag;
   const s = sampleHist(g.hist, tt);
   const dx = s.x - c.x;
@@ -630,15 +660,20 @@ function copDrive(g: Game, c: Cop, dt: number) {
   const dist = Math.hypot(dx, dy);
   const desired = dist > 12 ? Math.atan2(dy, dx) : ANG[pts[c.idx].dir];
   const want = clamp(angleDiff(desired, c.h) * DRIFT.turnFollow, -DRIFT.turnMax, DRIFT.turnMax);
-  c.av += (want - c.av) * Math.min(1, DRIFT.copTurnAccel * dt);
+  const turnAccel = DRIFT.turnAccel + (DRIFT.copWornTurnAccel - DRIFT.turnAccel) * wear;
+  c.av += (want - c.av) * Math.min(1, turnAccel * dt);
   c.h += c.av * dt;
 
+  if (c.phase === "enter" && dist < DRIFT.copGap * 1.5) c.phase = "chase";
   const cmd =
     c.phase === "halt"
       ? Math.min(s.v, dist * DRIFT.copHaltGain)
-      : clamp(s.v + (dist - DRIFT.copGap) * DRIFT.copSpeedGain, 0, DRIFT.speedMax + 20);
+      : c.phase === "enter"
+        ? DRIFT.speedMax * DRIFT.copEnterSpeed
+        : clamp(s.v + (dist - DRIFT.copGap) * DRIFT.copSpeedGain, 0, DRIFT.speedMax + 20);
   c.speed += (cmd - c.speed) * Math.min(1, 4 * dt);
-  const grip = Math.abs(c.av) > 0.05 ? DRIFT.slideGrip : DRIFT.grip;
+  const baseGrip = Math.abs(c.av) > 0.05 ? DRIFT.slideGrip : DRIFT.grip;
+  const grip = baseGrip * (1 - wear * (1 - DRIFT.copWornGrip));
   const k = Math.min(1, grip * dt);
   c.vx += (Math.cos(c.h) * c.speed - c.vx) * k;
   c.vy += (Math.sin(c.h) * c.speed - c.vy) * k;
@@ -720,11 +755,75 @@ function stepCops(g: Game, dt: number) {
   g.cops = g.cops.filter((c) => c.phase !== "fall" || c.fallT < DRIFT.fallTime);
 }
 
+function stirLeaves(g: Game, x: number, y: number, speed: number) {
+  for (const l of g.leaves) {
+    if (l.fly) continue;
+    const dx = l.x - x;
+    const dy = l.y - y;
+    const d = Math.hypot(dx, dy);
+    if (d > DRIFT.leafRadius || d < 1e-3) continue;
+    const k = (1 - d / DRIFT.leafRadius) * DRIFT.leafKick * clamp(speed / DRIFT.speedMax, 0.3, 1.2);
+    l.fly = true;
+    l.age = 0;
+    l.vx = (dx / d) * k;
+    l.vy = (dy / d) * k;
+    l.vz = 60 + Math.random() * 120;
+    l.spin = (Math.random() * 2 - 1) * 14;
+  }
+}
+
+function spawnLeaves(g: Game) {
+  const pts = g.track.pts;
+  while (g.leaves.length < DRIFT.leafCount) {
+    const p = pts[g.idx + 4 + Math.floor(Math.random() * DRIFT.leafAhead)];
+    const lat = (Math.random() * 2 - 1) * (p.w / 2 - 6);
+    g.leaves.push({
+      x: p.dir === 0 ? p.x : p.x + lat,
+      y: p.dir === 0 ? p.y + lat : p.y,
+      z: p.lift,
+      floor: p.lift,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      rot: Math.random() * Math.PI * 2,
+      spin: 0,
+      age: 0,
+      fly: false,
+      tone: Math.floor(Math.random() * 5),
+    });
+  }
+}
+
+function updateLeaves(g: Game, dt: number) {
+  if (g.phase === "play" && !g.air) stirLeaves(g, g.x, g.y, Math.hypot(g.vx, g.vy));
+  for (const c of g.cops) if (c.phase !== "fall") stirLeaves(g, c.x, c.y, Math.hypot(c.vx, c.vy));
+  const k = Math.exp(-2.5 * dt);
+  for (const l of g.leaves) {
+    if (!l.fly) continue;
+    l.age += dt;
+    l.x += l.vx * dt;
+    l.y += l.vy * dt;
+    l.vx *= k;
+    l.vy *= k;
+    l.vz -= DRIFT.gravity * 0.5 * dt;
+    l.z += l.vz * dt;
+    l.rot += l.spin * dt;
+    if (l.z < l.floor) {
+      l.z = l.floor;
+      l.vz = -l.vz * 0.3;
+      l.spin *= 0.5;
+    }
+  }
+  g.leaves = g.leaves.filter((l) => (l.fly ? l.age < DRIFT.leafLife : Math.hypot(l.x - g.x, l.y - g.y) < DRIFT.leafCull));
+  spawnLeaves(g);
+}
+
 function tail(g: Game, dt: number) {
   stepCops(g, dt);
   updateProps(g, dt);
   updateSparks(g, dt);
   updateSmoke(g, dt);
+  updateLeaves(g, dt);
 }
 
 export function step(g: Game, holding: boolean, dt: number) {
