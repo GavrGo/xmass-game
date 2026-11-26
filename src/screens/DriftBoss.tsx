@@ -4,9 +4,9 @@ import { Т } from "../texts";
 import { CAR, DRIFT, createGame, scoreOf, step, type Game, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
-const ROAD = "#b6e88a";
-const ROAD_DARK = "#8fd062";
-const EDGE = "#3d7a2b";
+const ROAD = "#a9d6f5";
+const ROAD_DARK = "#7fb9e6";
+const EDGE = "#1f3d6b";
 const CAR_TOP = "#5fd35a";
 const CAR_SIDE = "#2f9a3a";
 
@@ -20,14 +20,13 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const s = (Math.min(W, H) / 300) * cam;
   const cx = isoX(g.x, g.y);
   const cy = isoY(g.x, g.y);
-  const P = (x: number, y: number, lift = 0): [number, number] => [
+  const P = (x: number, y: number, z = 0): [number, number] => [
     (isoX(x, y) - cx) * s + W / 2,
-    (isoY(x, y) - cy) * s + H / 2 - lift * s * 1.5,
+    (isoY(x, y) - cy) * s + H / 2 - z * s * 1.5,
   ];
   const pts = g.track.pts;
   const from = Math.max(0, g.idx - 160);
-  const to = Math.min(pts.length - 1, g.idx + 260);
-  const half = DRIFT.trackWidth / 2;
+  const to = Math.min(pts.length - 2, g.idx + 260);
   const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / DRIFT.fallTime) : 1;
 
   const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -36,85 +35,62 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const roadPath = () => {
+  const edge = (i: number, f: number, dy: number): [number, number] => {
+    const p = pts[i];
+    const r = (p.w / 2) * f;
+    const nx = p.dir ? 1 : 0;
+    const ny = p.dir ? 0 : -1;
+    const [x, y] = P(p.x + nx * r, p.y + ny * r, p.lift);
+    return [x, y + dy * s];
+  };
+  const quad = (i: number, f0: number, f1: number, dy: number) => {
+    const a = edge(i, f0, dy);
+    const b = edge(i + 1, f0, dy);
+    const c = edge(i + 1, f1, dy);
+    const d = edge(i, f1, dy);
     ctx.beginPath();
-    for (let i = from; i <= to; i++) {
-      const [sx, sy] = P(pts[i].x, pts[i].y);
-      if (i === from) ctx.moveTo(sx, sy);
-      else ctx.lineTo(sx, sy);
-    }
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.lineTo(c[0], c[1]);
+    ctx.lineTo(d[0], d[1]);
+    ctx.closePath();
+    ctx.fill();
   };
 
-  ctx.save();
-  ctx.translate(0, 9 * s);
-  roadPath();
-  ctx.strokeStyle = EDGE;
-  ctx.lineWidth = (DRIFT.trackWidth + 8) * s;
-  ctx.stroke();
-  ctx.restore();
-
-  roadPath();
-  ctx.strokeStyle = ROAD;
-  ctx.lineWidth = DRIFT.trackWidth * s;
-  ctx.stroke();
-
-  ctx.strokeStyle = ROAD_DARK;
-  ctx.lineWidth = 3 * s;
-  ctx.beginPath();
-  for (let i = from; i <= to; i++) {
-    if (i % 4 !== 0) continue;
-    const p = pts[i];
-    const nx = p.dir ? 1 : 0;
-    const ny = p.dir ? 0 : -1;
-    const [x1, y1] = P(p.x + nx * half, p.y + ny * half);
-    const [x2, y2] = P(p.x - nx * half, p.y - ny * half);
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-  }
-  ctx.stroke();
-
-  for (let i = from; i <= to; i++) {
-    const p = pts[i];
-    if (!p.ramp) continue;
-    const nx = p.dir ? 1 : 0;
-    const ny = p.dir ? 0 : -1;
-    const [x1, y1] = P(p.x + nx * half, p.y + ny * half);
-    const [x2, y2] = P(p.x - nx * half, p.y - ny * half);
-    ctx.strokeStyle = p.used ? "#8a5a1e" : "#ff9f1a";
-    ctx.lineWidth = 7 * s;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
+  ctx.fillStyle = EDGE;
+  for (let i = from; i < to; i++) quad(i, -1, 1, 12);
+  const cols = [-1, -0.5, 0, 0.5, 1];
+  for (let i = from; i < to; i++) {
+    const band = Math.floor(i / 4);
+    for (let c = 0; c < 4; c++) {
+      ctx.fillStyle = (band + c) % 2 === 0 ? ROAD : ROAD_DARK;
+      quad(i, cols[c], cols[c + 1], 0);
+    }
   }
 
   ctx.globalAlpha = alpha;
-
   ctx.strokeStyle = "rgba(25,25,30,0.8)";
   ctx.lineWidth = 4 * s;
-  const ms = g.marks;
-  for (let k = 1; k < ms.length; k++) {
-    const m0 = ms[k - 1];
-    const m1 = ms[k];
+  for (let k = 1; k < g.marks.length; k++) {
+    const m0 = g.marks[k - 1];
+    const m1 = g.marks[k];
     if (!m0.on || !m1.on) continue;
-    const [a0x, a0y] = P(m0.ax, m0.ay);
-    const [a1x, a1y] = P(m1.ax, m1.ay);
-    const [b0x, b0y] = P(m0.bx, m0.by);
-    const [b1x, b1y] = P(m1.bx, m1.by);
+    const a0 = P(m0.ax, m0.ay, m0.z);
+    const a1 = P(m1.ax, m1.ay, m1.z);
+    const b0 = P(m0.bx, m0.by, m0.z);
+    const b1 = P(m1.bx, m1.by, m1.z);
     ctx.beginPath();
-    ctx.moveTo(a0x, a0y);
-    ctx.lineTo(a1x, a1y);
-    ctx.moveTo(b0x, b0y);
-    ctx.lineTo(b1x, b1y);
+    ctx.moveTo(a0[0], a0[1]);
+    ctx.lineTo(a1[0], a1[1]);
+    ctx.moveTo(b0[0], b0[1]);
+    ctx.lineTo(b1[0], b1[1]);
     ctx.stroke();
   }
 
   for (let i = from; i <= to; i++) {
     const p: Pt = pts[i];
     if (!p.coin || p.taken) continue;
-    const [sx, sy] = P(p.x, p.y, 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
+    const [sx, sy] = P(p.x, p.y, p.lift + 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
     ctx.beginPath();
     ctx.arc(sx, sy, 7 * s, 0, Math.PI * 2);
     ctx.fillStyle = "#ffc93c";
@@ -125,7 +101,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   }
 
   for (const p of g.smoke) {
-    const [sx, sy] = P(p.x, p.y);
+    const [sx, sy] = P(p.x, p.y, p.z);
     const k = p.age / p.life;
     ctx.beginPath();
     ctx.arc(sx, sy, p.r * s * (1 + k * 2.2), 0, Math.PI * 2);
@@ -133,7 +109,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fill();
   }
 
-  const [shx, shy] = P(g.x, g.y);
+  const [shx, shy] = P(g.x, g.y, g.ground);
   ctx.beginPath();
   ctx.ellipse(shx, shy, 24 * s, 13 * s, 0, 0, Math.PI * 2);
   ctx.fillStyle = `rgba(0,0,0,${0.3 * (g.air ? 0.5 : 1)})`;
@@ -146,7 +122,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const hh = CAR.height;
   const C = (a: number, b: number, lift: number): [number, number] =>
     P(g.x + c * a - sn * b, g.y + sn * a + c * b, g.z + lift);
-  const quad = (q: [number, number][], color: string) => {
+  const quadCar = (q: [number, number][], color: string) => {
     ctx.beginPath();
     q.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
@@ -161,13 +137,13 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ];
   for (const f of faces) {
     if (f.n[0] + f.n[1] <= 0) continue;
-    quad([C(f.a[0], f.a[1], 0), C(f.b[0], f.b[1], 0), C(f.b[0], f.b[1], hh), C(f.a[0], f.a[1], hh)], CAR_SIDE);
+    quadCar([C(f.a[0], f.a[1], 0), C(f.b[0], f.b[1], 0), C(f.b[0], f.b[1], hh), C(f.a[0], f.a[1], hh)], CAR_SIDE);
   }
-  quad([C(hl, hw, hh), C(hl, -hw, hh), C(-hl, -hw, hh), C(-hl, hw, hh)], CAR_TOP);
+  quadCar([C(hl, hw, hh), C(hl, -hw, hh), C(-hl, -hw, hh), C(-hl, hw, hh)], CAR_TOP);
   for (const b of [-hw * 0.4, hw * 0.4]) {
-    quad([C(hl, b - 1.8, hh), C(hl, b + 1.8, hh), C(-hl, b + 1.8, hh), C(-hl, b - 1.8, hh)], "#f4fff0");
+    quadCar([C(hl, b - 1.8, hh), C(hl, b + 1.8, hh), C(-hl, b + 1.8, hh), C(-hl, b - 1.8, hh)], "#f4fff0");
   }
-  quad([C(hl * 0.25, hw * 0.75, hh), C(hl * 0.25, -hw * 0.75, hh), C(hl * 0.6, -hw * 0.75, hh), C(hl * 0.6, hw * 0.75, hh)], "#2a3a4a");
+  quadCar([C(hl * 0.25, hw * 0.75, hh), C(hl * 0.25, -hw * 0.75, hh), C(hl * 0.6, -hw * 0.75, hh), C(hl * 0.6, hw * 0.75, hh)], "#2a3a4a");
 
   ctx.globalAlpha = 1;
 }

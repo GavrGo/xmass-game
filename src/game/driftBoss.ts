@@ -7,24 +7,30 @@ export const DRIFT = {
   speedPerPx: 0.025,
   turnRate: 7,
   grip: 8,
+  slideGrip: 2.5,
   airGrip: 1.5,
   startStraight: 500,
   segMin: 180,
   segMax: 420,
-  trackWidth: 150,
-  carMargin: 14,
+  wideWidth: 150,
+  narrowWidth: 85,
+  narrowFrom: 1500,
+  narrowTo: 4000,
   coinEvery: 9,
   coinChance: 0.75,
   coinPickup: 24,
   rampChance: 0.3,
-  jumpVz: 240,
+  rampLen: 16,
+  rampHeight: 20,
+  launchRate: 60,
+  launchK: 1.6,
+  landCooldown: 0.25,
   gravity: 900,
   smokeSlip: 0.22,
   fallTime: 1,
   fallDrop: 120,
 };
 
-// dir 0 — влево-вверх на экране, dir 1 — вправо-вверх
 const VEC = [
   { x: -1, y: 0 },
   { x: 0, y: -1 },
@@ -35,10 +41,10 @@ export interface Pt {
   x: number;
   y: number;
   dir: number;
-  ramp: boolean;
+  w: number;
+  lift: number;
   coin: boolean;
   taken: boolean;
-  used: boolean;
 }
 
 export interface Track {
@@ -52,6 +58,7 @@ export interface Track {
 export interface Smoke {
   x: number;
   y: number;
+  z: number;
   age: number;
   life: number;
   r: number;
@@ -62,6 +69,7 @@ export interface Mark {
   ay: number;
   bx: number;
   by: number;
+  z: number;
   on: boolean;
 }
 
@@ -75,8 +83,9 @@ export interface Game {
   vy: number;
   z: number;
   vz: number;
+  ground: number;
+  cool: number;
   air: boolean;
-  offset: number;
   dist: number;
   coins: number;
   phase: "play" | "fall" | "over";
@@ -85,11 +94,26 @@ export interface Game {
   marks: Mark[];
 }
 
-function push(t: Track, ramp: boolean) {
+function widthAt(d: number) {
+  if (d <= DRIFT.narrowFrom) return DRIFT.wideWidth;
+  if (d >= DRIFT.narrowTo) return DRIFT.narrowWidth;
+  const k = (d - DRIFT.narrowFrom) / (DRIFT.narrowTo - DRIFT.narrowFrom);
+  return DRIFT.wideWidth + (DRIFT.narrowWidth - DRIFT.wideWidth) * k;
+}
+
+function push(t: Track) {
   t.sinceCoin++;
   const coin = t.sinceCoin >= DRIFT.coinEvery && Math.random() < DRIFT.coinChance;
   if (coin) t.sinceCoin = 0;
-  t.pts.push({ x: t.x, y: t.y, dir: t.dir, ramp, coin, taken: false, used: false });
+  t.pts.push({
+    x: t.x,
+    y: t.y,
+    dir: t.dir,
+    w: widthAt(t.pts.length * DRIFT.sample),
+    lift: 0,
+    coin,
+    taken: false,
+  });
 }
 
 function advance(t: Track, len: number, dir: number) {
@@ -98,7 +122,7 @@ function advance(t: Track, len: number, dir: number) {
   for (let i = 0; i < steps; i++) {
     t.x += VEC[dir].x * DRIFT.sample;
     t.y += VEC[dir].y * DRIFT.sample;
-    push(t, false);
+    push(t);
   }
   return steps;
 }
@@ -108,7 +132,11 @@ function addSegment(t: Track) {
   const start = t.pts.length;
   const steps = advance(t, len, 1 - t.dir);
   if (steps >= 20 && Math.random() < DRIFT.rampChance) {
-    t.pts[start + Math.floor(steps / 2)].ramp = true;
+    const L = DRIFT.rampLen;
+    const from = start + 2 + Math.floor(Math.random() * (steps - L - 4));
+    for (let j = 0; j < L; j++) {
+      t.pts[from + j].lift = DRIFT.rampHeight * Math.sin((Math.PI * (j + 1)) / (L + 1));
+    }
   }
 }
 
@@ -118,7 +146,7 @@ function growTrack(t: Track, minLen: number) {
 
 function createTrack(): Track {
   const t: Track = { pts: [], x: 0, y: 0, dir: 1, sinceCoin: 0 };
-  push(t, false);
+  push(t);
   advance(t, DRIFT.startStraight, 0);
   growTrack(t, 400);
   return t;
@@ -135,8 +163,9 @@ export function createGame(): Game {
     vy: Math.sin(ANG[0]) * DRIFT.speedStart,
     z: 0,
     vz: 0,
+    ground: 0,
+    cool: 0,
     air: false,
-    offset: 0,
     dist: 0,
     coins: 0,
     phase: "play",
@@ -158,6 +187,7 @@ function emitSmoke(g: Game) {
   g.smoke.push({
     x: g.x - c * 16 - s * side,
     y: g.y - s * 16 + c * side,
+    z: g.z,
     age: 0,
     life: 0.6 + Math.random() * 0.4,
     r: 5 + Math.random() * 4,
@@ -175,8 +205,29 @@ function pushMark(g: Game, on: boolean) {
   const rx = g.x - c * (CAR.len * 0.35);
   const ry = g.y - s * (CAR.len * 0.35);
   const bw = CAR.width * 0.38;
-  g.marks.push({ ax: rx - s * bw, ay: ry + c * bw, bx: rx + s * bw, by: ry - c * bw, on });
+  g.marks.push({ ax: rx - s * bw, ay: ry + c * bw, bx: rx + s * bw, by: ry - c * bw, z: g.z, on });
   if (g.marks.length > 150) g.marks.splice(0, g.marks.length - 150);
+}
+
+function footprintOff(g: Game, p: Pt) {
+  const c = Math.cos(g.h);
+  const s = Math.sin(g.h);
+  const nx = p.dir ? 1 : 0;
+  const ny = p.dir ? 0 : -1;
+  const hl = CAR.len / 2;
+  const hw = CAR.width / 2;
+  const corners: [number, number][] = [
+    [hl, hw],
+    [hl, -hw],
+    [-hl, hw],
+    [-hl, -hw],
+  ];
+  for (const [a, b] of corners) {
+    const cx = g.x + c * a - s * b;
+    const cy = g.y + s * a + c * b;
+    if (Math.abs(nx * (cx - p.x) + ny * (cy - p.y)) > p.w / 2) return true;
+  }
+  return false;
 }
 
 export function step(g: Game, holding: boolean, dt: number) {
@@ -196,10 +247,12 @@ export function step(g: Game, holding: boolean, dt: number) {
   }
 
   const d = angleDiff(holding ? ANG[1] : ANG[0], g.h);
+  const turning = Math.abs(d) > 0.01;
   g.h += Math.sign(d) * Math.min(Math.abs(d), DRIFT.turnRate * dt);
 
   const speed = Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
-  const k = Math.min(1, (g.air ? DRIFT.airGrip : DRIFT.grip) * dt);
+  const grip = g.air ? DRIFT.airGrip : turning ? DRIFT.slideGrip : DRIFT.grip;
+  const k = Math.min(1, grip * dt);
   g.vx += (Math.cos(g.h) * speed - g.vx) * k;
   g.vy += (Math.sin(g.h) * speed - g.vy) * k;
   const m = Math.hypot(g.vx, g.vy) || 1;
@@ -223,31 +276,38 @@ export function step(g: Game, holding: boolean, dt: number) {
     }
   }
   g.idx = best;
-  g.offset = Math.sqrt(bestD);
   g.dist = Math.max(g.dist, best * DRIFT.sample);
 
+  const ground = pts[best].lift;
+  g.cool = Math.max(0, g.cool - dt);
   if (g.air) {
     g.vz -= DRIFT.gravity * dt;
     g.z += g.vz * dt;
-    if (g.z <= 0) {
-      g.z = 0;
-      g.vz = 0;
+    if (g.vz <= 0 && g.z <= ground) {
       g.air = false;
+      g.z = ground;
+      g.vz = 0;
+      g.cool = DRIFT.landCooldown;
     }
-  } else if (pts[g.idx].ramp && !pts[g.idx].used) {
-    pts[g.idx].used = true;
-    g.air = true;
-    g.vz = DRIFT.jumpVz;
+  } else {
+    const rate = (ground - g.ground) / dt;
+    if (rate < -DRIFT.launchRate && g.cool <= 0) {
+      g.air = true;
+      g.vz = -rate * DRIFT.launchK;
+    } else {
+      g.z = ground;
+    }
   }
+  g.ground = ground;
 
-  if (!g.air && g.offset > DRIFT.trackWidth / 2 - DRIFT.carMargin) {
+  if (!g.air && footprintOff(g, pts[best])) {
     g.phase = "fall";
     g.fallT = 0;
     updateSmoke(g, dt);
     return;
   }
 
-  for (let i = Math.max(0, g.idx - 4); i <= Math.min(pts.length - 1, g.idx + 6); i++) {
+  for (let i = Math.max(0, best - 4); i <= Math.min(pts.length - 1, best + 6); i++) {
     const p = pts[i];
     if (p.coin && !p.taken && !g.air && Math.hypot(p.x - g.x, p.y - g.y) < DRIFT.coinPickup) {
       p.taken = true;
