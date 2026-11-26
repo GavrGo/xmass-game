@@ -27,8 +27,11 @@ export const DRIFT = {
   narrowWidth: 85,
   wideFirst: 150,
   zoneLen: 100,
-  coinEvery: 9,
-  coinChance: 0.75,
+  coinGapMin: 20,
+  coinGapMax: 40,
+  coinRunMin: 6,
+  coinRunMax: 14,
+  coinStep: 3,
   coinPickup: 24,
   rampChance: 0.35,
   rampGap: 160,
@@ -89,7 +92,7 @@ export const DRIFT = {
   splashKick: 170,
   rippleLife: 1.0,
   copJitter: 0.15,
-  leafCount: 60,
+  leafCount: 22,
   leafNear: 100,
   leafAhead: 90,
   leafRadius: 26,
@@ -98,15 +101,26 @@ export const DRIFT = {
   leafCull: 1800,
   leafBehind: 1000,
   forkChance: 0.32,
-  forkRunMin: 70,
-  forkRunMax: 130,
-  forkSpanMin: 70,
-  forkSpanMax: 130,
+  forkAxisMin: 120,
+  forkAxisMax: 180,
+  forkLegMin: 14,
+  forkLegCountMin: 3,
+  forkLegCountMax: 4,
+  forkSep: 17,
+  forkRampChance: 0.6,
   boomTime: 1.5,
   rampJunctionGap: 10,
   maxHealth: 5,
-  forkMinGap: 260,
+  forkMinGap: 380,
   routeSlack: 2,
+  smokeChance: 0.35,
+  copCull: 200,
+  repairMinGap: 150,
+  repairChance: 0.008,
+  repairHeal: 2,
+  repairReach: 26,
+  smokeMax: 90,
+  sparkMax: 160,
 };
 
 const VEC = [
@@ -149,6 +163,19 @@ export interface Prop {
   struck: boolean;
 }
 
+export interface Repair {
+  idx: number;
+  x: number;
+  y: number;
+  taken: boolean;
+}
+
+interface CoinGen {
+  on: boolean;
+  left: number;
+  pos: number;
+}
+
 export interface Track {
   pts: Pt[];
   alt: Pt[];
@@ -158,8 +185,10 @@ export interface Track {
   x: number;
   y: number;
   dir: number;
-  sinceCoin: number;
+  coinGen: CoinGen;
   sinceProp: number;
+  sinceRepair: number;
+  repairs: Repair[];
   lastRamp: number;
 }
 
@@ -299,11 +328,29 @@ function routeDist(x: number, y: number, pts: Pt[], i: number) {
   return distSeg(x, y, pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y);
 }
 
+function randInt(lo: number, hi: number) {
+  return lo + Math.floor(Math.random() * (hi - lo + 1));
+}
+
+function newCoinGen(): CoinGen {
+  return { on: false, left: randInt(DRIFT.coinGapMin, DRIFT.coinGapMax), pos: 0 };
+}
+
+function nextCoin(c: CoinGen): boolean {
+  if (c.left <= 0) {
+    c.on = !c.on;
+    c.left = c.on ? randInt(DRIFT.coinRunMin, DRIFT.coinRunMax) : randInt(DRIFT.coinGapMin, DRIFT.coinGapMax);
+    c.pos = 0;
+  }
+  const coin = c.on && c.pos % DRIFT.coinStep === 0;
+  c.left--;
+  c.pos++;
+  return coin;
+}
+
 function push(t: Track) {
   const j = t.pts.length;
-  t.sinceCoin++;
-  const coin = t.sinceCoin >= DRIFT.coinEvery && Math.random() < DRIFT.coinChance;
-  if (coin) t.sinceCoin = 0;
+  const coin = nextCoin(t.coinGen);
   const w = t.width;
   const pt: Pt = { x: t.x, y: t.y, dir: t.dir, w, lift: 0, coin, taken: false };
   t.pts.push(pt);
@@ -312,6 +359,12 @@ function push(t: Track) {
   if (j >= DRIFT.propStartIdx && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
     t.sinceProp = 0;
     spawnProp(t, pt, j);
+  }
+  t.sinceRepair++;
+  if (j >= DRIFT.propStartIdx && !coin && t.sinceRepair >= DRIFT.repairMinGap && Math.random() < DRIFT.repairChance) {
+    t.sinceRepair = 0;
+    const lat = (Math.random() * 2 - 1) * (w / 2 - 30);
+    t.repairs.push({ idx: j, x: pt.dir === 0 ? pt.x : pt.x + lat, y: pt.dir === 0 ? pt.y + lat : pt.y, taken: false });
   }
 }
 
@@ -346,10 +399,91 @@ function advance(t: Track, len: number, dir: number) {
   return steps;
 }
 
-// A fork is a rectangle laid on its side. The main road runs straight on and then
-// turns; the branch turns at once and then runs straight on, so the two meet again
-// at the far corner. Both paths are built only from the two legal directions, they
-// have the same length, and they share the split and merge points exactly.
+interface Leg {
+  axis: number;
+  len: number;
+}
+
+function splitLen(total: number, count: number): number[] {
+  const w = Array.from({ length: count }, () => 0.5 + Math.random());
+  const sum = w.reduce((a, b) => a + b, 0);
+  const spare = total - count * DRIFT.forkLegMin;
+  const parts = w.map((x) => DRIFT.forkLegMin + Math.floor((spare * x) / sum));
+  parts[count - 1] += total - parts.reduce((a, b) => a + b, 0);
+  return parts;
+}
+
+function legsFrom(startAxis: number, count: number, A: number, B: number): Leg[] {
+  const need = [0, 0];
+  for (let k = 0; k < count; k++) need[(startAxis + k) % 2]++;
+  const lens = [splitLen(A, need[0]), splitLen(B, need[1])];
+  const used = [0, 0];
+  const legs: Leg[] = [];
+  for (let k = 0; k < count; k++) {
+    const axis = (startAxis + k) % 2;
+    legs.push({ axis, len: lens[axis][used[axis]++] });
+  }
+  return legs;
+}
+
+function trail(legs: Leg[]) {
+  const u = [0];
+  let c = 0;
+  for (const leg of legs) {
+    for (let i = 0; i < leg.len; i++) {
+      if (leg.axis === 0) c++;
+      u.push(c);
+    }
+  }
+  return u;
+}
+
+function separated(a: Leg[], b: Leg[], n: number) {
+  const ua = trail(a);
+  const ub = trail(b);
+  const sign = Math.sign(ua[1] - ub[1]);
+  if (sign === 0) return false;
+  for (let i = 1; i < n; i++) {
+    const d = ua[i] - ub[i];
+    if (Math.sign(d) !== sign) return false;
+    if (i >= DRIFT.forkSep && i <= n - DRIFT.forkSep && Math.abs(d) < DRIFT.forkSep) return false;
+  }
+  return true;
+}
+
+function forkLegs() {
+  const A = randInt(DRIFT.forkAxisMin, DRIFT.forkAxisMax);
+  const B = randInt(DRIFT.forkAxisMin, DRIFT.forkAxisMax);
+  for (let k = 0; k < 200; k++) {
+    const main = legsFrom(0, randInt(DRIFT.forkLegCountMin, DRIFT.forkLegCountMax), A, B);
+    const branch = legsFrom(1, randInt(DRIFT.forkLegCountMin, DRIFT.forkLegCountMax), A, B);
+    if (separated(main, branch, A + B)) return { main, branch };
+  }
+  return {
+    main: [
+      { axis: 0, len: A },
+      { axis: 1, len: B },
+    ],
+    branch: [
+      { axis: 1, len: B },
+      { axis: 0, len: A },
+    ],
+  };
+}
+
+function legRamp(arr: Pt[], a: number, b: number) {
+  const L = DRIFT.rampLen;
+  const M = DRIFT.rampJunctionGap;
+  if (b - a < L + 2 * M || Math.random() >= DRIFT.forkRampChance) return;
+  const from = a + M + Math.floor(Math.random() * (b - a - L - 2 * M));
+  for (let j = 0; j < L; j++) {
+    arr[from + j].lift = DRIFT.rampHeight * Math.sin((Math.PI * (j + 1)) / (L + 1));
+  }
+}
+
+// A fork is two staircases between the same split and merge points. Both use only the
+// two legal directions, have the same length, and are kept apart so the roads never
+// overlap. Each path has several turns and may carry ramps.
 function buildFork(t: Track) {
   const step = DRIFT.sample;
   t.width = DRIFT.wideWidth;
@@ -357,26 +491,34 @@ function buildFork(t: Track) {
   const s0 = t.pts.length - 1;
   const S = t.pts[s0];
   const dIn = t.dir;
-  const dTurn = 1 - dIn;
-  const run = DRIFT.forkRunMin + Math.floor(Math.random() * (DRIFT.forkRunMax - DRIFT.forkRunMin + 1));
-  const span = DRIFT.forkSpanMin + Math.floor(Math.random() * (DRIFT.forkSpanMax - DRIFT.forkSpanMin + 1));
-  advance(t, run * step, dIn);
-  advance(t, span * step, dTurn);
+  const dirOf = (axis: number) => (axis ? 1 - dIn : dIn);
+  const { main, branch } = forkLegs();
+  const mainRanges: [number, number][] = [];
+  for (const leg of main) {
+    const a = t.pts.length;
+    advance(t, leg.len * step, dirOf(leg.axis));
+    mainRanges.push([a, t.pts.length]);
+  }
   const e0 = t.pts.length - 1;
+  const coinGen = newCoinGen();
   let ax = S.x;
   let ay = S.y;
   let k = s0 + 1;
-  for (let i = 0; i < span; i++) {
-    ax += VEC[dTurn].x * step;
-    ay += VEC[dTurn].y * step;
-    t.alt[k++] = { x: ax, y: ay, dir: dTurn, w, lift: 0, coin: false, taken: false };
-  }
-  for (let i = 1; i < run; i++) {
-    ax += VEC[dIn].x * step;
-    ay += VEC[dIn].y * step;
-    t.alt[k++] = { x: ax, y: ay, dir: dIn, w, lift: 0, coin: false, taken: false };
+  const branchRanges: [number, number][] = [];
+  for (const leg of branch) {
+    const a = k;
+    const d = dirOf(leg.axis);
+    for (let i = 0; i < leg.len; i++) {
+      ax += VEC[d].x * step;
+      ay += VEC[d].y * step;
+      if (k < e0) t.alt[k] = { x: ax, y: ay, dir: d, w, lift: 0, coin: nextCoin(coinGen), taken: false };
+      k++;
+    }
+    branchRanges.push([a, Math.min(k, e0)]);
   }
   t.alt[e0] = t.pts[e0];
+  for (const [a, b] of mainRanges) legRamp(t.pts, a, Math.min(b, e0));
+  for (const [a, b] of branchRanges) legRamp(t.alt, a, b);
   for (let i = s0 + 8; i < e0 - 8; i += 6) {
     if (Math.random() < DRIFT.propChance) spawnProp(t, t.alt[i], i);
   }
@@ -417,8 +559,10 @@ function createTrack(): Track {
     x: 0,
     y: 0,
     dir: 0,
-    sinceCoin: 0,
+    coinGen: newCoinGen(),
     sinceProp: 0,
+    sinceRepair: 0,
+    repairs: [],
     lastRamp: -1e9,
   };
   push(t);
@@ -541,6 +685,7 @@ function sideOf(p: { x: number; y: number; h: number }, pt: Pt) {
 }
 
 function emitSmoke(g: Game, p: Pose) {
+  if (g.smoke.length >= DRIFT.smokeMax) return;
   const side = (Math.random() - 0.5) * 16;
   const c = Math.cos(p.h);
   const s = Math.sin(p.h);
@@ -561,6 +706,7 @@ function updateSmoke(g: Game, dt: number) {
 }
 
 function emitSparks(g: Game, x: number, y: number, z: number) {
+  if (g.sparks.length >= DRIFT.sparkMax) return;
   for (let i = 0; i < DRIFT.sparkCount; i++) {
     const a = Math.random() * Math.PI * 2;
     const sp = 120 + Math.random() * 180;
@@ -826,6 +972,14 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
     }
   }
 
+  for (const r of g.track.repairs) {
+    if (r.taken || g.air || Math.abs(r.idx - g.idx) > 12) continue;
+    if (Math.hypot(r.x - g.x, r.y - g.y) < DRIFT.repairReach) {
+      r.taken = true;
+      g.health = Math.min(DRIFT.maxHealth, g.health + DRIFT.repairHeal);
+    }
+  }
+
   if (!g.air) hitProps(g, g.x, g.y, g.vx, g.vy, DRIFT.carRadius, true);
 
   g.hist.push({ t: g.t, x: g.x, y: g.y, h: g.h, v: speed, route: g.route });
@@ -836,10 +990,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
 }
 
 function skid(g: Game, p: Pose, on: boolean, marks: Mark[]) {
-  if (on) {
-    emitSmoke(g, p);
-    emitSmoke(g, p);
-  }
+  if (on && Math.random() < DRIFT.smokeChance) emitSmoke(g, p);
   pushMark(marks, p, on);
 }
 
@@ -1046,7 +1197,7 @@ function stepCops(g: Game, dt: number) {
   for (const c of g.cops) {
     if (c.phase !== "fall") hitProps(g, c.x, c.y, c.vx, c.vy, DRIFT.copRadius, false);
   }
-  g.cops = g.cops.filter((c) => c.phase !== "fall" || c.fallT < DRIFT.fallTime);
+  g.cops = g.cops.filter((c) => (c.phase === "fall" ? c.fallT < DRIFT.fallTime : c.idx > g.idx - DRIFT.copCull));
 }
 
 function stirLeaves(g: Game, x: number, y: number, speed: number) {
@@ -1118,13 +1269,29 @@ function updateLeaves(g: Game, dt: number) {
   spawnLeaves(g);
 }
 
+function emitWreckSmoke(g: Game, dt: number) {
+  const wrecked = g.phase === "boom" || (g.phase === "over" && g.health === 0);
+  if (!wrecked || g.smoke.length >= DRIFT.smokeMax || Math.random() > dt * 12) return;
+  g.smoke.push({
+    x: g.x + (Math.random() * 2 - 1) * 12,
+    y: g.y + (Math.random() * 2 - 1) * 12,
+    z: g.z + 22,
+    age: 0,
+    life: 1.4 + Math.random() * 1.2,
+    r: 7 + Math.random() * 6,
+    shade: 40 + Math.floor(Math.random() * 30),
+  });
+}
+
 function tail(g: Game, dt: number) {
   stepCops(g, dt);
   updateProps(g, dt);
   updateSparks(g, dt);
   updateSplash(g, dt);
+  emitWreckSmoke(g, dt);
   updateSmoke(g, dt);
   updateLeaves(g, dt);
+  g.track.repairs = g.track.repairs.filter((r) => !r.taken && r.idx > g.idx - 60);
 }
 
 export function step(g: Game, holding: boolean, dt: number) {

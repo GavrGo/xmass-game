@@ -47,6 +47,18 @@ const hash = (n: number) => {
   return v - Math.floor(v);
 };
 const STAMP_HOLD = 2.4;
+const CHIP = new Image();
+CHIP.src = "/assets/icons/slot-chip.png";
+const WRECK_PAL: Palette = {
+  top: "#1c1c1e",
+  cabin: "#2a2a2d",
+  side: "#0e0e10",
+  end: "#060607",
+  glass: "#101216",
+  stripe: "#26262a",
+  light: "#3a3a3a",
+  tail: "#2a0c0c",
+};
 
 type Local = [number, number, number];
 type Face = { pts: [number, number][]; color: string; depth: number };
@@ -689,7 +701,73 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
   const behindCop = (c: Cop) => c.phase === "fall" && c.x + c.y > routePts(g.track, c.route)[c.idx].x + routePts(g.track, c.route)[c.idx].y;
   const wrecked = g.phase === "boom" || (g.phase === "over" && g.health === 0);
-  if (carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
+  const drawFlames = (x: number, y: number, z: number) => {
+    const f = Math.floor(time * 14);
+    ctx.globalCompositeOperation = "lighter";
+    for (let k = 0; k < 9; k++) {
+      const seed = k * 1.37 + f * 0.61;
+      const [fx, fy] = P(x + (hash(seed) - 0.5) * 30, y + (hash(seed + 3.1) - 0.5) * 12, z + 6 + hash(seed + 7.7) * 22);
+      const R = (5 + hash(seed + 11.3) * 7) * s;
+      const grd = ctx.createRadialGradient(fx, fy, 0, fx, fy, R);
+      grd.addColorStop(0, `rgba(255,230,140,${(0.9 * alpha).toFixed(3)})`);
+      grd.addColorStop(0.45, `rgba(255,120,30,${(0.7 * alpha).toFixed(3)})`);
+      grd.addColorStop(1, "rgba(200,30,0,0)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(fx, fy, R, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = "source-over";
+  };
+  const drawPlayer = () => {
+    drawVehicle(g, wrecked ? WRECK_PAL : PLAYER_PALS[g.paint], false);
+    if (wrecked) drawFlames(g.x, g.y, g.z);
+  };
+  const drawCoin = (p: Pt, i: number) => {
+    if (!p.coin || p.taken || !dotVisible(p.x, p.y, p.lift)) return;
+    const [sx, sy] = P(p.x, p.y, p.lift + 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
+    const size = 16 * s;
+    if (CHIP.complete && CHIP.naturalWidth > 0) {
+      ctx.drawImage(CHIP, sx - size / 2, sy - size / 2, size, size);
+      return;
+    }
+    ctx.beginPath();
+    ctx.arc(sx, sy, 7 * s, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffc93c";
+    ctx.fill();
+  };
+  const drawRepairs = () => {
+    for (const r of g.track.repairs) {
+      if (r.taken || r.idx < from || r.idx > to) continue;
+      const z = g.track.pts[r.idx].lift + 16 + Math.sin(time * 2.5 + r.idx) * 3;
+      if (!dotVisible(r.x, r.y, z, 40)) continue;
+      const [gx, gy] = P(r.x, r.y, z);
+      const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 26 * s);
+      glow.addColorStop(0, "rgba(120,255,150,0.75)");
+      glow.addColorStop(1, "rgba(120,255,150,0)");
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 26 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.save();
+      ctx.translate(gx, gy);
+      ctx.rotate(Math.PI / 4 + Math.sin(time * 1.5 + r.idx) * 0.2);
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#c9ffd6";
+      ctx.lineWidth = 3 * s;
+      ctx.beginPath();
+      ctx.moveTo(0, -4 * s);
+      ctx.lineTo(0, 9 * s);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, -7 * s, 4 * s, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+  if (carBehind) drawPlayer();
   for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
 
   const top = roadShapes(from, to, 0);
@@ -805,17 +883,10 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   }
   ctx.globalAlpha = alpha;
   for (let i = from; i <= to; i++) {
-    const p: Pt = pts[i];
-    if (!p.coin || p.taken || !dotVisible(p.x, p.y, p.lift)) continue;
-    const [sx, sy] = P(p.x, p.y, p.lift + 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
-    ctx.beginPath();
-    ctx.arc(sx, sy, 7 * s, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffc93c";
-    ctx.fill();
-    ctx.strokeStyle = "#b8860b";
-    ctx.lineWidth = 2 * s;
-    ctx.stroke();
+    drawCoin(pts[i], i);
+    if (alt[i] !== pts[i]) drawCoin(alt[i], i + 0.5);
   }
+  drawRepairs();
 
   for (const pr of g.track.props) {
     if (from <= pr.idx && pr.idx <= to && dotVisible(pr.x, pr.y, pr.z, 120)) drawProp(pr);
@@ -854,6 +925,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.globalCompositeOperation = "source-over";
   }
   for (const p of g.smoke) {
+    if (!dotVisible(p.x, p.y, p.z, 40)) continue;
     const [sx, sy] = P(p.x, p.y, p.z);
     const k = p.age / p.life;
     ctx.beginPath();
@@ -863,7 +935,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   }
 
   for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
-  if (!carBehind && !wrecked) drawVehicle(g, PLAYER_PALS[g.paint], false);
+  if (!carBehind) drawPlayer();
   if (g.phase === "play") {
     const [hx, hy] = P(g.x, g.y, g.z + 40);
     const bw = 44 * s;
@@ -940,7 +1012,7 @@ export default function DriftBoss() {
     let W = 0;
     let H = 0;
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       W = canvas.clientWidth;
       H = canvas.clientHeight;
       canvas.width = W * dpr;
