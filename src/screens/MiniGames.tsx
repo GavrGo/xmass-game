@@ -15,13 +15,14 @@ import { useRecordHolders } from "../lib/useMastery";
 // Обложка: public/assets/ui/game-<id>.png. Нет файла — большой эмодзи.
 // Чтобы добавить новую игру — добавьте ещё один объект в список ниже.
 export default function MiniGames() {
-  const { user, isAdmin } = useUser();
+  const { user } = useUser();
   const держатели = useRecordHolders();
   const [открыта, setОткрыта] = useState<string | null>(null);
   if (!user) return null;
 
   const игры = [
     { id: "babka", путь: "/games/babka", эмодзи: "👵", название: Т.игры.бабка.название, описание: Т.игры.бабка.описание(БАБКА_КРАШ.награда.старт), рекорд: Т.игры.бабка.рекорд(user.best_babka_crash ?? 0) },
+    { id: "drift", путь: "/games/drift-boss", эмодзи: "🚗", название: Т.игры.дрифтБосс.название, описание: Т.игры.дрифтБосс.описание, рекорд: Т.игры.дрифтБосс.рекорд(user.best_drift_boss ?? 0) },
     { id: "match3", путь: "/games/match3", эмодзи: "🍬", название: Т.игры.три_в_ряд.название, описание: Т.игры.три_в_ряд.описание(ТРИ_В_РЯД.колонки, ТРИ_В_РЯД.строки), рекорд: Т.игры.три_в_ряд.рекорд(user.best_match3 ?? 0) },
     { id: "ksuha", путь: "/games/ksuha-run", эмодзи: "🏃‍♀️", название: Т.игры.ksuha.название, описание: Т.игры.ksuha.описание(), рекорд: Т.игры.ksuha.рекорд(user.best_ksuha_run ?? 0) },
     { id: "jira", путь: "/games/jira", эмодзи: "🔷", название: Т.игры.jira.название, описание: Т.игры.jira.описание(ДЖИРА_ФАЙТ.награды.заДоску, ДЖИРА_ФАЙТ.награды.заУровень), рекорд: Т.игры.jira.рекорд(user.best_jira_level ?? 0) },
@@ -59,12 +60,6 @@ export default function MiniGames() {
           </Link>
         ); })}
       </div>
-      {isAdmin && (
-        <Link to="/games/drift-boss" className="card mt-3 flex items-center gap-3 p-3 active:brightness-125">
-          <span className="text-3xl">🚗</span>
-          <span className="text-sm font-bold">{Т.дрифтБосс.карточка}</span>
-        </Link>
-      )}
       {открытаИгра && инфоОткрытой && (
         <MasteryPopup
           навыки={открытаИгра.id === "ksuha" ? навыкиИгры("ksuha") : открытаИгра.id === "match3" ? навыкиИгры("match3") : []}

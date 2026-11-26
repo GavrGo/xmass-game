@@ -15,7 +15,7 @@ import РассылкаАдмина from "./AdminBroadcast";
 // Поля, которые админ может править (названия подписей — в src/texts.ts, раздел админка.поля)
 const ПОЛЯ: (keyof User)[] = [
   "chips", "tickets", "hearts", "slot_spins", "free_spin_level", "salary_level", "exchange_fee", "time_level", "trash_level",
-  "best_ksuha_run", "puzzles_solved", "best_match3", "best_jira_level", "best_babka_crash",
+  "best_ksuha_run", "puzzles_solved", "best_match3", "best_jira_level", "best_babka_crash", "best_drift_boss",
 ];
 
 type КлючСтат = Exclude<keyof СтрокаСтатистики, "telegram_id">;

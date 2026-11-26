@@ -1,11 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import GameMenu from "../components/GameMenu";
+import GameResult from "../components/GameResult";
+import { useUser } from "../store/UserContext";
+import { useMastery, сБонусом } from "../lib/useMastery";
+import { useNoSwipes } from "../lib/useNoSwipes";
+import { getSafeTop } from "../lib/telegram";
+import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
-const BEST_KEY = "driftBossBest";
+type Status = "menu" | "play" | "stamp" | "over";
+interface Итог {
+  очки: number;
+  награда: { сумма: number; бонусПроц: number; итого: number };
+  личный: number;
+  сохранение: "идёт" | "готово" | "ошибка";
+  предупреждение?: string;
+  текстОшибки?: string;
+}
 
-type Status = "idle" | "play" | "stamp" | "over";
 const isoX = (x: number, y: number) => (x - y) * 0.866;
 const isoY = (x: number, y: number) => (x + y) * 0.5;
 
@@ -865,24 +878,59 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 }
 
 export default function DriftBoss() {
+  const { user, change } = useUser();
+  const { бонус, мастерство, начатьЗабег, начислить, шкала } = useMastery("drift");
   const navigate = useNavigate();
+  useNoSwipes();
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const coinsRef = useRef<HTMLSpanElement>(null);
   const distRef = useRef<HTMLSpanElement>(null);
   const gameRef = useRef<Game | null>(null);
-  const statusRef = useRef<Status>("idle");
+  const statusRef = useRef<Status>("menu");
   const holdingRef = useRef(false);
-  const [status, setStatus] = useState<Status>("idle");
-  const [result, setResult] = useState({ score: 0, best: 0 });
+  const [status, setStatus] = useState<Status>("menu");
+  const [итог, setИтог] = useState<Итог | null>(null);
 
-  const begin = () => {
+  const свежее = useRef({ user, change, начислить, бонус });
+  свежее.current = { user, change, начислить, бонус };
+
+  const завершить = async (очки: number) => {
+    const { user: u, change: изменить, начислить: начислитьМастерство, бонус: б } = свежее.current;
+    if (!u) return;
+    const награда = сБонусом(посчитатьНаградуДрифта(очки, u.salary_level), б);
+    const прежний = u.best_drift_boss ?? 0;
+    const новыйРекорд = очки > прежний;
+    setИтог({ очки, награда, личный: Math.max(очки, прежний), сохранение: "идёт" });
+    try {
+      начислитьМастерство(награда.итого);
+      if (награда.итого > 0 || новыйРекорд) await изменить({ chips: награда.итого }, новыйРекорд ? { best_drift_boss: очки } : {});
+      setИтог((x) => (x ? { ...x, сохранение: "готово" } : x));
+    } catch (e: any) {
+      if (новыйРекорд && String(e?.message).includes("best_drift_boss")) {
+        try {
+          await изменить({ chips: награда.итого });
+          setИтог((x) => (x ? { ...x, сохранение: "готово", предупреждение: Т.предупреждения.дрифт } : x));
+        } catch (e2: any) {
+          setИтог((x) => (x ? { ...x, сохранение: "ошибка", текстОшибки: e2?.message } : x));
+        }
+      } else {
+        setИтог((x) => (x ? { ...x, сохранение: "ошибка", текстОшибки: e?.message } : x));
+      }
+    }
+  };
+  const завершитьRef = useRef(завершить);
+  завершитьRef.current = завершить;
+
+  const старт = () => {
     gameRef.current = createGame();
+    начатьЗабег();
+    setИтог(null);
     statusRef.current = "play";
     setStatus("play");
   };
 
-  const press = () => {
-    if (statusRef.current === "idle") begin();
+  const нажатие = () => {
     if (statusRef.current === "play") holdingRef.current = true;
   };
 
@@ -907,7 +955,7 @@ export default function DriftBoss() {
     const keyDown = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
       e.preventDefault();
-      if (!e.repeat) press();
+      if (!e.repeat) нажатие();
     };
     const keyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") release();
@@ -935,12 +983,8 @@ export default function DriftBoss() {
           statusRef.current = "stamp";
           stampAt = time;
           holdingRef.current = false;
-          const score = scoreOf(g);
-          const prev = Number(localStorage.getItem(BEST_KEY)) || 0;
-          const best = Math.max(prev, score);
-          localStorage.setItem(BEST_KEY, String(best));
-          setResult({ score, best });
           setStatus("stamp");
+          void завершитьRef.current(scoreOf(g));
         }
       } else if (statusRef.current === "stamp") {
         step(g, false, dt);
@@ -972,37 +1016,36 @@ export default function DriftBoss() {
 
   return (
     <div
-      onPointerDown={press}
+      onPointerDown={нажатие}
       onContextMenu={(e) => e.preventDefault()}
       className="fixed inset-0 z-30 select-none overflow-hidden bg-black"
       style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none" }}
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3">
-        <div className="flex items-center gap-1.5 rounded-full bg-black/40 py-1 pl-1 pr-3">
-          <span className="h-7 w-7 rounded-full bg-gradient-to-b from-yellow-200 to-yellow-500 ring-2 ring-yellow-700" />
-          <span ref={coinsRef} className="text-base font-extrabold text-white">0</span>
-        </div>
-        <span ref={distRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
-          0
-        </span>
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => navigate("/games")}
-          className="btn btn-secondary pointer-events-auto !px-3 !py-2 text-sm"
+      {(status === "play" || status === "stamp") && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3"
+          style={{ paddingTop: getSafeTop() + 12 }}
         >
-          {Т.общее.назад}
-        </button>
-      </div>
-
-      {status === "idle" && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/30 p-6 text-center">
-          <div className="text-3xl font-extrabold text-white">{Т.дрифтБосс.название}</div>
-          <div className="max-w-xs text-sm text-white/85">{Т.дрифтБосс.подсказка}</div>
-          <div className="mt-2 text-sm font-bold text-brand-yellow">{Т.дрифтБосс.старт}</div>
+          <div className="flex items-center gap-1.5 rounded-full bg-black/40 py-1 pl-1 pr-3">
+            <span className="h-7 w-7 rounded-full bg-gradient-to-b from-yellow-200 to-yellow-500 ring-2 ring-yellow-700" />
+            <span ref={coinsRef} className="text-base font-extrabold text-white">0</span>
+          </div>
+          <span ref={distRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
+            0
+          </span>
         </div>
+      )}
+
+      {status === "menu" && (
+        <GameMenu
+          колонка="best_drift_boss"
+          название={Т.игры.дрифтБосс.название}
+          мастерство={мастерство}
+          onСтарт={старт}
+          onНазад={() => navigate("/games")}
+        />
       )}
 
       {status === "stamp" && (
@@ -1023,30 +1066,29 @@ export default function DriftBoss() {
                 whiteSpace: "nowrap",
               }}
             >
-              {Т.дрифтБосс.потрачено}
+              {Т.игры.дрифтБосс.потрачено}
             </div>
           </div>
         </div>
       )}
 
-      {status === "over" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 p-6 text-center">
-          <div className="text-2xl font-extrabold text-white">{Т.дрифтБосс.конец}</div>
-          <div className="text-lg font-bold text-brand-yellow">
-            {Т.дрифтБосс.счёт}: {result.score}
-          </div>
-          <div className="text-sm text-white/70">
-            {Т.дрифтБосс.рекорд}: {result.best}
-          </div>
-          <div className="mt-2 flex gap-3">
-            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={begin} className="btn btn-primary">
-              {Т.дрифтБосс.заново}
-            </button>
-            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => navigate("/games")} className="btn btn-secondary">
-              {Т.дрифтБосс.меню}
-            </button>
-          </div>
-        </div>
+      {status === "over" && итог && (
+        <GameResult
+          заголовок={Т.игры.дрифтБосс.конец}
+          база={итог.награда.сумма}
+          прокачкаПроц={итог.награда.бонусПроц}
+          мастерство={мастерство}
+          шкала={шкала}
+          итог={итог.награда.итого}
+          прогресс={{ подпись: Т.игры.дрифтБосс.счёт, значение: String(итог.очки) }}
+          лучший={итог.личный}
+          лучшийПодпись={Т.игры.дрифтБосс.рекордПодпись}
+          колонка="best_drift_boss"
+          ошибка={итог.сохранение === "ошибка" ? Т.общее.ошибкаСохранения(итог.текстОшибки) : undefined}
+          предупреждение={итог.сохранение === "идёт" ? Т.общее.сохраняем : итог.предупреждение}
+          основная={{ подпись: Т.общее.игратьЕщё, disabled: итог.сохранение === "идёт", onClick: старт }}
+          вторичная={{ подпись: Т.игры.дрифтБосс.меню, onClick: () => navigate("/games") }}
+        />
       )}
     </div>
   );

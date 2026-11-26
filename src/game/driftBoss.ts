@@ -1,3 +1,6 @@
+import { ДРИФТ_БОСС } from "../config";
+import { бонусЗарплатыПроц } from "./effects";
+
 export const CAR = { len: 40, width: 20 };
 export const WHEEL_POS: [number, number][] = [
   [-12, -10],
@@ -1141,4 +1144,10 @@ export function step(g: Game, holding: boolean, dt: number) {
 
 export function scoreOf(g: Game) {
   return Math.floor(g.dist / 10) + g.coins * 10;
+}
+
+export function посчитатьНаградуДрифта(очки: number, уровеньЗП: number) {
+  const сумма = Math.floor(очки * ДРИФТ_БОСС.фишкиЗаОчко);
+  const бонусПроц = бонусЗарплатыПроц({ salary_level: уровеньЗП });
+  return { сумма, бонусПроц, итого: Math.floor(сумма * (1 + бонусПроц / 100) + 1e-9) };
 }

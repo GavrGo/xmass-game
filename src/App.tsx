@@ -30,7 +30,7 @@ const Центр = ({ children }: { children: React.ReactNode }) => (
 
 // Основная игра: заставка → онбординг для новых → вкладки для остальных
 function Game() {
-  const { user, loading, error, telegramId, isAdmin } = useUser();
+  const { user, loading, error, telegramId } = useUser();
   const [заставкаПоказана, setЗаставкаПоказана] = useState(false);
 
   useEffect(() => {
@@ -63,11 +63,8 @@ function Game() {
       <Route path="/games/match3" element={<Match3 />} />
       <Route path="/games/jira" element={<JiraFight />} />
       <Route path="/games/babka" element={<Babka />} />
+      <Route path="/games/drift-boss" element={<DriftBoss />} />
       <Route path="/blackjack" element={<Blackjack />} />
-      <Route
-        path="/games/drift-boss"
-        element={isAdmin === null ? null : isAdmin ? <DriftBoss /> : <Navigate to="/games" replace />}
-      />
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/upgrades" element={<Upgrades />} />

@@ -14,6 +14,7 @@ export interface Срез {
 
 const КОЛОНКА_РЕКОРДА: Record<string, КолонкаРекорда> = {
   babka: "best_babka_crash",
+  drift: "best_drift_boss",
   match3: "best_match3",
   jira: "best_jira_level",
   ksuha: "best_ksuha_run",

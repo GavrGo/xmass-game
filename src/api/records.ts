@@ -14,6 +14,7 @@ export const НАЗВАНИЕ_ИГРЫ: Record<string, string> = {
   best_match3: Т.игры.три_в_ряд.название,
   best_jira_level: Т.игры.jira.название,
   best_babka_crash: Т.игры.бабка.название,
+  best_drift_boss: Т.игры.дрифтБосс.название,
 };
 
 export async function получитьНепрочитанныеРекорды(telegramId: number): Promise<ЗаписьРекорда[]> {

@@ -777,4 +777,8 @@ export const ПЛЮС_НАВЫКИ = {
   магнитСкорость: 500,
 };
 
-export const ИГРЫ_МАСТЕРСТВА = ["babka", "match3", "ksuha", "jira", "puzzle"];
+export const ИГРЫ_МАСТЕРСТВА = ["babka", "match3", "ksuha", "jira", "puzzle", "drift"];
+
+export const ДРИФТ_БОСС = {
+  фишкиЗаОчко: 1,
+};
