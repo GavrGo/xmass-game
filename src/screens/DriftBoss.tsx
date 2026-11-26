@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, createGame, policeGeom, routePts, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
 
@@ -28,6 +28,7 @@ const LITTER: Litter[] = [
   { kind: "pack", color: "#9c7620", w: 5, h: 4 },
 ];
 const ASPHALT = "#2b2e36";
+const ROAD_EDGE = "#3f5a7b";
 const hash = (n: number) => {
   const v = Math.sin(n * 12.9898) * 43758.5453;
   return v - Math.floor(v);
@@ -88,7 +89,7 @@ function regular(n: number, r: number): [number, number][] {
   });
 }
 
-const PROP_SHAPE: Record<Exclude<PropKind, "police">, { ring: [number, number][]; h: number; side: string; top: string }> = {
+const PROP_SHAPE: Record<Exclude<PropKind, "police" | "barrier">, { ring: [number, number][]; h: number; side: string; top: string }> = {
   barrel: { ring: regular(8, 6), h: 14, side: "#8a3f1d", top: "#9a5a33" },
   crate: {
     ring: [
@@ -211,15 +212,49 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fill();
     ctx.stroke();
   };
-  const edgeOn = (arr: Pt[], i: number, f: number, dz: number): [number, number] => {
-    const p = arr[i];
-    const r = (p.w / 2) * f;
-    const nx = p.dir ? 1 : 0;
-    const ny = p.dir ? 0 : -1;
-    return P(p.x + nx * r, p.y + ny * r, p.lift + dz);
+  const segPoint = (arr: Pt[], i: number, u: number, v: number, dz: number): [number, number] => {
+    const a = arr[i];
+    const b = arr[i + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const hw = ((a.w + (b.w - a.w) * u) / 2) * v;
+    return P(
+      a.x + (b.x - a.x) * u - ((b.y - a.y) / len) * hw,
+      a.y + (b.y - a.y) * u + ((b.x - a.x) / len) * hw,
+      a.lift + (b.lift - a.lift) * u + dz,
+    );
+  };
+  const segQuad = (arr: Pt[], i: number, dz: number): [number, number][] => [
+    segPoint(arr, i, 0, 1, dz),
+    segPoint(arr, i, 1, 1, dz),
+    segPoint(arr, i, 1, -1, dz),
+    segPoint(arr, i, 0, -1, dz),
+  ];
+  const bendsAt = (arr: Pt[], i: number) => {
+    const a = arr[i - 1];
+    const b = arr[i];
+    const c = arr[i + 1];
+    return Math.abs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) > 1e-6;
+  };
+  const tracePoly = (q: [number, number][]) => {
+    ctx.beginPath();
+    q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
   };
   const alt = g.track.alt;
   const routesAt = (i: number): Pt[][] => (alt[i] !== pts[i] || alt[i + 1] !== pts[i + 1] ? [pts, alt] : [pts]);
+  const roadShapes = (a: number, b: number, dz: number) => {
+    const out: [number, number][][] = [];
+    for (let i = a; i < b; i++) {
+      for (const arr of routesAt(i)) {
+        out.push(segQuad(arr, i, dz));
+        if (i > a && bendsAt(arr, i)) {
+          const p = arr[i];
+          out.push(regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz)));
+        }
+      }
+    }
+    return out;
+  };
 
   const drawVehicle = (v: Pose, pal: Palette, bar: boolean) => {
     const cc = Math.cos(v.h);
@@ -482,14 +517,24 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.globalCompositeOperation = "source-over";
   };
 
-  const drawPolice = (pr: Prop) => {
+  const drawPoliceCar = (pr: Prop) => {
     const pt = pts[pr.idx];
-    const geo = policeGeom(pr, pt);
+    ctx.globalAlpha = alpha;
+    drawVehicle({ x: pr.x, y: pr.y, z: pt.lift, h: policeAxis(pt.dir), roll: pr.tilt, pitch: 0, ground: pt.lift, air: false }, COP_PAL, true);
+  };
+
+  const drawBarrier = (pr: Prop) => {
+    const pt = pts[pr.idx];
     const flying = pr.state === "flying";
     const z0 = flying ? pr.z : pt.lift;
     ctx.globalAlpha = alpha * (flying ? clamp01((DRIFT.propLife - pr.age) / 0.6) : 1);
-    drawVehicle({ x: pr.x, y: pr.y, z: z0, h: geo.h, roll: pr.tilt, pitch: 0, ground: pt.lift, air: flying }, COP_PAL, true);
-    const [ax, ay, bx, by] = geo.fence;
+    const a = policeAxis(pt.dir) + pr.rot;
+    const hx = Math.cos(a) * DRIFT.policeHalf;
+    const hy = Math.sin(a) * DRIFT.policeHalf;
+    const ax = pr.x - hx;
+    const ay = pr.y - hy;
+    const bx = pr.x + hx;
+    const by = pr.y + hy;
     const fenceH = 7;
     const panels = 4;
     for (let k = 0; k < panels; k++) {
@@ -514,7 +559,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
   const drawProp = (pr: Prop) => {
     if (pr.kind === "police") {
-      drawPolice(pr);
+      drawPoliceCar(pr);
+      return;
+    }
+    if (pr.kind === "barrier") {
+      drawBarrier(pr);
       return;
     }
     const shape = PROP_SHAPE[pr.kind];
@@ -618,37 +667,29 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   if (carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
   for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
 
-  for (let i = from; i < to; i++) {
-    for (const arr of routesAt(i)) {
-      const e = (k: number, f: number, dz: number) => edgeOn(arr, k, f, dz);
-      poly([e(i, -1, 0), e(i + 1, -1, 0), e(i + 1, -1, -WALL_H), e(i, -1, -WALL_H)], WALL);
-      poly([e(i, 1, 0), e(i + 1, 1, 0), e(i + 1, 1, -WALL_H), e(i, 1, -WALL_H)], WALL);
-    }
+  const top = roadShapes(from, to, 0);
+  for (const q of roadShapes(from, to, -WALL_H)) poly(q, WALL);
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = ROAD_EDGE;
+  ctx.lineWidth = 2.4 * s;
+  for (const q of top) {
+    tracePoly(q);
+    ctx.stroke();
+  }
+  for (const q of top) {
+    tracePoly(q);
+    ctx.fillStyle = ASPHALT;
+    ctx.fill();
   }
   for (let i = from; i < to; i++) {
     for (const arr of routesAt(i)) {
-      const e = (k: number, f: number, dz: number) => edgeOn(arr, k, f, dz);
-      poly([e(i, -1, 0), e(i + 1, -1, 0), e(i + 1, 1, 0), e(i, 1, 0)], shadeHex(ASPHALT, 0.9 + 0.16 * hash(i)));
       for (let j = 0; j < 4; j++) {
-        const [sx, sy] = e(i, -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
+        const [sx, sy] = segPoint(arr, i, hash(i * 5 + j * 3 + 0.25), -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
         ctx.beginPath();
         ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
         ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.28)";
         ctx.fill();
       }
-    }
-  }
-
-  for (let i = from; i < to; i++) {
-    for (const arr of routesAt(i)) for (const side of [-1, 1]) {
-      const [ax, ay] = edgeOn(arr, i, side, 0);
-      const [bx, by] = edgeOn(arr, i + 1, side, 0);
-      ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx, by);
-      ctx.strokeStyle = "rgba(150,185,230,0.38)";
-      ctx.lineWidth = 1.2 * s;
-      ctx.stroke();
     }
   }
 
@@ -678,12 +719,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
     if (crest <= 0) continue;
     for (const arr of routesAt(i)) {
-      ctx.beginPath();
-      ctx.moveTo(...edgeOn(arr, i, -1, 0));
-      ctx.lineTo(...edgeOn(arr, i + 1, -1, 0));
-      ctx.lineTo(...edgeOn(arr, i + 1, 1, 0));
-      ctx.lineTo(...edgeOn(arr, i, 1, 0));
-      ctx.closePath();
+      tracePoly(segQuad(arr, i, 0));
       ctx.fillStyle = `rgba(255,255,255,${(0.3 * crest).toFixed(3)})`;
       ctx.fill();
     }

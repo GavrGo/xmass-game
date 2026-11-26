@@ -74,8 +74,10 @@ export const DRIFT = {
   policeHalf: 20,
   policeFence: 14,
   policeReach: 12,
-  policeFling: 150,
-  policeLift: 120,
+  leanAngle: 0.6,
+  leanIn: 0.15,
+  leanTime: 1,
+  leanDecay: 6,
   sparkCount: 14,
   sparkLife: 0.5,
   sparkGravity: 500,
@@ -93,9 +95,9 @@ export const DRIFT = {
   leafCull: 1800,
   leafBehind: 1000,
   forkChance: 0.3,
-  forkSteps: 48,
-  forkRamp: 10,
-  forkGap: 36,
+  forkSteps: 140,
+  forkRamp: 36,
+  forkGap: 50,
   forkMinGap: 80,
   routeSlack: 2,
 };
@@ -118,7 +120,7 @@ export interface Pt {
   taken: boolean;
 }
 
-export type PropKind = "barrel" | "crate" | "bin" | "police";
+export type PropKind = "barrel" | "crate" | "bin" | "police" | "barrier";
 
 export interface Prop {
   kind: PropKind;
@@ -126,20 +128,21 @@ export interface Prop {
   x: number;
   y: number;
   z: number;
-  state: "idle" | "flying";
+  state: "idle" | "flying" | "leaning";
   vx: number;
   vy: number;
   vz: number;
   rot: number;
   spin: number;
   tilt: number;
+  leanSide: number;
   age: number;
 }
 
 export interface Track {
   pts: Pt[];
   alt: Pt[];
-  fork: { a: number; b: number; side: number } | null;
+  fork: { a: number; b: number; side: number; off: number } | null;
   lastFork: number;
   props: Prop[];
   x: number;
@@ -300,7 +303,7 @@ function push(t: Track) {
     const r =
       Math.sin((Math.PI / 2) * Math.min(1, k / DRIFT.forkRamp)) *
       Math.sin((Math.PI / 2) * Math.min(1, (n - 1 - k) / DRIFT.forkRamp));
-    const off = fork.side * r * (w + DRIFT.forkGap);
+    const off = fork.side * r * fork.off;
     t.alt.push({
       x: t.x + (t.dir === 0 ? 0 : off),
       y: t.y + (t.dir === 0 ? off : 0),
@@ -316,24 +319,23 @@ function push(t: Track) {
   t.sinceProp++;
   if (idx >= DRIFT.propStartIdx && !fork && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
     t.sinceProp = 0;
-    const police = Math.random() < DRIFT.policeChance;
+    const police = w === DRIFT.wideWidth && Math.random() < DRIFT.policeChance;
     const lat = (Math.random() * 2 - 1) * (w / 2 - (police ? DRIFT.policeHalf + 4 : 16));
-    t.props.push({
-      kind: police ? "police" : PROP_KINDS[Math.floor(Math.random() * PROP_KINDS.length)],
-      idx,
-      x: t.dir === 0 ? pt.x : pt.x + lat,
-      y: t.dir === 0 ? pt.y + lat : pt.y,
-      z: 0,
-      state: "idle",
-      vx: 0,
-      vy: 0,
-      vz: 0,
-      rot: 0,
-      spin: 0,
-      tilt: 0,
-      age: 0,
-    });
+    const x = t.dir === 0 ? pt.x : pt.x + lat;
+    const y = t.dir === 0 ? pt.y + lat : pt.y;
+    if (police) {
+      t.props.push(
+        makeProp("police", idx, x, y),
+        makeProp("barrier", idx, x - VEC[t.dir].x * DRIFT.policeFence, y - VEC[t.dir].y * DRIFT.policeFence),
+      );
+    } else {
+      t.props.push(makeProp(PROP_KINDS[Math.floor(Math.random() * PROP_KINDS.length)], idx, x, y));
+    }
   }
+}
+
+function makeProp(kind: PropKind, idx: number, x: number, y: number): Prop {
+  return { kind, idx, x, y, z: 0, state: "idle", vx: 0, vy: 0, vz: 0, rot: 0, spin: 0, tilt: 0, leanSide: 0, age: 0 };
 }
 
 function advance(t: Track, len: number, dir: number) {
@@ -351,7 +353,7 @@ function addSegment(t: Track) {
   if (Math.random() < DRIFT.forkChance && t.pts.length - t.lastFork >= DRIFT.forkMinGap) {
     const a = t.pts.length;
     t.lastFork = a;
-    t.fork = { a, b: a + DRIFT.forkSteps, side: Math.random() < 0.5 ? -1 : 1 };
+    t.fork = { a, b: a + DRIFT.forkSteps, side: Math.random() < 0.5 ? -1 : 1, off: DRIFT.wideWidth + DRIFT.forkGap };
     advance(t, DRIFT.forkSteps * DRIFT.sample, 1 - t.dir);
     t.fork = null;
     return;
@@ -555,24 +557,15 @@ function updateSparks(g: Game, dt: number) {
   g.sparks = g.sparks.filter((s) => s.age < s.life);
 }
 
-export function policeGeom(p: Prop, pt: Pt) {
-  const lat = pt.dir === 0 ? [0, 1] : [1, 0];
-  const fx = -VEC[pt.dir].x * DRIFT.policeFence;
-  const fy = -VEC[pt.dir].y * DRIFT.policeFence;
-  const seg = (ox: number, oy: number): [number, number, number, number] => [
-    p.x + ox - lat[0] * DRIFT.policeHalf,
-    p.y + oy - lat[1] * DRIFT.policeHalf,
-    p.x + ox + lat[0] * DRIFT.policeHalf,
-    p.y + oy + lat[1] * DRIFT.policeHalf,
-  ];
-  return { car: seg(0, 0), fence: seg(fx, fy), lat, h: pt.dir === 0 ? Math.PI / 2 : 0 };
+export function policeAxis(dir: number) {
+  return dir === 0 ? Math.PI / 2 : 0;
 }
 
-function policeTouch(p: Prop, pt: Pt, x: number, y: number) {
-  const g = policeGeom(p, pt);
-  const [ax, ay, bx, by] = g.car;
-  const [cx, cy, dx, dy] = g.fence;
-  return Math.min(distSeg(x, y, ax, ay, bx, by), distSeg(x, y, cx, cy, dx, dy));
+function acrossSeg(p: Prop, dir: number): [number, number, number, number] {
+  const a = policeAxis(dir) + p.rot;
+  const c = Math.cos(a) * DRIFT.policeHalf;
+  const s = Math.sin(a) * DRIFT.policeHalf;
+  return [p.x - c, p.y - s, p.x + c, p.y + s];
 }
 
 function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius: number) {
@@ -580,24 +573,24 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
   for (const p of g.track.props) {
     if (p.state !== "idle") continue;
     if (p.kind === "police") {
-      if (policeTouch(p, pts[p.idx], x, y) > DRIFT.policeReach) continue;
-      const lat = policeGeom(p, pts[p.idx]).lat;
-      const side = (x - p.x) * lat[0] + (y - p.y) * lat[1] >= 0 ? 1 : -1;
-      p.state = "flying";
+      const dir = pts[p.idx].dir;
+      const [ax, ay, bx, by] = acrossSeg(p, dir);
+      if (distSeg(x, y, ax, ay, bx, by) > DRIFT.policeReach) continue;
+      p.state = "leaning";
       p.age = 0;
-      p.z = pts[p.idx].lift;
-      p.vx = lat[0] * side * DRIFT.policeFling + vx * 0.2;
-      p.vy = lat[1] * side * DRIFT.policeFling + vy * 0.2;
-      p.vz = DRIFT.policeLift;
-      p.spin = 0;
-      p.tilt = side * 0.7;
-      emitSparks(g, x, y, p.z + 6);
+      p.leanSide = dir === 0 ? 1 : -1;
+      emitSparks(g, x, y, pts[p.idx].lift + 6);
       continue;
     }
     const dx = p.x - x;
     const dy = p.y - y;
     const d = Math.hypot(dx, dy);
-    if (d > radius + DRIFT.propRadius) continue;
+    let reach = d;
+    if (p.kind === "barrier") {
+      const [ax, ay, bx, by] = acrossSeg(p, pts[p.idx].dir);
+      reach = distSeg(x, y, ax, ay, bx, by);
+    }
+    if (reach > radius + DRIFT.propRadius) continue;
     const nx = d > 0.01 ? dx / d : 1;
     const ny = d > 0.01 ? dy / d : 0;
     const kick = DRIFT.propKick + Math.hypot(vx, vy) * 0.25;
@@ -615,6 +608,18 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
 function updateProps(g: Game, dt: number) {
   const pts = g.track.pts;
   for (const p of g.track.props) {
+    if (p.state === "leaning") {
+      p.age += dt;
+      if (p.age >= DRIFT.leanTime) {
+        p.state = "idle";
+        p.age = 0;
+        p.tilt = 0;
+        continue;
+      }
+      const env = p.age < DRIFT.leanIn ? p.age / DRIFT.leanIn : Math.exp(-(p.age - DRIFT.leanIn) * DRIFT.leanDecay);
+      p.tilt = p.leanSide * DRIFT.leanAngle * env;
+      continue;
+    }
     if (p.state !== "flying") continue;
     p.age += dt;
     const k = Math.exp(-DRIFT.propDrag * dt);
@@ -633,7 +638,7 @@ function updateProps(g: Game, dt: number) {
       if (Math.abs(p.vz) < 30) p.vz = 0;
     }
   }
-  g.track.props = g.track.props.filter((p) => p.state === "idle" || p.age < DRIFT.propLife);
+  g.track.props = g.track.props.filter((p) => p.state !== "flying" || p.age < DRIFT.propLife);
 }
 
 function emitSplash(g: Game, x: number, y: number) {
