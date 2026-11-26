@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, createGame, scoreOf, step, type Game } from "../game/driftBoss";
+import { CAR, DRIFT, createGame, scoreOf, step, type Game, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
-const ROAD = "#3b4262";
-const CURB = "#14172a";
+const ROAD = "#b6e88a";
+const ROAD_DARK = "#8fd062";
+const EDGE = "#3d7a2b";
+const CAR_TOP = "#5fd35a";
+const CAR_SIDE = "#2f9a3a";
 
 type Status = "idle" | "play" | "over";
 
@@ -14,7 +17,7 @@ const isoY = (x: number, y: number) => (x + y) * 0.5;
 
 function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
   const cam = g.phase === "play" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
-  const s = (Math.min(W, H) / 480) * cam;
+  const s = (Math.min(W, H) / 300) * cam;
   const cx = isoX(g.x, g.y);
   const cy = isoY(g.x, g.y);
   const P = (x: number, y: number, lift = 0): [number, number] => [
@@ -24,46 +27,62 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const pts = g.track.pts;
   const from = Math.max(0, g.idx - 160);
   const to = Math.min(pts.length - 1, g.idx + 260);
+  const half = DRIFT.trackWidth / 2;
+  const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / DRIFT.fallTime) : 1;
 
-  const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) / 1.4);
-  bg.addColorStop(0, "#1c1f3d");
-  bg.addColorStop(1, "#070812");
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#f4a95a");
+  bg.addColorStop(1, "#e9a04c");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.beginPath();
-  for (let i = from; i <= to; i++) {
-    const [sx, sy] = P(pts[i].x, pts[i].y);
-    if (i === from) ctx.moveTo(sx, sy);
-    else ctx.lineTo(sx, sy);
-  }
-  ctx.strokeStyle = CURB;
-  ctx.lineWidth = (DRIFT.trackWidth + 14) * s * 0.85;
-  ctx.stroke();
-  ctx.strokeStyle = ROAD;
-  ctx.lineWidth = DRIFT.trackWidth * s * 0.85;
-  ctx.stroke();
+  const roadPath = () => {
+    ctx.beginPath();
+    for (let i = from; i <= to; i++) {
+      const [sx, sy] = P(pts[i].x, pts[i].y);
+      if (i === from) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+  };
+
   ctx.save();
-  ctx.setLineDash([10 * s, 12 * s]);
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
-  ctx.lineWidth = 2 * s;
+  ctx.translate(0, 9 * s);
+  roadPath();
+  ctx.strokeStyle = EDGE;
+  ctx.lineWidth = (DRIFT.trackWidth + 8) * s;
   ctx.stroke();
   ctx.restore();
+
+  roadPath();
+  ctx.strokeStyle = ROAD;
+  ctx.lineWidth = DRIFT.trackWidth * s;
+  ctx.stroke();
+
+  ctx.strokeStyle = ROAD_DARK;
+  ctx.lineWidth = 3 * s;
+  ctx.beginPath();
+  for (let i = from; i <= to; i++) {
+    if (i % 4 !== 0) continue;
+    const p = pts[i];
+    const nx = p.dir ? 1 : 0;
+    const ny = p.dir ? 0 : -1;
+    const [x1, y1] = P(p.x + nx * half, p.y + ny * half);
+    const [x2, y2] = P(p.x - nx * half, p.y - ny * half);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+  }
+  ctx.stroke();
 
   for (let i = from; i <= to; i++) {
     const p = pts[i];
     if (!p.ramp) continue;
-    const a = pts[Math.max(0, i - 1)];
-    const b = pts[Math.min(pts.length - 1, i + 1)];
-    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    const nx = -(b.y - a.y) / len;
-    const ny = (b.x - a.x) / len;
-    const r = DRIFT.trackWidth / 2;
-    const [x1, y1] = P(p.x + nx * r, p.y + ny * r);
-    const [x2, y2] = P(p.x - nx * r, p.y - ny * r);
-    ctx.strokeStyle = p.used ? "#7a4b12" : "#ff9f1a";
+    const nx = p.dir ? 1 : 0;
+    const ny = p.dir ? 0 : -1;
+    const [x1, y1] = P(p.x + nx * half, p.y + ny * half);
+    const [x2, y2] = P(p.x - nx * half, p.y - ny * half);
+    ctx.strokeStyle = p.used ? "#8a5a1e" : "#ff9f1a";
     ctx.lineWidth = 7 * s;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
@@ -71,62 +90,93 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.stroke();
   }
 
+  ctx.globalAlpha = alpha;
+
+  ctx.strokeStyle = "rgba(25,25,30,0.8)";
+  ctx.lineWidth = 4 * s;
+  const ms = g.marks;
+  for (let k = 1; k < ms.length; k++) {
+    const m0 = ms[k - 1];
+    const m1 = ms[k];
+    if (!m0.on || !m1.on) continue;
+    const [a0x, a0y] = P(m0.ax, m0.ay);
+    const [a1x, a1y] = P(m1.ax, m1.ay);
+    const [b0x, b0y] = P(m0.bx, m0.by);
+    const [b1x, b1y] = P(m1.bx, m1.by);
+    ctx.beginPath();
+    ctx.moveTo(a0x, a0y);
+    ctx.lineTo(a1x, a1y);
+    ctx.moveTo(b0x, b0y);
+    ctx.lineTo(b1x, b1y);
+    ctx.stroke();
+  }
+
   for (let i = from; i <= to; i++) {
-    const p = pts[i];
+    const p: Pt = pts[i];
     if (!p.coin || p.taken) continue;
-    const [sx, sy] = P(p.x, p.y, Math.abs(Math.sin(time * 4 + i)) * 3);
+    const [sx, sy] = P(p.x, p.y, 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
     ctx.beginPath();
     ctx.arc(sx, sy, 7 * s, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffd23f";
+    ctx.fillStyle = "#ffc93c";
     ctx.fill();
     ctx.strokeStyle = "#b8860b";
     ctx.lineWidth = 2 * s;
     ctx.stroke();
   }
 
-  const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / DRIFT.fallTime) : 1;
-
   for (const p of g.smoke) {
     const [sx, sy] = P(p.x, p.y);
     const k = p.age / p.life;
     ctx.beginPath();
     ctx.arc(sx, sy, p.r * s * (1 + k * 2.2), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(220,222,235,${0.45 * (1 - k) * alpha})`;
+    ctx.fillStyle = `rgba(220,222,235,${0.45 * (1 - k)})`;
     ctx.fill();
   }
 
   const [shx, shy] = P(g.x, g.y);
   ctx.beginPath();
-  ctx.ellipse(shx, shy, 20 * s, 11 * s, 0, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(0,0,0,${0.35 * alpha * (g.air ? 0.5 : 1)})`;
+  ctx.ellipse(shx, shy, 24 * s, 13 * s, 0, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(0,0,0,${0.3 * (g.air ? 0.5 : 1)})`;
   ctx.fill();
 
   const c = Math.cos(g.h);
   const sn = Math.sin(g.h);
-  const L = 34;
-  const Wd = 17;
-  const C = (a: number, b: number) => P(g.x + c * a - sn * b, g.y + sn * a + c * b, g.z);
-  const fill = (pts4: [number, number][], color: string) => {
+  const hl = CAR.len / 2;
+  const hw = CAR.width / 2;
+  const hh = CAR.height;
+  const C = (a: number, b: number, lift: number): [number, number] =>
+    P(g.x + c * a - sn * b, g.y + sn * a + c * b, g.z + lift);
+  const quad = (q: [number, number][], color: string) => {
     ctx.beginPath();
-    pts4.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    q.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
     ctx.fillStyle = color;
     ctx.fill();
   };
-  ctx.globalAlpha = alpha;
-  const body = [C(L / 2, Wd / 2), C(L / 2, -Wd / 2), C(-L / 2, -Wd / 2), C(-L / 2, Wd / 2)];
-  fill(body, "#ff4d6d");
-  ctx.strokeStyle = "#2b0a12";
-  ctx.lineWidth = 2 * s;
-  ctx.stroke();
-  fill([C(L * 0.12, Wd * 0.32), C(L * 0.12, -Wd * 0.32), C(L * 0.32, -Wd * 0.32), C(L * 0.32, Wd * 0.32)], "#9fe8ff");
+  const faces: { n: [number, number]; a: [number, number]; b: [number, number] }[] = [
+    { n: [c, sn], a: [hl, -hw], b: [hl, hw] },
+    { n: [-sn, c], a: [hl, hw], b: [-hl, hw] },
+    { n: [-c, -sn], a: [-hl, hw], b: [-hl, -hw] },
+    { n: [sn, -c], a: [-hl, -hw], b: [hl, -hw] },
+  ];
+  for (const f of faces) {
+    if (f.n[0] + f.n[1] <= 0) continue;
+    quad([C(f.a[0], f.a[1], 0), C(f.b[0], f.b[1], 0), C(f.b[0], f.b[1], hh), C(f.a[0], f.a[1], hh)], CAR_SIDE);
+  }
+  quad([C(hl, hw, hh), C(hl, -hw, hh), C(-hl, -hw, hh), C(-hl, hw, hh)], CAR_TOP);
+  for (const b of [-hw * 0.4, hw * 0.4]) {
+    quad([C(hl, b - 1.8, hh), C(hl, b + 1.8, hh), C(-hl, b + 1.8, hh), C(-hl, b - 1.8, hh)], "#f4fff0");
+  }
+  quad([C(hl * 0.25, hw * 0.75, hh), C(hl * 0.25, -hw * 0.75, hh), C(hl * 0.6, -hw * 0.75, hh), C(hl * 0.6, hw * 0.75, hh)], "#2a3a4a");
+
   ctx.globalAlpha = 1;
 }
 
 export default function DriftBoss() {
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const hudRef = useRef<HTMLDivElement>(null);
+  const coinsRef = useRef<HTMLSpanElement>(null);
+  const distRef = useRef<HTMLSpanElement>(null);
   const gameRef = useRef<Game | null>(null);
   const statusRef = useRef<Status>("idle");
   const holdingRef = useRef(false);
@@ -197,10 +247,9 @@ export default function DriftBoss() {
           setResult({ score, best });
           setStatus("over");
         }
-        if (hudRef.current) {
-          hudRef.current.textContent = `${Math.floor(g.dist / 10)} ${Т.дрифтБосс.дистанция} · ${g.coins} ${Т.дрифтБосс.монеты}`;
-        }
       }
+      if (coinsRef.current) coinsRef.current.textContent = String(g.coins);
+      if (distRef.current) distRef.current.textContent = String(Math.floor(g.dist / 10));
       draw(ctx, g, W, H, time);
       raf = requestAnimationFrame(frame);
     };
@@ -217,14 +266,17 @@ export default function DriftBoss() {
   }, []);
 
   return (
-    <div
-      onPointerDown={press}
-      className="fixed inset-0 z-30 select-none overflow-hidden bg-black"
-      style={{ touchAction: "none" }}
-    >
+    <div onPointerDown={press} className="fixed inset-0 z-30 select-none overflow-hidden bg-black" style={{ touchAction: "none" }}>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3">
+        <div className="flex items-center gap-1.5 rounded-full bg-black/40 py-1 pl-1 pr-3">
+          <span className="h-7 w-7 rounded-full bg-gradient-to-b from-yellow-200 to-yellow-500 ring-2 ring-yellow-700" />
+          <span ref={coinsRef} className="text-base font-extrabold text-white">0</span>
+        </div>
+        <span ref={distRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
+          0
+        </span>
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
@@ -233,13 +285,12 @@ export default function DriftBoss() {
         >
           {Т.общее.назад}
         </button>
-        <div ref={hudRef} className="rounded-full bg-black/50 px-3 py-1.5 text-sm font-bold text-white" />
       </div>
 
       {status === "idle" && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/40 p-6 text-center">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/30 p-6 text-center">
           <div className="text-3xl font-extrabold text-white">{Т.дрифтБосс.название}</div>
-          <div className="max-w-xs text-sm text-white/80">{Т.дрифтБосс.подсказка}</div>
+          <div className="max-w-xs text-sm text-white/85">{Т.дрифтБосс.подсказка}</div>
           <div className="mt-2 text-sm font-bold text-brand-yellow">{Т.дрифтБосс.старт}</div>
         </div>
       )}
@@ -257,12 +308,7 @@ export default function DriftBoss() {
             <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={begin} className="btn btn-primary">
               {Т.дрифтБосс.заново}
             </button>
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => navigate("/games")}
-              className="btn btn-secondary"
-            >
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => navigate("/games")} className="btn btn-secondary">
               {Т.дрифтБосс.меню}
             </button>
           </div>
