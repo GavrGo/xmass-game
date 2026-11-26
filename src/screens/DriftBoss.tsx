@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, WHEEL_POS, createGame, scoreOf, step, type Game, type Pt } from "../game/driftBoss";
+import { DRIFT, createGame, scoreOf, step, type Game, type Pose, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
 
@@ -30,6 +30,37 @@ const TAIL = "#ff3b3b";
 
 type Local = [number, number, number];
 type Face = { pts: [number, number][]; color: string; depth: number };
+type Palette = {
+  top: string;
+  cabin: string;
+  side: string;
+  end: string;
+  glass: string;
+  stripe: string;
+  light: string;
+  tail: string;
+};
+
+const PLAYER_PAL: Palette = {
+  top: CAR_TOP,
+  cabin: CAR_CABIN,
+  side: CAR_SIDE,
+  end: CAR_END,
+  glass: GLASS,
+  stripe: STRIPE,
+  light: LIGHT,
+  tail: TAIL,
+};
+const COP_PAL: Palette = {
+  top: "#f0f0f0",
+  cabin: "#e2e2e2",
+  side: "#2b2b2b",
+  end: "#1b1b1b",
+  glass: "#1a1e24",
+  stripe: "#9a9a9a",
+  light: "#fafafa",
+  tail: "#8a1f1f",
+};
 
 const BODY_PROF: [number, number][] = [
   [-20, 2],
@@ -91,24 +122,31 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     return P(p.x + nx * r, p.y + ny * r, p.lift + dz);
   };
 
-  const cc = Math.cos(g.h);
-  const ss = Math.sin(g.h);
-  const drawCar = () => {
+  const drawVehicle = (v: Pose, pal: Palette, bar: boolean) => {
+    const cc = Math.cos(v.h);
+    const ss = Math.sin(v.h);
+    const cp = Math.cos(v.pitch);
+    const sp = Math.sin(v.pitch);
+    const rc = Math.cos(v.roll);
+    const rs = Math.sin(v.roll);
     const body: Face[] = [];
     const cabin: Face[] = [];
     const details: Face[] = [];
     let layer = body;
-    const rc = Math.cos(g.roll);
-    const rs = Math.sin(g.roll);
-    const rot = (a: number, b: number, z: number): Local => [a, b * rc + z * rs, z * rc - b * rs];
+
+    const rot = (a: number, b: number, z: number): Local => {
+      const z1 = z * cp + a * sp;
+      return [a * cp - z * sp, b * rc + z1 * rs, z1 * rc - b * rs];
+    };
     const toW = (a: number, b: number, z: number): [number, number, number] => {
       const [ra, rb, rz] = rot(a, b, z);
-      return [g.x + cc * ra - ss * rb, g.y + ss * ra + cc * rb, g.z + rz + 10 * Math.abs(rs)];
+      return [v.x + cc * ra - ss * rb, v.y + ss * ra + cc * rb, v.z + rz + 10 * Math.abs(rs)];
     };
     const addFace = (local: Local[], n: Local, color: string) => {
-      const [rn0, rn1, rn2] = rot(n[0], n[1], n[2]);
-      const wn = [rn0 * cc - rn1 * ss, rn0 * ss + rn1 * cc, rn2];
-      if (wn[0] + wn[1] + 1.5 * wn[2] <= 0) return;
+      const [n0, n1, n2] = rot(n[0], n[1], n[2]);
+      const wn0 = n0 * cc - n1 * ss;
+      const wn1 = n0 * ss + n1 * cc;
+      if (wn0 + wn1 + 1.5 * n2 <= 0) return;
       const w = local.map(([a, b, z]) => toW(a, b, z));
       const k = w.length;
       const mx = w.reduce((t, p) => t + p[0], 0) / k;
@@ -154,26 +192,73 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
         cap,
       );
     };
+    const box = (a0: number, a1: number, b0: number, b1: number, z0: number, z1: number, color: string) => {
+      addFace(
+        [
+          [a0, b0, z1],
+          [a1, b0, z1],
+          [a1, b1, z1],
+          [a0, b1, z1],
+        ],
+        [0, 0, 1],
+        color,
+      );
+      addFace(
+        [
+          [a1, b0, z0],
+          [a1, b1, z0],
+          [a1, b1, z1],
+          [a1, b0, z1],
+        ],
+        [1, 0, 0],
+        color,
+      );
+      addFace(
+        [
+          [a0, b0, z0],
+          [a0, b1, z0],
+          [a0, b1, z1],
+          [a0, b0, z1],
+        ],
+        [-1, 0, 0],
+        color,
+      );
+      addFace(
+        [
+          [a0, b0, z0],
+          [a1, b0, z0],
+          [a1, b0, z1],
+          [a0, b0, z1],
+        ],
+        [0, -1, 0],
+        color,
+      );
+      addFace(
+        [
+          [a0, b1, z0],
+          [a1, b1, z0],
+          [a1, b1, z1],
+          [a0, b1, z1],
+        ],
+        [0, 1, 0],
+        color,
+      );
+    };
 
-    const [shx, shy] = P(g.x, g.y, g.ground);
-    ctx.beginPath();
-    [
+    const shadow = [
       [-20.5, -10.5],
       [20.5, -10.5],
       [20.5, 10.5],
       [-20.5, 10.5],
-    ].forEach(([a, b], k) => {
-      const [sx, sy] = P(g.x + cc * a - ss * b, g.y + ss * a + cc * b, g.ground);
-      if (k) ctx.lineTo(sx, sy);
-      else ctx.moveTo(sx, sy);
-    });
+    ].map(([a, b]) => P(v.x + cc * a - ss * b, v.y + ss * a + cc * b, v.ground));
+    ctx.beginPath();
+    shadow.forEach(([sx, sy], k) => (k ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy)));
     ctx.closePath();
-    ctx.fillStyle = `rgba(0,0,0,${0.3 * (g.air ? 0.5 : 1) * alpha})`;
+    ctx.fillStyle = `rgba(0,0,0,${0.3 * (v.air ? 0.5 : 1) * alpha})`;
     ctx.fill();
 
-    prism(BODY_PROF, -10, 10, [CAR_SIDE, CAR_END, CAR_TOP, CAR_TOP, CAR_TOP, CAR_END], CAR_SIDE);
-    layer = cabin;
-    prism(CABIN_PROF, -8.5, 8.5, [GLASS, CAR_TOP, GLASS, CAR_SIDE], CAR_CABIN);
+    prism(BODY_PROF, -10, 10, [pal.side, pal.end, pal.top, pal.top, pal.top, pal.end], pal.side);
+    layer = body;
     for (const [b0, b1] of [
       [-3.6, -2.2],
       [2.2, 3.6],
@@ -186,15 +271,18 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
           [-13, b1, 7.02],
         ],
         [0, 0, 1],
-        STRIPE,
+        pal.stripe,
       );
     }
+    layer = cabin;
+    prism(CABIN_PROF, -8.5, 8.5, [pal.glass, pal.top, pal.glass, pal.side], pal.cabin);
+
     layer = details;
     for (const sb of [-1, 1]) {
       addFace(
         CABIN_GLASS.map(([a, z]) => [a, sb * 8.65, z] as Local),
         [0, sb, 0],
-        GLASS,
+        pal.glass,
       );
     }
     for (const [b0, b1] of [
@@ -209,7 +297,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
           [20.1, b0, 5],
         ],
         [1, 0, 0],
-        LIGHT,
+        pal.light,
       );
       addFace(
         [
@@ -219,7 +307,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
           [-20.1, b0, 5],
         ],
         [-1, 0, 0],
-        TAIL,
+        pal.tail,
       );
     }
     for (const aw of [-12, 12]) {
@@ -235,6 +323,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
         addFace(hub, [0, sb, 0], HUB);
       }
     }
+    if (bar) {
+      const red = Math.floor(time * 6) % 2 === 0;
+      box(-4, 2, -4.5, -0.5, 12, 14, red ? "#ff2d2d" : "#4a1414");
+      box(-4, 2, 0.5, 4.5, 12, 14, red ? "#1f1f1f" : "#2d62ff");
+    }
 
     for (const layerFaces of [body, cabin]) {
       layerFaces.sort((p, q) => p.depth - q.depth);
@@ -245,7 +338,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
   const near = pts[g.idx];
   const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
-  if (carBehind) drawCar();
+  const cop = g.cop;
+  const copNear = cop ? pts[cop.idx] : null;
+  const copBehind = !!cop && cop.phase === "fall" && !!copNear && cop.x + cop.y > copNear.x + copNear.y;
+  if (carBehind) drawVehicle(g, PLAYER_PAL, false);
+  if (cop && copBehind) drawVehicle(cop, COP_PAL, true);
 
   for (let i = from; i < to; i++) {
     poly([edge(i, -1, 0), edge(i + 1, -1, 0), edge(i + 1, -1, -WALL_H), edge(i, -1, -WALL_H)], WALL);
@@ -299,11 +396,12 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const k = p.age / p.life;
     ctx.beginPath();
     ctx.arc(sx, sy, p.r * s * (1 + k * 2.2), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(220,222,235,${0.6 * (1 - k) * alpha})`;
+    ctx.fillStyle = `rgba(${p.shade},${p.shade},${p.shade},${0.6 * (1 - k) * alpha})`;
     ctx.fill();
   }
 
-  if (!carBehind) drawCar();
+  if (cop && !copBehind) drawVehicle(cop, COP_PAL, true);
+  if (!carBehind) drawVehicle(g, PLAYER_PAL, false);
   ctx.globalAlpha = 1;
 }
 
@@ -382,6 +480,8 @@ export default function DriftBoss() {
           setResult({ score, best });
           setStatus("over");
         }
+      } else if (statusRef.current === "over") {
+        step(g, false, dt);
       }
       if (coinsRef.current) coinsRef.current.textContent = String(g.coins);
       if (distRef.current) distRef.current.textContent = String(Math.floor(g.dist / 10));
