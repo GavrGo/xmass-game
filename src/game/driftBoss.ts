@@ -97,8 +97,6 @@ export const DRIFT = {
   forkChance: 0.3,
   forkSteps: 140,
   forkGap: 50,
-  rampJunctionGap: 10,
-  maxHealth: 5,
   forkMinGap: 80,
   routeSlack: 2,
 };
@@ -138,13 +136,11 @@ export interface Prop {
   tilt: number;
   leanSide: number;
   age: number;
-  struck: boolean;
 }
 
 export interface Track {
   pts: Pt[];
   alt: Pt[];
-  width: number;
   fork: { a: number; b: number; side: number; off: number } | null;
   forkEnd: number;
   props: Prop[];
@@ -269,7 +265,6 @@ export interface Game extends Pose {
   ripples: { x: number; y: number; age: number }[];
   paint: number;
   marks: Mark[];
-  health: number;
 }
 
 function clamp(v: number, lo: number, hi: number) {
@@ -297,7 +292,7 @@ function push(t: Track) {
   t.sinceCoin++;
   const coin = !fork && t.sinceCoin >= DRIFT.coinEvery && Math.random() < DRIFT.coinChance;
   if (coin) t.sinceCoin = 0;
-  const w = t.width;
+  const w = widthAt(j * DRIFT.sample);
   const idx = j;
   const pt: Pt = { x: t.x, y: t.y, dir: t.dir, w, lift: 0, coin, taken: false };
   t.pts.push(pt);
@@ -341,7 +336,7 @@ function shifted(p: Pt, dir: number, off: number, w: number): Pt {
 }
 
 function makeProp(kind: PropKind, idx: number, x: number, y: number): Prop {
-  return { kind, idx, x, y, z: 0, state: "idle", vx: 0, vy: 0, vz: 0, rot: 0, spin: 0, tilt: 0, leanSide: 0, age: 0, struck: false };
+  return { kind, idx, x, y, z: 0, state: "idle", vx: 0, vy: 0, vz: 0, rot: 0, spin: 0, tilt: 0, leanSide: 0, age: 0 };
 }
 
 function advance(t: Track, len: number, dir: number) {
@@ -356,7 +351,6 @@ function advance(t: Track, len: number, dir: number) {
 }
 
 function addSegment(t: Track) {
-  t.width = widthAt(t.pts.length * DRIFT.sample);
   if (Math.random() < DRIFT.forkChance && t.pts.length - t.forkEnd >= DRIFT.forkMinGap) {
     const a = t.pts.length;
     t.fork = { a, b: a + DRIFT.forkSteps, side: Math.random() < 0.5 ? -1 : 1, off: DRIFT.wideWidth + DRIFT.forkGap };
@@ -369,9 +363,8 @@ function addSegment(t: Track) {
   const start = t.pts.length;
   const steps = advance(t, len, 1 - t.dir);
   const L = DRIFT.rampLen;
-  const M = DRIFT.rampJunctionGap;
-  if (steps < L + 2 * M || Math.random() >= DRIFT.rampChance) return;
-  const from = start + M + Math.floor(Math.random() * (steps - L - 2 * M));
+  if (steps < L + 6 || Math.random() >= DRIFT.rampChance) return;
+  const from = start + 2 + Math.floor(Math.random() * (steps - L - 4));
   if (from - t.lastRamp < DRIFT.rampGap) return;
   t.lastRamp = from + L / 2;
   for (let j = 0; j < L; j++) {
@@ -387,7 +380,6 @@ function createTrack(): Track {
   const t: Track = {
     pts: [],
     alt: [],
-    width: DRIFT.wideWidth,
     fork: null,
     forkEnd: -1,
     props: [],
@@ -439,7 +431,6 @@ export function createGame(): Game {
     ripples: [],
     paint: Math.floor(Math.random() * 8),
     marks: [],
-    health: DRIFT.maxHealth,
   };
 }
 
@@ -493,20 +484,20 @@ function surfaceAt(pts: Pt[], i: number, x: number, y: number) {
 function offRoadWheels(p: { x: number; y: number; h: number }, track: Track, best: number) {
   const c = Math.cos(p.h);
   const s = Math.sin(p.h);
+  const half = track.pts[best].w / 2;
   const lo = Math.max(0, best - 3);
   const hi = Math.min(track.pts.length - 2, best + 3);
   let n = 0;
   for (const [a, b] of WHEEL_POS) {
     const wx = p.x + c * a - s * b;
     const wy = p.y + s * a + c * b;
-    let inside = false;
+    let d = Infinity;
     for (const arr of [track.pts, track.alt]) {
-      for (let i = lo; i <= hi && !inside; i++) {
-        const half = Math.max(arr[i].w, arr[i + 1].w) / 2;
-        if (distSeg(wx, wy, arr[i].x, arr[i].y, arr[i + 1].x, arr[i + 1].y) <= half) inside = true;
+      for (let i = lo; i <= hi; i++) {
+        d = Math.min(d, distSeg(wx, wy, arr[i].x, arr[i].y, arr[i + 1].x, arr[i + 1].y));
       }
     }
-    if (!inside) n++;
+    if (d > half) n++;
   }
   return n;
 }
@@ -578,7 +569,7 @@ function acrossSeg(p: Prop, dir: number): [number, number, number, number] {
   return [p.x - c, p.y - s, p.x + c, p.y + s];
 }
 
-function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius: number, byPlayer: boolean) {
+function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius: number) {
   const pts = g.track.pts;
   for (const p of g.track.props) {
     if (p.state !== "idle") continue;
@@ -586,17 +577,9 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
       const dir = pts[p.idx].dir;
       const [ax, ay, bx, by] = acrossSeg(p, dir);
       if (distSeg(x, y, ax, ay, bx, by) > DRIFT.policeReach) continue;
-      if (byPlayer && !p.struck) {
-        p.struck = true;
-        g.health = Math.max(0, g.health - 1);
-      }
-      const sp = Math.hypot(vx, vy) || 1;
-      const kick = DRIFT.propKick + sp * 0.25;
       p.state = "leaning";
       p.age = 0;
       p.leanSide = dir === 0 ? 1 : -1;
-      p.vx = (vx / sp) * kick;
-      p.vy = (vy / sp) * kick;
       emitSparks(g, x, y, pts[p.idx].lift + 6);
       continue;
     }
@@ -628,11 +611,6 @@ function updateProps(g: Game, dt: number) {
   for (const p of g.track.props) {
     if (p.state === "leaning") {
       p.age += dt;
-      const slide = Math.exp(-DRIFT.propDrag * dt);
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.vx *= slide;
-      p.vy *= slide;
       if (p.age >= DRIFT.leanTime) {
         p.state = "idle";
         p.age = 0;
@@ -772,7 +750,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
     }
   }
 
-  if (!g.air) hitProps(g, g.x, g.y, g.vx, g.vy, DRIFT.carRadius, true);
+  if (!g.air) hitProps(g, g.x, g.y, g.vx, g.vy, DRIFT.carRadius);
 
   g.hist.push({ t: g.t, x: g.x, y: g.y, h: g.h, v: speed, route: g.route });
   while (g.hist.length > 1 && g.hist[0].t < g.t - DRIFT.copEnterLag - 1) g.hist.shift();
@@ -986,7 +964,7 @@ function stepCops(g: Game, dt: number) {
   }
   collideCops(g.cops);
   for (const c of g.cops) {
-    if (c.phase !== "fall") hitProps(g, c.x, c.y, c.vx, c.vy, DRIFT.copRadius, false);
+    if (c.phase !== "fall") hitProps(g, c.x, c.y, c.vx, c.vy, DRIFT.copRadius);
   }
   g.cops = g.cops.filter((c) => c.phase !== "fall" || c.fallT < DRIFT.fallTime);
 }

@@ -823,16 +823,6 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
   for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
   if (!carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
-  if (g.phase === "play") {
-    const [hx, hy] = P(g.x, g.y, g.z + 40);
-    const bw = 44 * s;
-    const bh = 5 * s;
-    const frac = g.health / DRIFT.maxHealth;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(hx - bw / 2, hy - bh / 2, bw, bh);
-    ctx.fillStyle = frac > 0.4 ? "#7bd88f" : frac > 0.2 ? "#f5c542" : "#ff5a4e";
-    ctx.fillRect(hx - bw / 2, hy - bh / 2, bw * frac, bh);
-  }
   ctx.globalAlpha = 1;
 }
 
@@ -943,12 +933,7 @@ export default function DriftBoss() {
   }, []);
 
   return (
-    <div
-      onPointerDown={press}
-      onContextMenu={(e) => e.preventDefault()}
-      className="fixed inset-0 z-30 select-none overflow-hidden bg-black"
-      style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none" }}
-    >
+    <div onPointerDown={press} className="fixed inset-0 z-30 select-none overflow-hidden bg-black" style={{ touchAction: "none" }}>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3">
