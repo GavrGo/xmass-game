@@ -55,6 +55,9 @@ export const DRIFT = {
   copWornGrip: 0.2,
   copSlide: 0.5,
   copSkidRate: 0.6,
+  copLane: 20,
+  copLaneK: 6,
+  copWearReach: 40,
   copHaltDecel: 260,
   copRadius: 16,
   carRadius: 20,
@@ -192,6 +195,8 @@ export interface Cop extends Pose {
   age: number;
   slide: number;
   slideV: number;
+  laneTarget: number;
+  laneT: number;
   lag: number;
   fallT: number;
   fallSide: number;
@@ -655,6 +660,8 @@ function spawnCop(g: Game) {
     age: 0,
     slide: 0,
     slideV: 0,
+    laneTarget: (Math.random() + Math.random() - 1) * DRIFT.copLane,
+    laneT: 1.5 + Math.random() * 2,
     lag: DRIFT.copEnterLag,
     fallT: 0,
     fallSide: 0,
@@ -707,10 +714,26 @@ function copDrive(g: Game, c: Cop, dt: number) {
     const omega = angleDiff(s.h, c.h) / dt;
     c.h = s.h;
     c.av = omega;
-    const outward = -omega * s.v * wear * DRIFT.copSlide;
+    c.laneT -= dt;
+    if (c.laneT <= 0) {
+      c.laneT = 1.5 + Math.random() * 2;
+      c.laneTarget = (Math.random() + Math.random() - 1) * DRIFT.copLane;
+    }
+    const cur = pts[c.idx];
+    const histLat = cur.dir ? s.x - cur.x : cur.y - s.y;
+    const roadHalf = Math.max(0, cur.w / 2 - 12);
+    const slideTarget = clamp(histLat + c.laneTarget, -roadHalf, roadHalf) - histLat;
+    const outward = -omega * s.v * wear * DRIFT.copSlide + (slideTarget - c.slide) * DRIFT.copLaneK;
     const lateralGrip = DRIFT.grip * (1 - wear * (1 - DRIFT.copWornGrip));
     c.slideV += (outward - c.slideV * lateralGrip) * dt;
     c.slide += c.slideV * dt;
+    const hardHalf = roadHalf + DRIFT.copWearReach * wear;
+    const lo = -hardHalf - histLat;
+    const hi = hardHalf - histLat;
+    if (c.slide < lo || c.slide > hi) {
+      c.slide = clamp(c.slide, lo, hi);
+      c.slideV = 0;
+    }
     c.x = s.x - Math.sin(s.h) * c.slide;
     c.y = s.y + Math.cos(s.h) * c.slide;
     c.vx = (c.x - x0) / dt;

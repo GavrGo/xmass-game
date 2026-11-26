@@ -9,15 +9,15 @@ type Status = "idle" | "play" | "stamp" | "over";
 const isoX = (x: number, y: number) => (x - y) * 0.866;
 const isoY = (x: number, y: number) => (x + y) * 0.5;
 
-const WALL = "#1f3d6b";
+const WALL = "#16294a";
 const WALL_H = 10;
 const BACK = 120;
 const AHEAD = 200;
-const CAR_TOP = "#6ee06a";
-const CAR_CABIN = "#9ef59a";
-const CAR_SIDE = "#3fae4a";
-const CAR_END = "#2f8f3c";
-const STRIPE = "#f4fff0";
+const CAR_TOP = "#e8322b";
+const CAR_CABIN = "#ff6a5c";
+const CAR_SIDE = "#9e1b17";
+const CAR_END = "#6e100e";
+const STRIPE = "#ffd0c8";
 const GLASS = "#22344a";
 const TIRE = "#1d1d22";
 const HUB = "#c9ced8";
@@ -25,14 +25,14 @@ const LIGHT = "#fff6b3";
 const TAIL = "#ff3b3b";
 type Litter = { kind: "paper" | "bag" | "pack"; color: string; w: number; h: number };
 const LITTER: Litter[] = [
-  { kind: "paper", color: "#f4f3ee", w: 6, h: 5 },
-  { kind: "paper", color: "#e6e2d3", w: 5, h: 7 },
-  { kind: "bag", color: "#dcecf5", w: 8, h: 7 },
-  { kind: "pack", color: "#e0433a", w: 6, h: 4 },
-  { kind: "pack", color: "#2f7fd1", w: 5, h: 4 },
-  { kind: "pack", color: "#f2b632", w: 5, h: 4 },
+  { kind: "paper", color: "#b9b6ab", w: 6, h: 5 },
+  { kind: "paper", color: "#a8a48f", w: 5, h: 7 },
+  { kind: "bag", color: "#8fa5b3", w: 8, h: 7 },
+  { kind: "pack", color: "#8e2d28", w: 6, h: 4 },
+  { kind: "pack", color: "#2a5485", w: 5, h: 4 },
+  { kind: "pack", color: "#9c7620", w: 5, h: 4 },
 ];
-const ASPHALT = "#4b4e56";
+const ASPHALT = "#2b2e36";
 const hash = (n: number) => {
   const v = Math.sin(n * 12.9898) * 43758.5453;
   return v - Math.floor(v);
@@ -140,10 +140,28 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / DRIFT.fallTime) : 1;
 
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#f4a95a");
-  bg.addColorStop(1, "#e9a04c");
+  bg.addColorStop(0, "#0a1f3a");
+  bg.addColorStop(1, "#050d1c");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
+  const cell = 60;
+  const gx0 = Math.round(g.x / cell);
+  const gy0 = Math.round(g.y / cell);
+  ctx.beginPath();
+  for (let i = -14; i <= 14; i++) {
+    for (let j = -14; j <= 14; j++) {
+      const wx = (gx0 + i) * cell;
+      const wy = (gy0 + j) * cell;
+      if (Math.sin(time * 1.6 + wx * 0.05 + wy * 0.09) < 0.2) continue;
+      const [ax, ay] = P(wx, wy, 0);
+      const [bx, by] = P(wx + 16, wy, 0);
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+    }
+  }
+  ctx.strokeStyle = "rgba(90,150,210,0.22)";
+  ctx.lineWidth = 1.2 * s;
+  ctx.stroke();
   ctx.globalAlpha = alpha;
 
   const poly = (q: [number, number][], color: string) => {
@@ -376,6 +394,39 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       for (const f of layerFaces) poly(f.pts, f.color);
     }
     for (const f of details) poly(f.pts, f.color);
+
+    const lamp = (a: number, b: number, z: number, r: number, col: string, k: number) => {
+      const [wx, wy, wz] = toW(a, b, z);
+      const [gx, gy] = P(wx, wy, wz);
+      const grd = ctx.createRadialGradient(gx, gy, 0, gx, gy, r * s);
+      grd.addColorStop(0, `rgba(${col},${k * alpha})`);
+      grd.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(gx, gy, r * s, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    const ground = (a: number, b: number): [number, number] =>
+      P(v.x + cc * a - ss * b, v.y + ss * a + cc * b, v.ground);
+    const [n0x, n0y] = ground(20, 0);
+    const [n1x, n1y] = ground(170, 0);
+    const beam = ctx.createLinearGradient(n0x, n0y, n1x, n1y);
+    beam.addColorStop(0, `rgba(255,236,170,${0.38 * alpha})`);
+    beam.addColorStop(1, "rgba(255,236,170,0)");
+    ctx.globalCompositeOperation = "lighter";
+    ctx.beginPath();
+    ctx.moveTo(...ground(20, -4));
+    ctx.lineTo(...ground(170, -40));
+    ctx.lineTo(...ground(170, 40));
+    ctx.lineTo(...ground(20, 4));
+    ctx.closePath();
+    ctx.fillStyle = beam;
+    ctx.fill();
+    for (const b of [-5.5, 5.5]) {
+      lamp(20.5, b, 4, 20, "255,240,180", 1);
+      lamp(-20.5, b, 4, 15, "255,40,40", 0.9);
+    }
+    ctx.globalCompositeOperation = "source-over";
   };
 
   const drawProp = (pr: Prop) => {
@@ -573,7 +624,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       else ctx.moveTo(px, py);
     });
     ctx.closePath();
-    ctx.globalAlpha = alpha * fade * (L.kind === "bag" ? 0.8 : 1);
+    ctx.globalAlpha = alpha * fade * 0.8;
     ctx.fillStyle = L.color;
     ctx.fill();
     if (L.kind === "bag") {
