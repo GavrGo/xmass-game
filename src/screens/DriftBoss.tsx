@@ -13,11 +13,6 @@ const WALL = "#16294a";
 const WALL_H = 10;
 const BACK = 120;
 const AHEAD = 200;
-const CAR_TOP = "#e8322b";
-const CAR_CABIN = "#ff6a5c";
-const CAR_SIDE = "#9e1b17";
-const CAR_END = "#6e100e";
-const STRIPE = "#ffd0c8";
 const GLASS = "#22344a";
 const TIRE = "#1d1d22";
 const HUB = "#c9ced8";
@@ -52,16 +47,6 @@ type Palette = {
   tail: string;
 };
 
-const PLAYER_PAL: Palette = {
-  top: CAR_TOP,
-  cabin: CAR_CABIN,
-  side: CAR_SIDE,
-  end: CAR_END,
-  glass: GLASS,
-  stripe: STRIPE,
-  light: LIGHT,
-  tail: TAIL,
-};
 const COP_PAL: Palette = {
   top: "#f0f0f0",
   cabin: "#e2e2e2",
@@ -119,6 +104,22 @@ const PROP_SHAPE: Record<PropKind, { ring: [number, number][]; h: number; side: 
   bin: { ring: regular(8, 5), h: 11, side: "#363f33", top: "#4a5646" },
 };
 
+const scaleHex = (hex: string, f: number) => {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => Math.round(Math.min(255, v * f)).toString(16).padStart(2, "0");
+  return `#${ch((n >> 16) & 255)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
+};
+const PAINTS = ["#e8322b", "#ff8a1f", "#f2d02e", "#2fbf5a", "#2ec4d6", "#2f6fe0", "#8a4fe0", "#ff5fa8"];
+const PLAYER_PALS: Palette[] = PAINTS.map((c) => ({
+  top: c,
+  cabin: scaleHex(c, 1.15),
+  side: scaleHex(c, 0.6),
+  end: scaleHex(c, 0.42),
+  glass: GLASS,
+  stripe: scaleHex(c, 1.6),
+  light: LIGHT,
+  tail: TAIL,
+}));
 const shadeHex = (hex: string, f: number) => {
   const n = parseInt(hex.slice(1), 16);
   const ch = (v: number) => Math.round(Math.min(255, v * f));
@@ -144,6 +145,20 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   bg.addColorStop(1, "#050d1c");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
+  for (const r of g.ripples) {
+    const k = r.age / DRIFT.rippleLife;
+    const R = 8 + 60 * k;
+    ctx.beginPath();
+    for (let q = 0; q <= 32; q++) {
+      const th = (q / 32) * Math.PI * 2;
+      const [rx, ry] = P(r.x + Math.cos(th) * R, r.y + Math.sin(th) * R, 0);
+      if (q) ctx.lineTo(rx, ry);
+      else ctx.moveTo(rx, ry);
+    }
+    ctx.strokeStyle = `rgba(190,225,255,${(0.6 * (1 - k) * alpha).toFixed(3)})`;
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+  }
   const layers: [number, number, number, string][] = [
     [60, 1.6, 0.22, "rgba(90,150,210,0.22)"],
     [37, 2.3, 0.16, "rgba(140,190,235,0.14)"],
@@ -339,6 +354,35 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fillStyle = `rgba(0,0,0,${0.3 * (v.air ? 0.5 : 1) * alpha})`;
     ctx.fill();
 
+    const beamCone = (b: number) => {
+      const [ox, oy] = toW(20.5, b, 4);
+      const ex = ox + cc * 150;
+      const ey = oy + ss * 150;
+      const lx = -ss * 20;
+      const ly = cc * 20;
+      const wx = -ss * 2.5;
+      const wy = cc * 2.5;
+      const o = P(ox, oy, v.ground);
+      const e = P(ex, ey, v.ground);
+      const grad = ctx.createLinearGradient(o[0], o[1], e[0], e[1]);
+      grad.addColorStop(0, `rgba(255,236,170,${0.22 * alpha})`);
+      grad.addColorStop(1, "rgba(255,236,170,0)");
+      const q = [
+        P(ox + wx, oy + wy, v.ground),
+        P(ex + lx, ey + ly, v.ground),
+        P(ex - lx, ey - ly, v.ground),
+        P(ox - wx, oy - wy, v.ground),
+      ];
+      ctx.beginPath();
+      q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+    };
+    ctx.globalCompositeOperation = "lighter";
+    beamCone(-5.5);
+    beamCone(5.5);
+    ctx.globalCompositeOperation = "source-over";
     prism(BODY_PROF, -10, 10, [pal.side, pal.end, pal.top, pal.top, pal.top, pal.end], pal.side);
     layer = body;
     for (const [b0, b1] of [
@@ -428,22 +472,9 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       ctx.arc(gx, gy, r * s, 0, Math.PI * 2);
       ctx.fill();
     };
-    const ground = (a: number, b: number): [number, number] =>
-      P(v.x + cc * a - ss * b, v.y + ss * a + cc * b, v.ground);
     ctx.globalCompositeOperation = "lighter";
     for (const b of [-5.5, 5.5]) {
-      const beam = ctx.createLinearGradient(...ground(20, b), ...ground(170, b * 2.2));
-      beam.addColorStop(0, `rgba(255,236,170,${0.2 * alpha})`);
-      beam.addColorStop(1, "rgba(255,236,170,0)");
-      ctx.beginPath();
-      ctx.moveTo(...ground(20, b - 1.6));
-      ctx.lineTo(...ground(170, b * 2.2 - 9));
-      ctx.lineTo(...ground(170, b * 2.2 + 9));
-      ctx.lineTo(...ground(20, b + 1.6));
-      ctx.closePath();
-      ctx.fillStyle = beam;
-      ctx.fill();
-      lamp(20.5, b, 4, 14, "255,240,180", 0.45);
+      lamp(20.5, b, 4, 10, "255,240,180", 0.45);
       lamp(-20.5, b, 4, 12, "255,40,40", 0.6);
     }
     ctx.globalCompositeOperation = "source-over";
@@ -548,7 +579,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const near = pts[g.idx];
   const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
   const behindCop = (c: Cop) => c.phase === "fall" && c.x + c.y > pts[c.idx].x + pts[c.idx].y;
-  if (carBehind) drawVehicle(g, PLAYER_PAL, false);
+  if (carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
   for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
 
   for (let i = from; i < to; i++) {
@@ -671,20 +702,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     if (from <= pr.idx && pr.idx <= to) drawProp(pr);
   }
 
-  for (const r of g.ripples) {
-    const [rx, ry] = P(r.x, r.y, 0);
-    const k = r.age / DRIFT.rippleLife;
-    ctx.beginPath();
-    ctx.arc(rx, ry, (10 + 70 * k) * s, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(190,225,255,${(0.7 * (1 - k) * alpha).toFixed(3)})`;
-    ctx.lineWidth = 2 * s;
-    ctx.stroke();
-  }
   for (const d of g.splash) {
     const [dx, dy] = P(d.x, d.y, d.z);
     const k = d.age / d.life;
     ctx.beginPath();
-    ctx.arc(dx, dy, (1.8 * (1 - k) + 0.7) * s, 0, Math.PI * 2);
+    ctx.arc(dx, dy, (2.4 * (1 - k) + 0.9) * s, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(215,240,255,${((1 - k) * alpha).toFixed(3)})`;
     ctx.fill();
   }
@@ -702,12 +724,12 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const k = p.age / p.life;
     ctx.beginPath();
     ctx.arc(sx, sy, p.r * s * (1 + k * 2.2), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${p.shade},${p.shade},${p.shade},${0.6 * (1 - k) * alpha})`;
+    ctx.fillStyle = `rgba(${p.shade},${p.shade},${p.shade},${0.48 * (1 - k) * alpha})`;
     ctx.fill();
   }
 
   for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
-  if (!carBehind) drawVehicle(g, PLAYER_PAL, false);
+  if (!carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
   ctx.globalAlpha = 1;
 }
 

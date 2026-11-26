@@ -49,13 +49,13 @@ export const DRIFT = {
   copLag: 0.5,
   copEnterLag: 1.4,
   copEnterTau: 1.2,
-  copEnterGap: 0.3,
   copSpawnEvery: 5,
   copWearTime: 35,
   copWornGrip: 0.2,
   copSlide: 0.5,
   copSkidRate: 0.6,
   copLane: 20,
+  copWander: 6,
   copLaneK: 6,
   copWearReach: 40,
   copHaltDecel: 260,
@@ -72,7 +72,7 @@ export const DRIFT = {
   sparkCount: 14,
   sparkLife: 0.5,
   sparkGravity: 500,
-  splashCount: 30,
+  splashCount: 44,
   splashLife: 0.9,
   splashKick: 170,
   rippleLife: 1.0,
@@ -207,6 +207,7 @@ export interface Cop extends Pose {
   fallSide: number;
   marks: Mark[];
   jit: number;
+  home: number;
 }
 
 interface Hist {
@@ -240,6 +241,7 @@ export interface Game extends Pose {
   sparks: Spark[];
   splash: Spark[];
   ripples: { x: number; y: number; age: number }[];
+  paint: number;
   marks: Mark[];
 }
 
@@ -351,6 +353,7 @@ export function createGame(): Game {
     sparks: [],
     splash: [],
     ripples: [],
+    paint: Math.floor(Math.random() * 8),
     marks: [],
   };
 }
@@ -686,6 +689,7 @@ function spawnCop(g: Game) {
   const s = sampleHist(g.hist, g.t - DRIFT.copEnterLag);
   const idx = nearestIdx(pts, s.x, s.y, Math.max(0, g.idx - 200), g.idx);
   const sf = surfaceAt(pts, idx, s.x, s.y);
+  const home = (Math.random() * 2 - 1) * DRIFT.copLane;
   g.cops.push({
     x: s.x,
     y: s.y,
@@ -705,34 +709,15 @@ function spawnCop(g: Game) {
     age: 0,
     slide: 0,
     slideV: 0,
-    laneTarget: (Math.random() + Math.random() - 1) * DRIFT.copLane,
+    laneTarget: home,
     laneT: 1.5 + Math.random() * 2,
     lag: DRIFT.copEnterLag,
     fallT: 0,
     fallSide: 0,
     marks: [],
     jit: 1 + (Math.random() * 2 - 1) * DRIFT.copJitter,
+    home,
   });
-}
-
-function nearestLeader(g: Game, c: Cop): Cop | null {
-  const fx = Math.cos(c.h);
-  const fy = Math.sin(c.h);
-  let best: Cop | null = null;
-  let bestAhead = Infinity;
-  for (const o of g.cops) {
-    if (o === c || o.phase === "fall") continue;
-    const dx = o.x - c.x;
-    const dy = o.y - c.y;
-    const ahead = dx * fx + dy * fy;
-    const side = -dx * fy + dy * fx;
-    if (ahead <= 0 || ahead > DRIFT.copRadius * 12 || Math.abs(side) > DRIFT.copRadius * 2) continue;
-    if (ahead < bestAhead) {
-      bestAhead = ahead;
-      best = o;
-    }
-  }
-  return best;
 }
 
 function copDrive(g: Game, c: Cop, dt: number) {
@@ -749,11 +734,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.x += c.vx * dt;
     c.y += c.vy * dt;
   } else {
-    let lag = (DRIFT.copLag + (DRIFT.copEnterLag - DRIFT.copLag) * Math.exp(-c.age / DRIFT.copEnterTau)) * c.jit;
-    if (c.phase === "enter") {
-      const leader = nearestLeader(g, c);
-      if (leader) lag = Math.max(lag, leader.lag + DRIFT.copEnterGap);
-    }
+    const lag = (DRIFT.copLag + (DRIFT.copEnterLag - DRIFT.copLag) * Math.exp(-c.age / DRIFT.copEnterTau)) * c.jit;
     c.lag = lag;
     const tt = Math.min(g.t - lag, g.hist[g.hist.length - 1].t);
     const s = sampleHist(g.hist, tt);
@@ -763,7 +744,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.laneT -= dt;
     if (c.laneT <= 0) {
       c.laneT = 1.5 + Math.random() * 2;
-      c.laneTarget = (Math.random() + Math.random() - 1) * DRIFT.copLane;
+      c.laneTarget = c.home + (Math.random() * 2 - 1) * DRIFT.copWander;
     }
     const cur = pts[c.idx];
     const histLat = cur.dir ? s.x - cur.x : cur.y - s.y;
