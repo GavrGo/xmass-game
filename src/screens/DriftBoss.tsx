@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, createGame, scoreOf, step, type Game, type Pose, type Pt } from "../game/driftBoss";
+import { DRIFT, createGame, scoreOf, step, type Cop, type Game, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
 
@@ -82,6 +82,37 @@ const CABIN_GLASS: [number, number][] = [
   [2.2, 11.2],
   [7.6, 8],
 ];
+
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+function regular(n: number, r: number): [number, number][] {
+  return Array.from({ length: n }, (_, k) => {
+    const a = (k / n) * Math.PI * 2;
+    return [Math.cos(a) * r, Math.sin(a) * r];
+  });
+}
+
+const PROP_SHAPE: Record<PropKind, { ring: [number, number][]; h: number; side: string; top: string }> = {
+  barrel: { ring: regular(8, 6), h: 14, side: "#d9612b", top: "#f0a05a" },
+  crate: {
+    ring: [
+      [-6, -6],
+      [6, -6],
+      [6, 6],
+      [-6, 6],
+    ],
+    h: 12,
+    side: "#b07a3c",
+    top: "#d7a866",
+  },
+  bin: { ring: regular(8, 5), h: 11, side: "#5d6b5a", top: "#7d8c79" },
+};
+
+const shadeHex = (hex: string, f: number) => {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => Math.round(Math.min(255, v * f));
+  return `rgb(${ch((n >> 16) & 255)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
+};
 
 function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
   const cam = g.phase === "play" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
@@ -336,13 +367,50 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     for (const f of details) poly(f.pts, f.color);
   };
 
+  const drawProp = (pr: Prop) => {
+    const shape = PROP_SHAPE[pr.kind];
+    const z0 = pr.state === "flying" ? pr.z : pts[pr.idx].lift;
+    const z1 = z0 + shape.h;
+    const c = Math.cos(pr.rot);
+    const sn = Math.sin(pr.rot);
+    const ring = shape.ring.map(([a, b]) => [pr.x + c * a - sn * b, pr.y + sn * a + c * b] as [number, number]);
+    const n = ring.length;
+    const faces: { q: [number, number][]; d: number; color: string }[] = [];
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = ring[i];
+      const [bx, by] = ring[(i + 1) % n];
+      const mx = (ax + bx) / 2;
+      const my = (ay + by) / 2;
+      let nx = by - ay;
+      let ny = ax - bx;
+      const len = Math.hypot(nx, ny) || 1;
+      nx /= len;
+      ny /= len;
+      if (nx * (mx - pr.x) + ny * (my - pr.y) < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      if (nx + ny <= 0) continue;
+      const lit = 0.7 + 0.3 * clamp01(nx * 0.5 + ny * 0.5);
+      faces.push({
+        q: [P(ax, ay, z0), P(bx, by, z0), P(bx, by, z1), P(ax, ay, z1)],
+        d: mx + my,
+        color: shadeHex(shape.side, lit),
+      });
+    }
+    faces.sort((a, b) => a.d - b.d);
+    for (const f of faces) poly(f.q, f.color);
+    poly(
+      ring.map(([x, y]) => P(x, y, z1)),
+      shape.top,
+    );
+  };
+
   const near = pts[g.idx];
   const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
-  const cop = g.cop;
-  const copNear = cop ? pts[cop.idx] : null;
-  const copBehind = !!cop && cop.phase === "fall" && !!copNear && cop.x + cop.y > copNear.x + copNear.y;
+  const behindCop = (c: Cop) => c.phase === "fall" && c.x + c.y > pts[c.idx].x + pts[c.idx].y;
   if (carBehind) drawVehicle(g, PLAYER_PAL, false);
-  if (cop && copBehind) drawVehicle(cop, COP_PAL, true);
+  for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
 
   for (let i = from; i < to; i++) {
     poly([edge(i, -1, 0), edge(i + 1, -1, 0), edge(i + 1, -1, -WALL_H), edge(i, -1, -WALL_H)], WALL);
@@ -391,6 +459,19 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.stroke();
   }
 
+  for (const pr of g.track.props) {
+    if (from <= pr.idx && pr.idx <= to) drawProp(pr);
+  }
+
+  for (const sp of g.sparks) {
+    const [sx, sy] = P(sp.x, sp.y, sp.z);
+    const k = sp.age / sp.life;
+    ctx.beginPath();
+    ctx.arc(sx, sy, (2.4 * (1 - k) + 0.8) * s, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,${Math.round(200 + 55 * (1 - k))},${k < 0.5 ? 120 : 60},${1 - k})`;
+    ctx.fill();
+  }
+
   for (const p of g.smoke) {
     const [sx, sy] = P(p.x, p.y, p.z);
     const k = p.age / p.life;
@@ -400,7 +481,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fill();
   }
 
-  if (cop && !copBehind) drawVehicle(cop, COP_PAL, true);
+  for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
   if (!carBehind) drawVehicle(g, PLAYER_PAL, false);
   ctx.globalAlpha = 1;
 }

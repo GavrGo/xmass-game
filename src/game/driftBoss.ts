@@ -46,12 +46,26 @@ export const DRIFT = {
   fallRoll: 1.2,
   pitchRate: 8,
   pitchMax: 0.5,
-  copLag: 0.8,
-  copSpawnLag: 3,
-  copRespawn: 5,
-  copGap: 60,
-  copTurnAccel: 5,
+  copLag: 0.12,
+  copSpawnLag: 0.3,
+  copSpawnEvery: 10,
+  copGap: 14,
+  copSpeedGain: 0.8,
+  copTurnAccel: 12,
   copHaltGain: 2.2,
+  copRadius: 16,
+  carRadius: 20,
+  propMinGap: 14,
+  propChance: 0.45,
+  propStartIdx: 90,
+  propRadius: 7,
+  propKick: 90,
+  propKickUp: 170,
+  propDrag: 2.2,
+  propLife: 2.2,
+  sparkCount: 14,
+  sparkLife: 0.5,
+  sparkGravity: 500,
 };
 
 const VEC = [
@@ -60,6 +74,7 @@ const VEC = [
 ];
 const ANG = [Math.PI, -Math.PI / 2];
 const SMOKE_SHADES = [176, 190, 204, 218, 232];
+const PROP_KINDS: PropKind[] = ["barrel", "crate", "bin"];
 
 export interface Pt {
   x: number;
@@ -71,12 +86,31 @@ export interface Pt {
   taken: boolean;
 }
 
+export type PropKind = "barrel" | "crate" | "bin";
+
+export interface Prop {
+  kind: PropKind;
+  idx: number;
+  x: number;
+  y: number;
+  z: number;
+  state: "idle" | "flying";
+  vx: number;
+  vy: number;
+  vz: number;
+  rot: number;
+  spin: number;
+  age: number;
+}
+
 export interface Track {
   pts: Pt[];
+  props: Prop[];
   x: number;
   y: number;
   dir: number;
   sinceCoin: number;
+  sinceProp: number;
   lastRamp: number;
 }
 
@@ -88,6 +122,17 @@ export interface Smoke {
   life: number;
   r: number;
   shade: number;
+}
+
+export interface Spark {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  age: number;
+  life: number;
 }
 
 export interface Mark {
@@ -146,10 +191,15 @@ export interface Game extends Pose {
   fallSide: number;
   t: number;
   hist: Hist[];
-  cop: Cop | null;
+  cops: Cop[];
   copTimer: number;
   smoke: Smoke[];
+  sparks: Spark[];
   marks: Mark[];
+}
+
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
 }
 
 function widthAt(d: number) {
@@ -162,15 +212,29 @@ function push(t: Track) {
   t.sinceCoin++;
   const coin = t.sinceCoin >= DRIFT.coinEvery && Math.random() < DRIFT.coinChance;
   if (coin) t.sinceCoin = 0;
-  t.pts.push({
-    x: t.x,
-    y: t.y,
-    dir: t.dir,
-    w: widthAt(t.pts.length * DRIFT.sample),
-    lift: 0,
-    coin,
-    taken: false,
-  });
+  const w = widthAt(t.pts.length * DRIFT.sample);
+  const idx = t.pts.length;
+  const pt: Pt = { x: t.x, y: t.y, dir: t.dir, w, lift: 0, coin, taken: false };
+  t.pts.push(pt);
+  t.sinceProp++;
+  if (idx >= DRIFT.propStartIdx && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
+    t.sinceProp = 0;
+    const lat = (Math.random() * 2 - 1) * (w / 2 - 16);
+    t.props.push({
+      kind: PROP_KINDS[Math.floor(Math.random() * PROP_KINDS.length)],
+      idx,
+      x: t.dir === 0 ? pt.x : pt.x + lat,
+      y: t.dir === 0 ? pt.y + lat : pt.y,
+      z: 0,
+      state: "idle",
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      rot: 0,
+      spin: 0,
+      age: 0,
+    });
+  }
 }
 
 function advance(t: Track, len: number, dir: number) {
@@ -203,7 +267,7 @@ function growTrack(t: Track, minLen: number) {
 }
 
 function createTrack(): Track {
-  const t: Track = { pts: [], x: 0, y: 0, dir: 0, sinceCoin: 0, lastRamp: -1e9 };
+  const t: Track = { pts: [], props: [], x: 0, y: 0, dir: 0, sinceCoin: 0, sinceProp: 0, lastRamp: -1e9 };
   push(t);
   advance(t, DRIFT.startStraight, 0);
   growTrack(t, 400);
@@ -235,15 +299,12 @@ export function createGame(): Game {
     fallSide: 0,
     t: 0,
     hist: [],
-    cop: null,
-    copTimer: DRIFT.copRespawn,
+    cops: [],
+    copTimer: DRIFT.copSpawnEvery,
     smoke: [],
+    sparks: [],
     marks: [],
   };
-}
-
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 function angleDiff(a: number, b: number) {
@@ -337,14 +398,81 @@ function updateSmoke(g: Game, dt: number) {
   g.smoke = g.smoke.filter((p) => p.age < p.life);
 }
 
-function pushMark(g: Game, on: boolean) {
-  const c = Math.cos(g.h);
-  const s = Math.sin(g.h);
-  const rx = g.x - c * (CAR.len * 0.35);
-  const ry = g.y - s * (CAR.len * 0.35);
-  const bw = CAR.width * 0.38;
-  g.marks.push({ ax: rx - s * bw, ay: ry + c * bw, bx: rx + s * bw, by: ry - c * bw, z: g.z, on });
-  if (g.marks.length > 150) g.marks.splice(0, g.marks.length - 150);
+function emitSparks(g: Game, x: number, y: number, z: number) {
+  for (let i = 0; i < DRIFT.sparkCount; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 120 + Math.random() * 180;
+    g.sparks.push({
+      x,
+      y,
+      z,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp,
+      vz: 80 + Math.random() * 200,
+      age: 0,
+      life: DRIFT.sparkLife * (0.6 + Math.random() * 0.8),
+    });
+  }
+}
+
+function updateSparks(g: Game, dt: number) {
+  const k = Math.exp(-3 * dt);
+  for (const s of g.sparks) {
+    s.age += dt;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vx *= k;
+    s.vy *= k;
+    s.vz -= DRIFT.sparkGravity * dt;
+    s.z = Math.max(0, s.z + s.vz * dt);
+  }
+  g.sparks = g.sparks.filter((s) => s.age < s.life);
+}
+
+function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius: number) {
+  const pts = g.track.pts;
+  for (const p of g.track.props) {
+    if (p.state !== "idle") continue;
+    const dx = p.x - x;
+    const dy = p.y - y;
+    const d = Math.hypot(dx, dy);
+    if (d > radius + DRIFT.propRadius) continue;
+    const nx = d > 0.01 ? dx / d : 1;
+    const ny = d > 0.01 ? dy / d : 0;
+    const kick = DRIFT.propKick + Math.hypot(vx, vy) * 0.25;
+    p.state = "flying";
+    p.age = 0;
+    p.z = pts[p.idx].lift;
+    p.vx = nx * kick + vx * 0.5;
+    p.vy = ny * kick + vy * 0.5;
+    p.vz = DRIFT.propKickUp * (0.7 + Math.random() * 0.6);
+    p.spin = (Math.random() * 2 - 1) * 10;
+    emitSparks(g, (x + p.x) / 2, (y + p.y) / 2, p.z + 6);
+  }
+}
+
+function updateProps(g: Game, dt: number) {
+  const pts = g.track.pts;
+  for (const p of g.track.props) {
+    if (p.state !== "flying") continue;
+    p.age += dt;
+    const k = Math.exp(-DRIFT.propDrag * dt);
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= k;
+    p.vy *= k;
+    p.rot += p.spin * dt;
+    p.vz -= DRIFT.gravity * dt;
+    p.z += p.vz * dt;
+    const floor = pts[p.idx].lift;
+    if (p.z < floor) {
+      p.z = floor;
+      p.vz = -p.vz * 0.35;
+      p.spin *= 0.6;
+      if (Math.abs(p.vz) < 30) p.vz = 0;
+    }
+  }
+  g.track.props = g.track.props.filter((p) => p.state === "idle" || p.age < DRIFT.propLife);
 }
 
 function beginFall(g: Game, best: number) {
@@ -352,8 +480,7 @@ function beginFall(g: Game, best: number) {
   g.phase = "fall";
   g.fallT = 0;
   g.fallSide = sideOf(g, p);
-  const cop = g.cop;
-  if (cop && cop.phase === "chase") cop.phase = "halt";
+  for (const c of g.cops) if (c.phase === "chase") c.phase = "halt";
 }
 
 function playerDrive(g: Game, holding: boolean, dt: number) {
@@ -416,6 +543,8 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
     }
   }
 
+  if (!g.air) hitProps(g, g.x, g.y, g.vx, g.vy, DRIFT.carRadius);
+
   g.hist.push({ t: g.t, x: g.x, y: g.y, h: g.h, v: speed });
   while (g.hist.length > 1 && g.hist[0].t < g.t - DRIFT.copSpawnLag - 1) g.hist.shift();
 
@@ -426,6 +555,16 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
     emitSmoke(g);
   }
   pushMark(g, skidding);
+}
+
+function pushMark(g: Game, on: boolean) {
+  const c = Math.cos(g.h);
+  const s = Math.sin(g.h);
+  const rx = g.x - c * (CAR.len * 0.35);
+  const ry = g.y - s * (CAR.len * 0.35);
+  const bw = CAR.width * 0.38;
+  g.marks.push({ ax: rx - s * bw, ay: ry + c * bw, bx: rx + s * bw, by: ry - c * bw, z: g.z, on });
+  if (g.marks.length > 150) g.marks.splice(0, g.marks.length - 150);
 }
 
 function fallStep(g: Game, dt: number) {
@@ -456,11 +595,12 @@ function sampleHist(hist: Hist[], t: number): Hist {
 }
 
 function spawnCop(g: Game) {
+  if (g.hist.length === 0) return;
   const pts = g.track.pts;
   const s = sampleHist(g.hist, g.t - DRIFT.copSpawnLag);
   const idx = nearestIdx(pts, s.x, s.y, Math.max(0, g.idx - 200), g.idx);
   const sf = surfaceAt(pts, idx, s.x, s.y);
-  g.cop = {
+  g.cops.push({
     x: s.x,
     y: s.y,
     z: sf.lift,
@@ -478,16 +618,15 @@ function spawnCop(g: Game) {
     phase: "chase",
     fallT: 0,
     fallSide: 0,
-  };
+  });
 }
 
 function copDrive(g: Game, c: Cop, dt: number) {
   const pts = g.track.pts;
-  const last = g.hist[g.hist.length - 1];
-  const tt = c.phase === "halt" ? Math.min(g.t - DRIFT.copLag, last.t) : g.t - DRIFT.copLag;
-  const { x: tx, y: ty, v: tv } = sampleHist(g.hist, tt);
-  const dx = tx - c.x;
-  const dy = ty - c.y;
+  const tt = c.phase === "halt" ? Math.min(g.t - DRIFT.copLag, g.hist[g.hist.length - 1].t) : g.t - DRIFT.copLag;
+  const s = sampleHist(g.hist, tt);
+  const dx = s.x - c.x;
+  const dy = s.y - c.y;
   const dist = Math.hypot(dx, dy);
   const desired = dist > 12 ? Math.atan2(dy, dx) : ANG[pts[c.idx].dir];
   const want = clamp(angleDiff(desired, c.h) * DRIFT.turnFollow, -DRIFT.turnMax, DRIFT.turnMax);
@@ -496,9 +635,9 @@ function copDrive(g: Game, c: Cop, dt: number) {
 
   const cmd =
     c.phase === "halt"
-      ? Math.min(tv, dist * DRIFT.copHaltGain)
-      : clamp(tv + (dist - DRIFT.copGap) * 0.5, 0, DRIFT.speedMax + 40);
-  c.speed += (cmd - c.speed) * Math.min(1, (c.phase === "halt" ? 4 : 2) * dt);
+      ? Math.min(s.v, dist * DRIFT.copHaltGain)
+      : clamp(s.v + (dist - DRIFT.copGap) * DRIFT.copSpeedGain, 0, DRIFT.speedMax + 20);
+  c.speed += (cmd - c.speed) * Math.min(1, 4 * dt);
   const grip = Math.abs(c.av) > 0.05 ? DRIFT.slideGrip : DRIFT.grip;
   const k = Math.min(1, grip * dt);
   c.vx += (Math.cos(c.h) * c.speed - c.vx) * k;
@@ -522,7 +661,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
   }
 }
 
-function copFall(g: Game, c: Cop, dt: number) {
+function copFall(c: Cop, dt: number) {
   c.fallT += dt;
   c.roll += (c.fallSide * DRIFT.fallRoll - c.roll) * Math.min(1, DRIFT.rollRate * dt);
   c.x += c.vx * dt;
@@ -530,36 +669,74 @@ function copFall(g: Game, c: Cop, dt: number) {
   c.vx *= 1 - 2 * dt;
   c.vy *= 1 - 2 * dt;
   c.z -= DRIFT.fallDrop * dt;
-  if (c.fallT >= DRIFT.fallTime) {
-    g.cop = null;
-    g.copTimer = DRIFT.copRespawn;
+}
+
+function collideCops(cops: Cop[]) {
+  const R = DRIFT.copRadius * 2;
+  for (let i = 0; i < cops.length; i++) {
+    for (let j = i + 1; j < cops.length; j++) {
+      const a = cops[i];
+      const b = cops[j];
+      if (a.phase === "fall" || b.phase === "fall") continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= R || d < 1e-3) continue;
+      const nx = dx / d;
+      const ny = dy / d;
+      const push = (R - d) / 2;
+      a.x -= nx * push;
+      a.y -= ny * push;
+      b.x += nx * push;
+      b.y += ny * push;
+      const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      if (vn < 0) {
+        const imp = vn * 0.5;
+        a.vx += nx * imp;
+        a.vy += ny * imp;
+        b.vx -= nx * imp;
+        b.vy -= ny * imp;
+      }
+    }
   }
 }
 
 function stepCops(g: Game, dt: number) {
-  const c = g.cop;
-  if (!c) {
-    if (g.phase === "play") {
-      g.copTimer -= dt;
-      if (g.copTimer <= 0) spawnCop(g);
+  if (g.phase === "play") {
+    g.copTimer -= dt;
+    if (g.copTimer <= 0) {
+      spawnCop(g);
+      g.copTimer += DRIFT.copSpawnEvery;
     }
-    return;
   }
-  if (c.phase === "fall") copFall(g, c, dt);
-  else copDrive(g, c, dt);
+  for (const c of g.cops) {
+    if (c.phase === "fall") copFall(c, dt);
+    else copDrive(g, c, dt);
+  }
+  collideCops(g.cops);
+  for (const c of g.cops) {
+    if (c.phase !== "fall") hitProps(g, c.x, c.y, c.vx, c.vy, DRIFT.copRadius);
+  }
+  g.cops = g.cops.filter((c) => c.phase !== "fall" || c.fallT < DRIFT.fallTime);
+}
+
+function tail(g: Game, dt: number) {
+  stepCops(g, dt);
+  updateProps(g, dt);
+  updateSparks(g, dt);
+  updateSmoke(g, dt);
 }
 
 export function step(g: Game, holding: boolean, dt: number) {
   if (g.phase === "over") {
-    stepCops(g, dt);
+    tail(g, dt);
     return;
   }
   if (g.idx > g.track.pts.length - 400) growTrack(g.track, g.idx + 600);
   g.t += dt;
   if (g.phase === "fall") fallStep(g, dt);
   else playerDrive(g, holding, dt);
-  stepCops(g, dt);
-  updateSmoke(g, dt);
+  tail(g, dt);
 }
 
 export function scoreOf(g: Game) {
