@@ -96,7 +96,6 @@ export const DRIFT = {
   leafBehind: 1000,
   forkChance: 0.3,
   forkSteps: 140,
-  forkRamp: 36,
   forkGap: 50,
   forkMinGap: 80,
   routeSlack: 2,
@@ -143,7 +142,7 @@ export interface Track {
   pts: Pt[];
   alt: Pt[];
   fork: { a: number; b: number; side: number; off: number } | null;
-  lastFork: number;
+  forkEnd: number;
   props: Prop[];
   x: number;
   y: number;
@@ -298,31 +297,21 @@ function push(t: Track) {
   const pt: Pt = { x: t.x, y: t.y, dir: t.dir, w, lift: 0, coin, taken: false };
   t.pts.push(pt);
   if (fork) {
-    const n = fork.b - fork.a;
-    const k = j - fork.a;
-    const r =
-      Math.sin((Math.PI / 2) * Math.min(1, k / DRIFT.forkRamp)) *
-      Math.sin((Math.PI / 2) * Math.min(1, (n - 1 - k) / DRIFT.forkRamp));
-    const off = fork.side * r * fork.off;
-    t.alt.push({
-      x: t.x + (t.dir === 0 ? 0 : off),
-      y: t.y + (t.dir === 0 ? off : 0),
-      dir: t.dir,
-      w,
-      lift: 0,
-      coin: false,
-      taken: false,
-    });
+    const off = fork.side * fork.off;
+    t.alt.push(shifted(j === fork.a ? t.pts[j - 1] : pt, t.dir, off, w));
+  } else if (j === t.forkEnd) {
+    t.alt.push(shifted(t.pts[j - 1], t.dir, 0, w));
   } else {
     t.alt.push(pt);
   }
   t.sinceProp++;
-  if (idx >= DRIFT.propStartIdx && !fork && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
+  if (idx >= DRIFT.propStartIdx && !coin && t.sinceProp >= DRIFT.propMinGap && Math.random() < DRIFT.propChance) {
     t.sinceProp = 0;
+    const at = t.alt[j];
     const police = w === DRIFT.wideWidth && Math.random() < DRIFT.policeChance;
     const lat = (Math.random() * 2 - 1) * (w / 2 - (police ? DRIFT.policeHalf + 4 : 16));
-    const x = t.dir === 0 ? pt.x : pt.x + lat;
-    const y = t.dir === 0 ? pt.y + lat : pt.y;
+    const x = at.dir === 0 ? at.x : at.x + lat;
+    const y = at.dir === 0 ? at.y + lat : at.y;
     if (police) {
       t.props.push(
         makeProp("police", idx, x, y),
@@ -332,6 +321,18 @@ function push(t: Track) {
       t.props.push(makeProp(PROP_KINDS[Math.floor(Math.random() * PROP_KINDS.length)], idx, x, y));
     }
   }
+}
+
+function shifted(p: Pt, dir: number, off: number, w: number): Pt {
+  return {
+    x: p.x + (dir === 0 ? 0 : off),
+    y: p.y + (dir === 0 ? off : 0),
+    dir,
+    w,
+    lift: 0,
+    coin: false,
+    taken: false,
+  };
 }
 
 function makeProp(kind: PropKind, idx: number, x: number, y: number): Prop {
@@ -350,10 +351,10 @@ function advance(t: Track, len: number, dir: number) {
 }
 
 function addSegment(t: Track) {
-  if (Math.random() < DRIFT.forkChance && t.pts.length - t.lastFork >= DRIFT.forkMinGap) {
+  if (Math.random() < DRIFT.forkChance && t.pts.length - t.forkEnd >= DRIFT.forkMinGap) {
     const a = t.pts.length;
-    t.lastFork = a;
     t.fork = { a, b: a + DRIFT.forkSteps, side: Math.random() < 0.5 ? -1 : 1, off: DRIFT.wideWidth + DRIFT.forkGap };
+    t.forkEnd = t.fork.b;
     advance(t, DRIFT.forkSteps * DRIFT.sample, 1 - t.dir);
     t.fork = null;
     return;
@@ -380,7 +381,7 @@ function createTrack(): Track {
     pts: [],
     alt: [],
     fork: null,
-    lastFork: -1e9,
+    forkEnd: -1,
     props: [],
     x: 0,
     y: 0,
@@ -986,7 +987,7 @@ function stirLeaves(g: Game, x: number, y: number, speed: number) {
 }
 
 function spawnLeaves(g: Game) {
-  const pts = g.track.pts;
+  const pts = routePts(g.track, g.route);
   while (g.leaves.length < DRIFT.leafCount) {
     const p = pts[g.idx + DRIFT.leafNear + Math.floor(Math.random() * DRIFT.leafAhead)];
     const lat = (Math.random() * 2 - 1) * (p.w / 2 - 6);
