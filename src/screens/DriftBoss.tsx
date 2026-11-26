@@ -128,7 +128,7 @@ const shadeHex = (hex: string, f: number) => {
 };
 
 function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
-  const cam = g.phase === "play" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
+  const cam = g.phase === "play" || g.phase === "boom" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
   const s = (Math.min(W, H) / 300) * cam;
   const cx = isoX(g.x, g.y);
   const cy = isoY(g.x, g.y);
@@ -242,14 +242,27 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   };
   const alt = g.track.alt;
   const routesAt = (i: number): Pt[][] => (alt[i] !== pts[i] || alt[i + 1] !== pts[i + 1] ? [pts, alt] : [pts]);
+  const MARGIN = 120 * s;
+  const visible = (q: [number, number][]) => {
+    for (const [x, y] of q) if (x > -MARGIN && x < W + MARGIN && y > -MARGIN && y < H + MARGIN) return true;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [x, y] of q) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    return x0 < W && x1 > 0 && y0 < H && y1 > 0;
+  };
+  const dotVisible = (x: number, y: number, z: number, m = 60) => {
+    const [sx, sy] = P(x, y, z);
+    return sx > -m * s && sx < W + m * s && sy > -m * s && sy < H + m * s;
+  };
   const roadShapes = (a: number, b: number, dz: number) => {
     const out: [number, number][][] = [];
     for (let i = a; i < b; i++) {
       for (const arr of routesAt(i)) {
-        out.push(segQuad(arr, i, dz));
+        const q = segQuad(arr, i, dz);
+        if (visible(q)) out.push(q);
         if (i > a && bendsAt(arr, i)) {
           const p = arr[i];
-          out.push(regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz)));
+          const c = regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz));
+          if (visible(c)) out.push(c);
         }
       }
     }
@@ -662,6 +675,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const near = routePts(g.track, g.route)[g.idx];
   const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
   const behindCop = (c: Cop) => c.phase === "fall" && c.x + c.y > routePts(g.track, c.route)[c.idx].x + routePts(g.track, c.route)[c.idx].y;
+  const wrecked = g.phase === "boom" || (g.phase === "over" && g.health === 0);
   if (carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
   for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
 
@@ -680,6 +694,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fill();
   }
   for (let i = from; i < to; i++) {
+    if (!dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
     for (const arr of routesAt(i)) {
       for (let j = 0; j < 4; j++) {
         const [sx, sy] = segPoint(arr, i, hash(i * 5 + j * 3 + 0.25), -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
@@ -715,7 +730,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.globalCompositeOperation = "source-over";
   for (let i = from; i < to; i++) {
     const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
-    if (crest <= 0) continue;
+    if (crest <= 0 || !dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
     for (const arr of routesAt(i)) {
       tracePoly(segQuad(arr, i, 0));
       ctx.fillStyle = `rgba(255,255,255,${(0.3 * crest).toFixed(3)})`;
@@ -778,7 +793,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.globalAlpha = alpha;
   for (let i = from; i <= to; i++) {
     const p: Pt = pts[i];
-    if (!p.coin || p.taken) continue;
+    if (!p.coin || p.taken || !dotVisible(p.x, p.y, p.lift)) continue;
     const [sx, sy] = P(p.x, p.y, p.lift + 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
     ctx.beginPath();
     ctx.arc(sx, sy, 7 * s, 0, Math.PI * 2);
@@ -790,7 +805,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   }
 
   for (const pr of g.track.props) {
-    if (from <= pr.idx && pr.idx <= to) drawProp(pr);
+    if (from <= pr.idx && pr.idx <= to && dotVisible(pr.x, pr.y, pr.z, 120)) drawProp(pr);
   }
 
   for (const d of g.splash) {
@@ -810,6 +825,21 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fill();
   }
 
+  if (g.phase === "boom") {
+    const k = Math.min(1, g.boomT / 0.6);
+    const [fx, fy] = P(g.x, g.y, g.z + 10);
+    const R = (30 + 70 * k) * s;
+    const grd = ctx.createRadialGradient(fx, fy, 0, fx, fy, R);
+    grd.addColorStop(0, `rgba(255,250,210,${(1 - k * 0.7).toFixed(3)})`);
+    grd.addColorStop(0.4, `rgba(255,170,40,${(0.9 * (1 - k)).toFixed(3)})`);
+    grd.addColorStop(1, "rgba(255,60,0,0)");
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(fx, fy, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
   for (const p of g.smoke) {
     const [sx, sy] = P(p.x, p.y, p.z);
     const k = p.age / p.life;
@@ -820,7 +850,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   }
 
   for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
-  if (!carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
+  if (!carBehind && !wrecked) drawVehicle(g, PLAYER_PALS[g.paint], false);
   if (g.phase === "play") {
     const [hx, hy] = P(g.x, g.y, g.z + 40);
     const bw = 44 * s;
@@ -921,7 +951,7 @@ export default function DriftBoss() {
       } else if (statusRef.current === "over") {
         step(g, false, dt);
       }
-      bw = g.phase === "play" ? 0 : Math.min(1, bw + dt * 1.2);
+      bw = g.phase === "play" || (g.phase === "boom" && g.boomT < 0.5) ? 0 : Math.min(1, bw + dt * 1.2);
       canvas.style.filter = bw > 0 ? `grayscale(${bw})` : "";
       if (coinsRef.current) coinsRef.current.textContent = String(g.coins);
       if (distRef.current) distRef.current.textContent = String(Math.floor(g.dist / 10));

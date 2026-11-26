@@ -95,13 +95,14 @@ export const DRIFT = {
   leafCull: 1800,
   leafBehind: 1000,
   forkChance: 0.32,
-  forkRunMin: 30,
-  forkRunMax: 74,
-  forkSpanMin: 34,
-  forkSpanMax: 70,
+  forkRunMin: 70,
+  forkRunMax: 130,
+  forkSpanMin: 70,
+  forkSpanMax: 130,
+  boomTime: 1.5,
   rampJunctionGap: 10,
   maxHealth: 5,
-  forkMinGap: 120,
+  forkMinGap: 260,
   routeSlack: 2,
 };
 
@@ -257,7 +258,7 @@ export interface Game extends Pose {
   cool: number;
   dist: number;
   coins: number;
-  phase: "play" | "fall" | "over";
+  phase: "play" | "fall" | "boom" | "over";
   fallT: number;
   offT: number;
   fallSide: number;
@@ -273,6 +274,7 @@ export interface Game extends Pose {
   paint: number;
   marks: Mark[];
   health: number;
+  boomT: number;
 }
 
 function clamp(v: number, lo: number, hi: number) {
@@ -347,6 +349,7 @@ function advance(t: Track, len: number, dir: number) {
 // have the same length, and they share the split and merge points exactly.
 function buildFork(t: Track) {
   const step = DRIFT.sample;
+  t.width = DRIFT.wideWidth;
   const w = t.width;
   const s0 = t.pts.length - 1;
   const S = t.pts[s0];
@@ -382,7 +385,7 @@ function addSegment(t: Track) {
     buildFork(t);
     return;
   }
-  t.width = widthAt(t.pts.length * DRIFT.sample);
+  t.width = t.pts.length - 1 === t.forkEnd ? DRIFT.wideWidth : widthAt(t.pts.length * DRIFT.sample);
   const len = DRIFT.segMin + Math.random() * (DRIFT.segMax - DRIFT.segMin);
   const start = t.pts.length;
   const steps = advance(t, len, 1 - t.dir);
@@ -457,6 +460,7 @@ export function createGame(): Game {
     paint: Math.floor(Math.random() * 8),
     marks: [],
     health: DRIFT.maxHealth,
+    boomT: 0,
   };
 }
 
@@ -570,6 +574,19 @@ function emitSparks(g: Game, x: number, y: number, z: number) {
   }
 }
 
+function blast(g: Game) {
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 80 + Math.random() * 320;
+    g.sparks.push({ x: g.x, y: g.y, z: g.z + 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: 120 + Math.random() * 320, age: 0, life: 0.5 + Math.random() * 0.9 });
+  }
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = Math.random() * 22;
+    g.smoke.push({ x: g.x + Math.cos(a) * d, y: g.y + Math.sin(a) * d, z: g.z + 6 + Math.random() * 26, age: 0, life: 1 + Math.random() * 1.2, r: 10 + Math.random() * 12, shade: SMOKE_SHADES[Math.floor(Math.random() * SMOKE_SHADES.length)] });
+  }
+}
+
 function updateSparks(g: Game, dt: number) {
   const k = Math.exp(-3 * dt);
   for (const s of g.sparks) {
@@ -605,6 +622,14 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
       if (byPlayer && !p.struck) {
         p.struck = true;
         g.health = Math.max(0, g.health - 1);
+        if (g.health === 0) {
+          g.phase = "boom";
+          g.boomT = 0;
+          g.vx = 0;
+          g.vy = 0;
+          blast(g);
+          for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
+        }
       }
       const sp = Math.hypot(vx, vy) || 1;
       const kick = DRIFT.propKick + sp * 0.25;
@@ -1106,7 +1131,10 @@ export function step(g: Game, holding: boolean, dt: number) {
   }
   if (g.idx > g.track.pts.length - 400) growTrack(g.track, g.idx + 600);
   g.t += dt;
-  if (g.phase === "fall") fallStep(g, dt);
+  if (g.phase === "boom") {
+    g.boomT += dt;
+    if (g.boomT >= DRIFT.boomTime) g.phase = "over";
+  } else if (g.phase === "fall") fallStep(g, dt);
   else playerDrive(g, holding, dt);
   tail(g, dt);
 }
