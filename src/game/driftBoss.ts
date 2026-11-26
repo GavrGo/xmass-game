@@ -72,6 +72,11 @@ export const DRIFT = {
   sparkCount: 14,
   sparkLife: 0.5,
   sparkGravity: 500,
+  splashCount: 30,
+  splashLife: 0.9,
+  splashKick: 170,
+  rippleLife: 1.0,
+  copJitter: 0.15,
   leafCount: 60,
   leafNear: 100,
   leafAhead: 90,
@@ -87,7 +92,7 @@ const VEC = [
   { x: 0, y: -1 },
 ];
 const ANG = [Math.PI, -Math.PI / 2];
-const SMOKE_SHADES = [176, 190, 204, 218, 232];
+const SMOKE_SHADES = [70, 84, 98, 112, 126];
 const PROP_KINDS: PropKind[] = ["barrel", "crate", "bin"];
 
 export interface Pt {
@@ -201,6 +206,7 @@ export interface Cop extends Pose {
   fallT: number;
   fallSide: number;
   marks: Mark[];
+  jit: number;
 }
 
 interface Hist {
@@ -232,6 +238,8 @@ export interface Game extends Pose {
   leaves: Leaf[];
   smoke: Smoke[];
   sparks: Spark[];
+  splash: Spark[];
+  ripples: { x: number; y: number; age: number }[];
   marks: Mark[];
 }
 
@@ -341,6 +349,8 @@ export function createGame(): Game {
     leaves: [],
     smoke: [],
     sparks: [],
+    splash: [],
+    ripples: [],
     marks: [],
   };
 }
@@ -513,8 +523,43 @@ function updateProps(g: Game, dt: number) {
   g.track.props = g.track.props.filter((p) => p.state === "idle" || p.age < DRIFT.propLife);
 }
 
+function emitSplash(g: Game, x: number, y: number) {
+  g.ripples.push({ x, y, age: 0 });
+  for (let i = 0; i < DRIFT.splashCount; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = DRIFT.splashKick * (0.3 + Math.random() * 0.7);
+    g.splash.push({
+      x,
+      y,
+      z: 0,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp,
+      vz: 120 + Math.random() * 180,
+      age: 0,
+      life: DRIFT.splashLife * (0.6 + Math.random() * 0.8),
+    });
+  }
+}
+
+function updateSplash(g: Game, dt: number) {
+  const k = Math.exp(-2 * dt);
+  for (const d of g.splash) {
+    d.age += dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.vx *= k;
+    d.vy *= k;
+    d.vz -= DRIFT.sparkGravity * dt;
+    d.z = Math.max(0, d.z + d.vz * dt);
+  }
+  g.splash = g.splash.filter((d) => d.age < d.life);
+  for (const r of g.ripples) r.age += dt;
+  g.ripples = g.ripples.filter((r) => r.age < DRIFT.rippleLife);
+}
+
 function beginFall(g: Game, best: number) {
   const p = g.track.pts[best];
+  emitSplash(g, g.x, g.y);
   g.phase = "fall";
   g.fallT = 0;
   g.fallSide = sideOf(g, p);
@@ -666,6 +711,7 @@ function spawnCop(g: Game) {
     fallT: 0,
     fallSide: 0,
     marks: [],
+    jit: 1 + (Math.random() * 2 - 1) * DRIFT.copJitter,
   });
 }
 
@@ -703,7 +749,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.x += c.vx * dt;
     c.y += c.vy * dt;
   } else {
-    let lag = DRIFT.copLag + (DRIFT.copEnterLag - DRIFT.copLag) * Math.exp(-c.age / DRIFT.copEnterTau);
+    let lag = (DRIFT.copLag + (DRIFT.copEnterLag - DRIFT.copLag) * Math.exp(-c.age / DRIFT.copEnterTau)) * c.jit;
     if (c.phase === "enter") {
       const leader = nearestLeader(g, c);
       if (leader) lag = Math.max(lag, leader.lag + DRIFT.copEnterGap);
@@ -723,7 +769,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
     const histLat = cur.dir ? s.x - cur.x : cur.y - s.y;
     const roadHalf = Math.max(0, cur.w / 2 - 12);
     const slideTarget = clamp(histLat + c.laneTarget, -roadHalf, roadHalf) - histLat;
-    const outward = -omega * s.v * wear * DRIFT.copSlide + (slideTarget - c.slide) * DRIFT.copLaneK;
+    const outward = -omega * s.v * wear * DRIFT.copSlide * c.jit + (slideTarget - c.slide) * DRIFT.copLaneK;
     const lateralGrip = DRIFT.grip * (1 - wear * (1 - DRIFT.copWornGrip));
     c.slideV += (outward - c.slideV * lateralGrip) * dt;
     c.slide += c.slideV * dt;
@@ -755,6 +801,7 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.phase = "fall";
     c.fallT = 0;
     c.fallSide = sideOf(c, pts[c.idx]);
+    emitSplash(g, c.x, c.y);
   }
   if (c.phase === "enter" && c.age > DRIFT.copEnterTau * 3) c.phase = "chase";
 }
@@ -890,6 +937,7 @@ function tail(g: Game, dt: number) {
   stepCops(g, dt);
   updateProps(g, dt);
   updateSparks(g, dt);
+  updateSplash(g, dt);
   updateSmoke(g, dt);
   updateLeaves(g, dt);
 }

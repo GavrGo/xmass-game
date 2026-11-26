@@ -104,7 +104,7 @@ function regular(n: number, r: number): [number, number][] {
 }
 
 const PROP_SHAPE: Record<PropKind, { ring: [number, number][]; h: number; side: string; top: string }> = {
-  barrel: { ring: regular(8, 6), h: 14, side: "#d9612b", top: "#f0a05a" },
+  barrel: { ring: regular(8, 6), h: 14, side: "#8a3f1d", top: "#9a5a33" },
   crate: {
     ring: [
       [-6, -6],
@@ -113,10 +113,10 @@ const PROP_SHAPE: Record<PropKind, { ring: [number, number][]; h: number; side: 
       [-6, 6],
     ],
     h: 12,
-    side: "#b07a3c",
-    top: "#d7a866",
+    side: "#6b4824",
+    top: "#8a6a40",
   },
-  bin: { ring: regular(8, 5), h: 11, side: "#5d6b5a", top: "#7d8c79" },
+  bin: { ring: regular(8, 5), h: 11, side: "#363f33", top: "#4a5646" },
 };
 
 const shadeHex = (hex: string, f: number) => {
@@ -144,24 +144,46 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   bg.addColorStop(1, "#050d1c");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
-  const cell = 60;
-  const gx0 = Math.round(g.x / cell);
-  const gy0 = Math.round(g.y / cell);
-  ctx.beginPath();
-  for (let i = -14; i <= 14; i++) {
-    for (let j = -14; j <= 14; j++) {
-      const wx = (gx0 + i) * cell;
-      const wy = (gy0 + j) * cell;
-      if (Math.sin(time * 1.6 + wx * 0.05 + wy * 0.09) < 0.2) continue;
-      const [ax, ay] = P(wx, wy, 0);
-      const [bx, by] = P(wx + 16, wy, 0);
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx, by);
+  const layers: [number, number, number, string][] = [
+    [60, 1.6, 0.22, "rgba(90,150,210,0.22)"],
+    [37, 2.3, 0.16, "rgba(140,190,235,0.14)"],
+  ];
+  for (const [cell, speed, thr, col] of layers) {
+    const gx0 = Math.round(g.x / cell);
+    const gy0 = Math.round(g.y / cell);
+    ctx.beginPath();
+    for (let i = -14; i <= 14; i++) {
+      for (let j = -14; j <= 14; j++) {
+        const wx = (gx0 + i) * cell;
+        const wy = (gy0 + j) * cell;
+        if (Math.sin(time * speed + wx * 0.05 + wy * 0.09) < thr) continue;
+        const [ax, ay] = P(wx, wy, 0);
+        const [bx, by] = P(wx + 16, wy, 0);
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+      }
+    }
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.2 * s;
+    ctx.stroke();
+  }
+  {
+    const gx0 = Math.round(g.x / 90);
+    const gy0 = Math.round(g.y / 90);
+    for (let i = -8; i <= 8; i++) {
+      for (let j = -8; j <= 8; j++) {
+        const wx = (gx0 + i) * 90 + hash(i * 31 + j * 17) * 60;
+        const wy = (gy0 + j) * 90 + hash(i * 13 + j * 53) * 60;
+        const tw = 0.5 + 0.5 * Math.sin(time * 2 + hash(i + j * 7) * 20);
+        if (tw < 0.55) continue;
+        const [gx, gy] = P(wx, wy, 0);
+        ctx.beginPath();
+        ctx.arc(gx, gy, 1.4 * s, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(210,235,255,${(0.55 * (tw - 0.55) / 0.45).toFixed(3)})`;
+        ctx.fill();
+      }
     }
   }
-  ctx.strokeStyle = "rgba(90,150,210,0.22)";
-  ctx.lineWidth = 1.2 * s;
-  ctx.stroke();
   ctx.globalAlpha = alpha;
 
   const poly = (q: [number, number][], color: string) => {
@@ -408,23 +430,21 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     };
     const ground = (a: number, b: number): [number, number] =>
       P(v.x + cc * a - ss * b, v.y + ss * a + cc * b, v.ground);
-    const [n0x, n0y] = ground(20, 0);
-    const [n1x, n1y] = ground(170, 0);
-    const beam = ctx.createLinearGradient(n0x, n0y, n1x, n1y);
-    beam.addColorStop(0, `rgba(255,236,170,${0.38 * alpha})`);
-    beam.addColorStop(1, "rgba(255,236,170,0)");
     ctx.globalCompositeOperation = "lighter";
-    ctx.beginPath();
-    ctx.moveTo(...ground(20, -4));
-    ctx.lineTo(...ground(170, -40));
-    ctx.lineTo(...ground(170, 40));
-    ctx.lineTo(...ground(20, 4));
-    ctx.closePath();
-    ctx.fillStyle = beam;
-    ctx.fill();
     for (const b of [-5.5, 5.5]) {
-      lamp(20.5, b, 4, 20, "255,240,180", 1);
-      lamp(-20.5, b, 4, 15, "255,40,40", 0.9);
+      const beam = ctx.createLinearGradient(...ground(20, b), ...ground(170, b * 2.2));
+      beam.addColorStop(0, `rgba(255,236,170,${0.2 * alpha})`);
+      beam.addColorStop(1, "rgba(255,236,170,0)");
+      ctx.beginPath();
+      ctx.moveTo(...ground(20, b - 1.6));
+      ctx.lineTo(...ground(170, b * 2.2 - 9));
+      ctx.lineTo(...ground(170, b * 2.2 + 9));
+      ctx.lineTo(...ground(20, b + 1.6));
+      ctx.closePath();
+      ctx.fillStyle = beam;
+      ctx.fill();
+      lamp(20.5, b, 4, 14, "255,240,180", 0.45);
+      lamp(-20.5, b, 4, 12, "255,40,40", 0.6);
     }
     ctx.globalCompositeOperation = "source-over";
   };
@@ -497,7 +517,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
           const [x, y] = at(a, b, 0.55);
           return P(x, y, z1);
         }),
-        "#b8582a",
+        "#6b3218",
       );
     } else if (pr.kind === "crate") {
       ctx.beginPath();
@@ -514,12 +534,12 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
           const [x, y] = at(a, b, 0.6);
           return P(x, y, z1);
         }),
-        "#4f5c4c",
+        "#2d352b",
       );
       ctx.beginPath();
       const [kx, ky] = P(pr.x, pr.y, z1 + 1);
       ctx.arc(kx, ky, 1.6 * s, 0, Math.PI * 2);
-      ctx.fillStyle = "#c9d1c4";
+      ctx.fillStyle = "#8a9286";
       ctx.fill();
     }
     ctx.globalAlpha = alpha;
@@ -651,6 +671,23 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     if (from <= pr.idx && pr.idx <= to) drawProp(pr);
   }
 
+  for (const r of g.ripples) {
+    const [rx, ry] = P(r.x, r.y, 0);
+    const k = r.age / DRIFT.rippleLife;
+    ctx.beginPath();
+    ctx.arc(rx, ry, (10 + 70 * k) * s, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(190,225,255,${(0.7 * (1 - k) * alpha).toFixed(3)})`;
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+  }
+  for (const d of g.splash) {
+    const [dx, dy] = P(d.x, d.y, d.z);
+    const k = d.age / d.life;
+    ctx.beginPath();
+    ctx.arc(dx, dy, (1.8 * (1 - k) + 0.7) * s, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(215,240,255,${((1 - k) * alpha).toFixed(3)})`;
+    ctx.fill();
+  }
   for (const sp of g.sparks) {
     const [sx, sy] = P(sp.x, sp.y, sp.z);
     const k = sp.age / sp.life;
