@@ -94,21 +94,27 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const cc = Math.cos(g.h);
   const ss = Math.sin(g.h);
   const drawCar = () => {
-    const faces: Face[] = [];
-    const toW = (a: number, b: number, z: number): [number, number, number] => [
-      g.x + cc * a - ss * b,
-      g.y + ss * a + cc * b,
-      g.z + z,
-    ];
+    const body: Face[] = [];
+    const cabin: Face[] = [];
+    const details: Face[] = [];
+    let layer = body;
+    const rc = Math.cos(g.roll);
+    const rs = Math.sin(g.roll);
+    const rot = (a: number, b: number, z: number): Local => [a, b * rc + z * rs, z * rc - b * rs];
+    const toW = (a: number, b: number, z: number): [number, number, number] => {
+      const [ra, rb, rz] = rot(a, b, z);
+      return [g.x + cc * ra - ss * rb, g.y + ss * ra + cc * rb, g.z + rz + 10 * Math.abs(rs)];
+    };
     const addFace = (local: Local[], n: Local, color: string) => {
-      const wn = [n[0] * cc - n[1] * ss, n[0] * ss + n[1] * cc, n[2]];
+      const [rn0, rn1, rn2] = rot(n[0], n[1], n[2]);
+      const wn = [rn0 * cc - rn1 * ss, rn0 * ss + rn1 * cc, rn2];
       if (wn[0] + wn[1] + 1.5 * wn[2] <= 0) return;
       const w = local.map(([a, b, z]) => toW(a, b, z));
       const k = w.length;
       const mx = w.reduce((t, p) => t + p[0], 0) / k;
       const my = w.reduce((t, p) => t + p[1], 0) / k;
       const mz = w.reduce((t, p) => t + p[2], 0) / k;
-      faces.push({ pts: w.map(([x, y, z]) => P(x, y, z)), color, depth: mx + my + 1.5 * mz });
+      layer.push({ pts: w.map(([x, y, z]) => P(x, y, z)), color, depth: mx + my + 1.5 * mz });
     };
     const prism = (prof: [number, number][], b0: number, b1: number, colors: string[], cap: string) => {
       const n = prof.length;
@@ -151,11 +157,22 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
     const [shx, shy] = P(g.x, g.y, g.ground);
     ctx.beginPath();
-    ctx.ellipse(shx, shy, 24 * s, 13 * s, 0, 0, Math.PI * 2);
+    [
+      [-20.5, -10.5],
+      [20.5, -10.5],
+      [20.5, 10.5],
+      [-20.5, 10.5],
+    ].forEach(([a, b], k) => {
+      const [sx, sy] = P(g.x + cc * a - ss * b, g.y + ss * a + cc * b, g.ground);
+      if (k) ctx.lineTo(sx, sy);
+      else ctx.moveTo(sx, sy);
+    });
+    ctx.closePath();
     ctx.fillStyle = `rgba(0,0,0,${0.3 * (g.air ? 0.5 : 1) * alpha})`;
     ctx.fill();
 
     prism(BODY_PROF, -10, 10, [CAR_SIDE, CAR_END, CAR_TOP, CAR_TOP, CAR_TOP, CAR_END], CAR_SIDE);
+    layer = cabin;
     prism(CABIN_PROF, -8.5, 8.5, [GLASS, CAR_TOP, GLASS, CAR_SIDE], CAR_CABIN);
     for (const [b0, b1] of [
       [-3.6, -2.2],
@@ -172,6 +189,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
         STRIPE,
       );
     }
+    layer = details;
     for (const sb of [-1, 1]) {
       addFace(
         CABIN_GLASS.map(([a, z]) => [a, sb * 8.65, z] as Local),
@@ -208,8 +226,8 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       for (const sb of [-1, 1]) {
         const ring: Local[] = [];
         const hub: Local[] = [];
-        for (let k = 0; k < 14; k++) {
-          const t = (k / 14) * Math.PI * 2;
+        for (let k = 0; k < 20; k++) {
+          const t = (k / 20) * Math.PI * 2;
           ring.push([aw + 4 * Math.cos(t), sb * 10.3, 4 + 4 * Math.sin(t)]);
           hub.push([aw + 1.8 * Math.cos(t), sb * 10.5, 4 + 1.8 * Math.sin(t)]);
         }
@@ -218,8 +236,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       }
     }
 
-    faces.sort((p, q) => p.depth - q.depth);
-    for (const f of faces) poly(f.pts, f.color);
+    for (const layerFaces of [body, cabin]) {
+      layerFaces.sort((p, q) => p.depth - q.depth);
+      for (const f of layerFaces) poly(f.pts, f.color);
+    }
+    for (const f of details) poly(f.pts, f.color);
   };
 
   const near = pts[g.idx];
@@ -278,7 +299,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const k = p.age / p.life;
     ctx.beginPath();
     ctx.arc(sx, sy, p.r * s * (1 + k * 2.2), 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(220,222,235,${0.45 * (1 - k) * alpha})`;
+    ctx.fillStyle = `rgba(220,222,235,${0.6 * (1 - k) * alpha})`;
     ctx.fill();
   }
 

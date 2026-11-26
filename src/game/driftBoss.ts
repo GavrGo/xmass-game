@@ -8,9 +8,9 @@ export const WHEEL_POS: [number, number][] = [
 
 export const DRIFT = {
   sample: 8,
-  speedStart: 230,
-  speedMax: 340,
-  speedPerPx: 0.025,
+  speedStart: 150,
+  speedMax: 330,
+  speedPerPx: 0.018,
   turnMax: 7,
   turnFollow: 8,
   turnAccel: 20,
@@ -40,6 +40,10 @@ export const DRIFT = {
   fallDrop: 120,
   wheelsOffToFall: 2,
   edgeGrace: 0.25,
+  rollPerAv: 0.06,
+  rollMax: 0.45,
+  rollRate: 6,
+  fallRoll: 1.2,
 };
 
 const VEC = [
@@ -104,6 +108,8 @@ export interface Game {
   phase: "play" | "fall" | "over";
   fallT: number;
   offT: number;
+  roll: number;
+  fallSide: number;
   smoke: Smoke[];
   marks: Mark[];
 }
@@ -159,7 +165,7 @@ function growTrack(t: Track, minLen: number) {
 }
 
 function createTrack(): Track {
-  const t: Track = { pts: [], x: 0, y: 0, dir: 1, sinceCoin: 0, lastRamp: -1e9 };
+  const t: Track = { pts: [], x: 0, y: 0, dir: 0, sinceCoin: 0, lastRamp: -1e9 };
   push(t);
   advance(t, DRIFT.startStraight, 0);
   growTrack(t, 400);
@@ -186,6 +192,8 @@ export function createGame(): Game {
     phase: "play",
     fallT: 0,
     offT: 0,
+    roll: 0,
+    fallSide: 0,
     smoke: [],
     marks: [],
   };
@@ -233,8 +241,8 @@ function emitSmoke(g: Game) {
     y: g.y - s * 16 + c * side,
     z: g.z,
     age: 0,
-    life: 0.6 + Math.random() * 0.4,
-    r: 5 + Math.random() * 4,
+    life: 1.6 + Math.random() * 1,
+    r: 6 + Math.random() * 5,
   });
 }
 
@@ -259,6 +267,7 @@ export function step(g: Game, holding: boolean, dt: number) {
 
   if (g.phase === "fall") {
     g.fallT += dt;
+    g.roll += (g.fallSide * DRIFT.fallRoll - g.roll) * Math.min(1, DRIFT.rollRate * dt);
     g.x += g.vx * dt;
     g.y += g.vy * dt;
     g.vx *= 1 - 2 * dt;
@@ -273,6 +282,8 @@ export function step(g: Game, holding: boolean, dt: number) {
   const want = Math.max(-DRIFT.turnMax, Math.min(DRIFT.turnMax, d * DRIFT.turnFollow));
   g.av += (want - g.av) * Math.min(1, DRIFT.turnAccel * dt);
   g.h += g.av * dt;
+  const rollTarget = Math.max(-DRIFT.rollMax, Math.min(DRIFT.rollMax, -g.av * DRIFT.rollPerAv));
+  g.roll += (rollTarget - g.roll) * Math.min(1, DRIFT.rollRate * dt);
   const turning = Math.abs(g.av) > 0.05;
 
   const speed = Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
@@ -330,6 +341,8 @@ export function step(g: Game, holding: boolean, dt: number) {
   if (g.offT > DRIFT.edgeGrace) {
     g.phase = "fall";
     g.fallT = 0;
+    const lat = -(g.x - pts[best].x) * Math.sin(g.h) + (g.y - pts[best].y) * Math.cos(g.h);
+    g.fallSide = lat >= 0 ? 1 : -1;
     updateSmoke(g, dt);
     return;
   }
@@ -344,7 +357,10 @@ export function step(g: Game, holding: boolean, dt: number) {
 
   const slip = Math.abs(angleDiff(Math.atan2(g.vy, g.vx), g.h));
   const skidding = !g.air && slip > DRIFT.smokeSlip;
-  if (skidding && Math.random() < 0.7) emitSmoke(g);
+  if (skidding) {
+    emitSmoke(g);
+    emitSmoke(g);
+  }
   pushMark(g, skidding);
   updateSmoke(g, dt);
 }
