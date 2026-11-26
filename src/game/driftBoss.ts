@@ -32,7 +32,7 @@ export const DRIFT = {
   rampLen: 16,
   rampHeight: 20,
   launchK: 0.4,
-  launchSlope: 0.5,
+  launchSlope: 0.7,
   landCooldown: 0.25,
   gravity: 900,
   smokeSlip: 0.22,
@@ -48,14 +48,13 @@ export const DRIFT = {
   pitchMax: 0.5,
   copLag: 0.12,
   copEnterLag: 1.4,
-  copEnterSpeed: 1.6,
+  copEnterTau: 1.2,
   copSpawnEvery: 5,
-  copGap: 14,
-  copSpeedGain: 0.8,
   copWearTime: 35,
   copWornGrip: 0.2,
-  copWornTurnAccel: 3,
-  copHaltGain: 2.2,
+  copSlide: 0.5,
+  copSkidRate: 0.6,
+  copHaltDecel: 260,
   copRadius: 16,
   carRadius: 20,
   propMinGap: 14,
@@ -188,8 +187,11 @@ export interface Cop extends Pose {
   speed: number;
   phase: "enter" | "chase" | "halt" | "fall";
   age: number;
+  slide: number;
+  slideV: number;
   fallT: number;
   fallSide: number;
+  marks: Mark[];
 }
 
 interface Hist {
@@ -405,14 +407,14 @@ function sideOf(p: { x: number; y: number; h: number }, pt: Pt) {
   return lat >= 0 ? 1 : -1;
 }
 
-function emitSmoke(g: Game) {
+function emitSmoke(g: Game, p: Pose) {
   const side = (Math.random() - 0.5) * 16;
-  const c = Math.cos(g.h);
-  const s = Math.sin(g.h);
+  const c = Math.cos(p.h);
+  const s = Math.sin(p.h);
   g.smoke.push({
-    x: g.x - c * 16 - s * side,
-    y: g.y - s * 16 + c * side,
-    z: g.z,
+    x: p.x - c * 16 - s * side,
+    y: p.y - s * 16 + c * side,
+    z: p.z,
     age: 0,
     life: 1.6 + Math.random() * 1,
     r: 6 + Math.random() * 5,
@@ -576,22 +578,25 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
   while (g.hist.length > 1 && g.hist[0].t < g.t - DRIFT.copEnterLag - 1) g.hist.shift();
 
   const slip = Math.abs(angleDiff(Math.atan2(g.vy, g.vx), g.h));
-  const skidding = !g.air && slip > DRIFT.smokeSlip;
-  if (skidding) {
-    emitSmoke(g);
-    emitSmoke(g);
-  }
-  pushMark(g, skidding);
+  skid(g, g, !g.air && slip > DRIFT.smokeSlip, g.marks);
 }
 
-function pushMark(g: Game, on: boolean) {
-  const c = Math.cos(g.h);
-  const s = Math.sin(g.h);
-  const rx = g.x - c * (CAR.len * 0.35);
-  const ry = g.y - s * (CAR.len * 0.35);
+function skid(g: Game, p: Pose, on: boolean, marks: Mark[]) {
+  if (on) {
+    emitSmoke(g, p);
+    emitSmoke(g, p);
+  }
+  pushMark(marks, p, on);
+}
+
+function pushMark(marks: Mark[], p: Pose, on: boolean) {
+  const c = Math.cos(p.h);
+  const s = Math.sin(p.h);
+  const rx = p.x - c * (CAR.len * 0.35);
+  const ry = p.y - s * (CAR.len * 0.35);
   const bw = CAR.width * 0.38;
-  g.marks.push({ ax: rx - s * bw, ay: ry + c * bw, bx: rx + s * bw, by: ry - c * bw, z: g.z, on });
-  if (g.marks.length > 150) g.marks.splice(0, g.marks.length - 150);
+  marks.push({ ax: rx - s * bw, ay: ry + c * bw, bx: rx + s * bw, by: ry - c * bw, z: p.z, on });
+  if (marks.length > 150) marks.splice(0, marks.length - 150);
 }
 
 function fallStep(g: Game, dt: number) {
@@ -644,8 +649,11 @@ function spawnCop(g: Game) {
     speed: s.v,
     phase: "enter",
     age: 0,
+    slide: 0,
+    slideV: 0,
     fallT: 0,
     fallSide: 0,
+    marks: [],
   });
 }
 
@@ -653,32 +661,32 @@ function copDrive(g: Game, c: Cop, dt: number) {
   const pts = g.track.pts;
   c.age += dt;
   const wear = clamp(c.age / DRIFT.copWearTime, 0, 1);
-  const tt = c.phase === "halt" ? Math.min(g.t - DRIFT.copLag, g.hist[g.hist.length - 1].t) : g.t - DRIFT.copLag;
-  const s = sampleHist(g.hist, tt);
-  const dx = s.x - c.x;
-  const dy = s.y - c.y;
-  const dist = Math.hypot(dx, dy);
-  const desired = dist > 12 ? Math.atan2(dy, dx) : ANG[pts[c.idx].dir];
-  const want = clamp(angleDiff(desired, c.h) * DRIFT.turnFollow, -DRIFT.turnMax, DRIFT.turnMax);
-  const turnAccel = DRIFT.turnAccel + (DRIFT.copWornTurnAccel - DRIFT.turnAccel) * wear;
-  c.av += (want - c.av) * Math.min(1, turnAccel * dt);
-  c.h += c.av * dt;
+  const x0 = c.x;
+  const y0 = c.y;
 
-  if (c.phase === "enter" && dist < DRIFT.copGap * 1.5) c.phase = "chase";
-  const cmd =
-    c.phase === "halt"
-      ? Math.min(s.v, dist * DRIFT.copHaltGain)
-      : c.phase === "enter"
-        ? DRIFT.speedMax * DRIFT.copEnterSpeed
-        : clamp(s.v + (dist - DRIFT.copGap) * DRIFT.copSpeedGain, 0, DRIFT.speedMax + 20);
-  c.speed += (cmd - c.speed) * Math.min(1, 4 * dt);
-  const baseGrip = Math.abs(c.av) > 0.05 ? DRIFT.slideGrip : DRIFT.grip;
-  const grip = baseGrip * (1 - wear * (1 - DRIFT.copWornGrip));
-  const k = Math.min(1, grip * dt);
-  c.vx += (Math.cos(c.h) * c.speed - c.vx) * k;
-  c.vy += (Math.sin(c.h) * c.speed - c.vy) * k;
-  c.x += c.vx * dt;
-  c.y += c.vy * dt;
+  if (c.phase === "halt") {
+    c.speed = Math.max(0, c.speed - DRIFT.copHaltDecel * dt);
+    c.vx = Math.cos(c.h) * c.speed;
+    c.vy = Math.sin(c.h) * c.speed;
+    c.x += c.vx * dt;
+    c.y += c.vy * dt;
+  } else {
+    const lag = DRIFT.copLag + (DRIFT.copEnterLag - DRIFT.copLag) * Math.exp(-c.age / DRIFT.copEnterTau);
+    const tt = Math.min(g.t - lag, g.hist[g.hist.length - 1].t);
+    const s = sampleHist(g.hist, tt);
+    const omega = angleDiff(s.h, c.h) / dt;
+    c.h = s.h;
+    c.av = omega;
+    const outward = -omega * s.v * wear * DRIFT.copSlide;
+    const lateralGrip = DRIFT.grip * (1 - wear * (1 - DRIFT.copWornGrip));
+    c.slideV += (outward - c.slideV * lateralGrip) * dt;
+    c.slide += c.slideV * dt;
+    c.x = s.x - Math.sin(s.h) * c.slide;
+    c.y = s.y + Math.cos(s.h) * c.slide;
+    c.vx = (c.x - x0) / dt;
+    c.vy = (c.y - y0) / dt;
+    c.speed = Math.hypot(c.vx, c.vy);
+  }
 
   c.idx = nearestIdx(pts, c.x, c.y, Math.max(0, c.idx - 8), Math.min(pts.length - 1, c.idx + 40));
   const sf = surfaceAt(pts, c.idx, c.x, c.y);
@@ -686,14 +694,16 @@ function copDrive(g: Game, c: Cop, dt: number) {
   c.z = sf.lift;
   c.pitch += (clamp(Math.atan(sf.slope), -DRIFT.pitchMax, DRIFT.pitchMax) - c.pitch) * Math.min(1, DRIFT.pitchRate * dt);
   c.roll += (clamp(-c.av * DRIFT.rollPerAv, -DRIFT.rollMax, DRIFT.rollMax) - c.roll) * Math.min(1, DRIFT.rollRate * dt);
+  skid(g, c, Math.abs(c.av) > DRIFT.copSkidRate, c.marks);
 
   const off = offRoadWheels(c, pts, c.idx) >= DRIFT.wheelsOffToFall;
   c.offT = off ? c.offT + dt : 0;
-  if (c.phase === "chase" && c.offT > DRIFT.edgeGrace) {
+  if ((c.phase === "enter" || c.phase === "chase") && c.offT > DRIFT.edgeGrace) {
     c.phase = "fall";
     c.fallT = 0;
     c.fallSide = sideOf(c, pts[c.idx]);
   }
+  if (c.phase === "enter" && c.age > DRIFT.copEnterTau * 3) c.phase = "chase";
 }
 
 function copFall(c: Cop, dt: number) {

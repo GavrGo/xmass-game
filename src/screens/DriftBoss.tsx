@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
-import { DRIFT, createGame, scoreOf, step, type Cop, type Game, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import { DRIFT, createGame, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
 const BEST_KEY = "driftBossBest";
 
@@ -9,12 +9,8 @@ type Status = "idle" | "play" | "stamp" | "over";
 const isoX = (x: number, y: number) => (x - y) * 0.866;
 const isoY = (x: number, y: number) => (x + y) * 0.5;
 
-const ROAD = "#a9d6f5";
-const ROAD_DARK = "#7fb9e6";
 const WALL = "#1f3d6b";
 const WALL_H = 10;
-const COLS = 6;
-const CELL = 3;
 const BACK = 120;
 const AHEAD = 200;
 const CAR_TOP = "#6ee06a";
@@ -28,6 +24,11 @@ const HUB = "#c9ced8";
 const LIGHT = "#fff6b3";
 const TAIL = "#ff3b3b";
 const LEAF_TONES = ["#8b5a2b", "#c96f2d", "#e3b449", "#6f8f3a", "#a4472a"];
+const ASPHALT = "#4b4e56";
+const hash = (n: number) => {
+  const v = Math.sin(n * 12.9898) * 43758.5453;
+  return v - Math.floor(v);
+};
 const STAMP_HOLD = 2.4;
 
 type Local = [number, number, number];
@@ -474,14 +475,13 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     poly([edge(i, 1, 0), edge(i + 1, 1, 0), edge(i + 1, 1, -WALL_H), edge(i, 1, -WALL_H)], WALL);
   }
   for (let i = from; i < to; i++) {
-    const row = Math.floor(i / CELL);
-    for (let k = 0; k < COLS; k++) {
-      const f0 = -1 + (2 * k) / COLS;
-      const f1 = -1 + (2 * (k + 1)) / COLS;
-      poly(
-        [edge(i, f0, 0), edge(i + 1, f0, 0), edge(i + 1, f1, 0), edge(i, f1, 0)],
-        (row + k) % 2 === 0 ? ROAD : ROAD_DARK,
-      );
+    poly([edge(i, -1, 0), edge(i + 1, -1, 0), edge(i + 1, 1, 0), edge(i, 1, 0)], shadeHex(ASPHALT, 0.9 + 0.16 * hash(i)));
+    for (let j = 0; j < 4; j++) {
+      const [sx, sy] = edge(i, -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
+      ctx.beginPath();
+      ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
+      ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.28)";
+      ctx.fill();
     }
   }
 
@@ -507,23 +507,27 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.globalCompositeOperation = "lighter";
   for (const c of g.cops) if (c.phase !== "fall") drawCopGlow(c);
   ctx.globalCompositeOperation = "source-over";
-  ctx.strokeStyle = "rgba(25,25,30,0.8)";
-  ctx.lineWidth = 4 * s;
-  for (let k = 1; k < g.marks.length; k++) {
-    const m0 = g.marks[k - 1];
-    const m1 = g.marks[k];
-    if (!m0.on || !m1.on) continue;
-    const a0 = P(m0.ax, m0.ay, m0.z);
-    const a1 = P(m1.ax, m1.ay, m1.z);
-    const b0 = P(m0.bx, m0.by, m0.z);
-    const b1 = P(m1.bx, m1.by, m1.z);
-    ctx.beginPath();
-    ctx.moveTo(a0[0], a0[1]);
-    ctx.lineTo(a1[0], a1[1]);
-    ctx.moveTo(b0[0], b0[1]);
-    ctx.lineTo(b1[0], b1[1]);
-    ctx.stroke();
-  }
+  const drawMarks = (list: Mark[]) => {
+    ctx.strokeStyle = "rgba(25,25,30,0.8)";
+    ctx.lineWidth = 4 * s;
+    for (let k = 1; k < list.length; k++) {
+      const m0 = list[k - 1];
+      const m1 = list[k];
+      if (!m0.on || !m1.on) continue;
+      const a0 = P(m0.ax, m0.ay, m0.z);
+      const a1 = P(m1.ax, m1.ay, m1.z);
+      const b0 = P(m0.bx, m0.by, m0.z);
+      const b1 = P(m1.bx, m1.by, m1.z);
+      ctx.beginPath();
+      ctx.moveTo(a0[0], a0[1]);
+      ctx.lineTo(a1[0], a1[1]);
+      ctx.moveTo(b0[0], b0[1]);
+      ctx.lineTo(b1[0], b1[1]);
+      ctx.stroke();
+    }
+  };
+  drawMarks(g.marks);
+  for (const c of g.cops) if (c.phase !== "fall") drawMarks(c.marks);
 
   for (const l of g.leaves) {
     const [sx, sy] = P(l.x, l.y, l.z + 0.5);
@@ -713,19 +717,24 @@ export default function DriftBoss() {
 
       {status === "stamp" && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <style>{`@keyframes driftStamp{0%{transform:scale(2.6) rotate(-14deg);opacity:0}55%{transform:scale(0.92) rotate(-8deg);opacity:1}75%{transform:scale(1.05) rotate(-8deg)}100%{transform:scale(1) rotate(-8deg);opacity:1}}`}</style>
-          <div
-            className="text-6xl font-black"
-            style={{
-              animation: "driftStamp 0.38s cubic-bezier(0.2,0.9,0.3,1.2) both",
-              fontFamily: "Impact, 'Arial Black', sans-serif",
-              color: "#ffd21f",
-              WebkitTextStroke: "3px #000",
-              textShadow: "5px 5px 0 #b3120f, 0 0 22px rgba(255,40,40,0.7)",
-              letterSpacing: "0.04em",
-            }}
-          >
-            {Т.дрифтБосс.потрачено}
+          <style>{`@keyframes driftStamp{0%{transform:scale(2.2);opacity:0}50%{transform:scale(0.96);opacity:1}72%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}`}</style>
+          <div style={{ transform: "scaleX(1.4)" }}>
+            <div
+              style={{
+                animation: "driftStamp 0.38s cubic-bezier(0.2,0.9,0.3,1.2) both",
+                fontFamily: "'Arial Black', Impact, sans-serif",
+                fontWeight: 900,
+                fontSize: "2.2rem",
+                lineHeight: 1.1,
+                color: "#ffffff",
+                WebkitTextStroke: "5px #000",
+                paintOrder: "stroke fill",
+                letterSpacing: "0.02em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {Т.дрифтБосс.потрачено}
+            </div>
           </div>
         </div>
       )}
