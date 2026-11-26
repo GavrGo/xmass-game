@@ -518,17 +518,15 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   };
 
   const drawPoliceCar = (pr: Prop) => {
-    const pt = pts[pr.idx];
     ctx.globalAlpha = alpha;
-    drawVehicle({ x: pr.x, y: pr.y, z: pt.lift, h: policeAxis(pt.dir), roll: pr.tilt, pitch: 0, ground: pt.lift, air: false }, COP_PAL, true);
+    drawVehicle({ x: pr.x, y: pr.y, z: pr.lift, h: policeAxis(pr.dir), roll: pr.tilt, pitch: 0, ground: pr.lift, air: false }, COP_PAL, true);
   };
 
   const drawBarrier = (pr: Prop) => {
-    const pt = pts[pr.idx];
     const flying = pr.state === "flying";
-    const z0 = flying ? pr.z : pt.lift;
+    const z0 = flying ? pr.z : pr.lift;
     ctx.globalAlpha = alpha * (flying ? clamp01((DRIFT.propLife - pr.age) / 0.6) : 1);
-    const a = policeAxis(pt.dir) + pr.rot;
+    const a = policeAxis(pr.dir) + pr.rot;
     const hx = Math.cos(a) * DRIFT.policeHalf;
     const hy = Math.sin(a) * DRIFT.policeHalf;
     const ax = pr.x - hx;
@@ -568,7 +566,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     }
     const shape = PROP_SHAPE[pr.kind];
     ctx.globalAlpha = alpha * (pr.state === "flying" ? clamp01((DRIFT.propLife - pr.age) / 0.6) : 1);
-    const z0 = pr.state === "flying" ? pr.z : pts[pr.idx].lift;
+    const z0 = pr.state === "flying" ? pr.z : pr.lift;
     const z1 = z0 + shape.h;
     const c = Math.cos(pr.rot);
     const sn = Math.sin(pr.rot);
@@ -823,6 +821,16 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
 
   for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
   if (!carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
+  if (g.phase === "play") {
+    const [hx, hy] = P(g.x, g.y, g.z + 40);
+    const bw = 44 * s;
+    const bh = 5 * s;
+    const frac = g.health / DRIFT.maxHealth;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(hx - bw / 2, hy - bh / 2, bw, bh);
+    ctx.fillStyle = frac > 0.4 ? "#7bd88f" : frac > 0.2 ? "#f5c542" : "#ff5a4e";
+    ctx.fillRect(hx - bw / 2, hy - bh / 2, bw * frac, bh);
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -933,7 +941,12 @@ export default function DriftBoss() {
   }, []);
 
   return (
-    <div onPointerDown={press} className="fixed inset-0 z-30 select-none overflow-hidden bg-black" style={{ touchAction: "none" }}>
+    <div
+      onPointerDown={press}
+      onContextMenu={(e) => e.preventDefault()}
+      className="fixed inset-0 z-30 select-none overflow-hidden bg-black"
+      style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none" }}
+    >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3">
