@@ -138,8 +138,11 @@ export const DRIFT = {
   slowmoJumpsMin: 3,
   slowmoJumpsMax: 4,
   camZoomStart: 30,
-  camZoomRamp: 1.5,
-  camZoomOut: 0.5,
+  camZoomRamp: 8,
+  camZoomOut: 0.25,
+  rewindDelay: 2,
+  rewindTime: 1.3,
+  rewindSpan: 16,
 };
 
 const VEC = [
@@ -318,7 +321,7 @@ export interface Game extends Pose {
   cool: number;
   dist: number;
   coins: number;
-  phase: "play" | "fall" | "boom" | "over";
+  phase: "play" | "fall" | "boom" | "rewind" | "over";
   fallT: number;
   offT: number;
   fallSide: number;
@@ -347,16 +350,23 @@ export interface Game extends Pose {
   slowT: number;
   jumpsHigh: number;
   jumpsNeed: number;
+  pendingRevive: boolean;   // страховка уже сработала, идёт сценка гибели
+  deadT: number;            // сколько секунд прошло с момента гибели
+  rewindT: number;          // прогресс сценки «перемотки»
+  rewindFrom: number;
+  rewindTo: number;
+  sideSkirts: boolean;      // Прочность+: боковые накладки
 }
 
 /** Навыки Drift Boss, открытые по уровню мастерства. */
 export interface НавыкиДрифта {
   прочность: boolean;
+  прочностьПлюс: boolean;
   страховка: number;      // сколько восстановлений доступно за забег
   коллекционер: number;   // множитель количества монет на дороге
 }
 
-export const БЕЗ_НАВЫКОВ: НавыкиДрифта = { прочность: false, страховка: 0, коллекционер: 1 };
+export const БЕЗ_НАВЫКОВ: НавыкиДрифта = { прочность: false, прочностьПлюс: false, страховка: 0, коллекционер: 1 };
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -650,6 +660,11 @@ export function createGame(навыки: НавыкиДрифта = БЕЗ_НА�
     slowT: 0,
     jumpsHigh: 0,
     jumpsNeed: DRIFT.slowmoJumpsMin,
+    pendingRevive: false,
+    deadT: 0,
+    rewindT: 0,
+    rewindFrom: 0,
+    rewindTo: 0,
     phase: "play",
     fallT: 0,
     offT: 0,
@@ -668,6 +683,7 @@ export function createGame(навыки: НавыкиДрифта = БЕЗ_НА�
     health: максЗдоровье,
     maxHealth: максЗдоровье,
     bumpers: навыки.прочность,
+    sideSkirts: навыки.прочностьПлюс,
     insuranceLeft: Math.max(0, Math.floor(навыки.страховка)),
     invulnT: 0,
     speedLag: 0,
@@ -842,7 +858,12 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
         g.pops.push({ x: p.x, y: p.y, z: p.lift + 16, age: 0 });
         if (g.invulnT <= 0) {
           g.health = Math.max(0, g.health - 1);
-          if (g.health === 0 && !возродить(g)) {
+          if (g.health === 0) {
+            if (g.insuranceLeft > 0) {
+              g.insuranceLeft--;
+              g.pendingRevive = true;
+              g.deadT = 0;
+            }
             g.phase = "boom";
             g.boomT = 0;
             g.vx = 0;
@@ -960,7 +981,11 @@ function updateSplash(g: Game, dt: number) {
 }
 
 function beginFall(g: Game, best: number) {
-  if (возродить(g)) return;
+  if (g.insuranceLeft > 0) {
+    g.insuranceLeft--;
+    g.pendingRevive = true;
+    g.deadT = 0;
+  }
   const p = routePts(g.track, g.route)[best];
   emitSplash(g, g.x, g.y);
   g.phase = "fall";
@@ -974,14 +999,71 @@ export function speedAt(g: Game) {
   return Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
 }
 
-/** Страховка: ставит целую машину по центру дороги на месте гибели. */
-function возродить(g: Game): boolean {
-  if (g.insuranceLeft <= 0) return false;
-  g.insuranceLeft--;
+/** Страховка: гибель отыграна, запускаем сценку «перемотки» на месте аварии. */
+function startRewind(g: Game) {
+  const pts = routePts(g.track, g.route);
+  const p = pts[clamp(g.idx, 0, pts.length - 1)];
+  g.phase = "rewind";
+  g.rewindT = 0;
+  g.deadT = 0;
+  g.fallT = 0;
+  g.boomT = 0;
+  g.offT = 0;
+  g.air = false;
+  g.vz = 0;
+  g.cool = 0;
+  g.slowT = 0;
+  g.h = ANG[p.dir];
+  g.x = p.x;
+  g.y = p.y;
+  g.z = p.lift;
+  g.ground = p.lift;
+  g.av = 0;
+  g.roll = 0;
+  g.pitch = 0;
+  g.vx = 0;
+  g.vy = 0;
+  g.health = g.maxHealth;
+  // Плёнку крутим назад: машина откатывается по дороге и встаёт на центр полосы.
+  g.rewindFrom = g.idx;
+  g.rewindTo = Math.max(1, g.idx - DRIFT.rewindSpan);
+  for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
+}
+
+/** Кадр сценки: машина пятится назад по дороге, экран в помехах. */
+function rewindStep(g: Game, dt: number) {
+  g.rewindT = Math.min(DRIFT.rewindTime, g.rewindT + dt);
+  const k = clamp(g.rewindT / DRIFT.rewindTime, 0, 1);
+  const e = 1 - (1 - k) * (1 - k);
+  const fi = g.rewindFrom + (g.rewindTo - g.rewindFrom) * e;
+  const pts = routePts(g.track, g.route);
+  const i = clamp(Math.floor(fi), 0, pts.length - 2);
+  const u = clamp(fi - i, 0, 1);
+  const a = pts[i];
+  const b = pts[i + 1];
+  g.x = a.x + (b.x - a.x) * u;
+  g.y = a.y + (b.y - a.y) * u;
+  g.z = a.lift + (b.lift - a.lift) * u;
+  g.ground = g.z;
+  g.h = ANG[u < 0.5 ? a.dir : b.dir];
+  g.idx = Math.max(0, Math.round(fi));
+  g.roll = 0;
+  g.pitch = 0;
+  g.av = 0;
+  g.vx = 0;
+  g.vy = 0;
+  if (g.rewindT >= DRIFT.rewindTime) finishRevive(g);
+}
+
+/** Перемотка закончилась: машина цела, стоит по центру полосы и плавно разгоняется. */
+function finishRevive(g: Game) {
   const pts = routePts(g.track, g.route);
   const p = pts[clamp(g.idx, 0, pts.length - 1)];
   const baseSpeed = speedAt(g);
   g.phase = "play";
+  g.pendingRevive = false;
+  g.deadT = 0;
+  g.rewindT = 0;
   g.health = g.maxHealth;
   g.invulnT = DRIFT.insuranceInvuln;
   g.fallT = 0;
@@ -1006,7 +1088,6 @@ function возродить(g: Game): boolean {
   g.vy = Math.sin(g.h) * g.speedFrom;
   g.marks = [];
   for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
-  return true;
 }
 
 function playerDrive(g: Game, holding: boolean, dt: number) {
@@ -1140,7 +1221,10 @@ function fallStep(g: Game, dt: number) {
   g.vx *= 1 - 2 * dt;
   g.vy *= 1 - 2 * dt;
   g.z -= DRIFT.fallDrop * dt;
-  if (g.fallT >= DRIFT.fallTime) g.phase = "over";
+  if (g.pendingRevive) {
+    g.deadT += dt;
+    if (g.deadT >= DRIFT.rewindDelay) startRewind(g);
+  } else if (g.fallT >= DRIFT.fallTime) g.phase = "over";
 }
 
 function sampleHist(hist: Hist[], t: number): Hist {
@@ -1437,8 +1521,12 @@ export function step(g: Game, holding: boolean, dt: number) {
   g.t += dt;
   if (g.phase === "boom") {
     g.boomT += dt;
-    if (g.boomT >= DRIFT.boomTime) g.phase = "over";
+    if (g.pendingRevive) {
+      g.deadT += dt;
+      if (g.deadT >= DRIFT.rewindDelay) startRewind(g);
+    } else if (g.boomT >= DRIFT.boomTime) g.phase = "over";
   } else if (g.phase === "fall") fallStep(g, dt);
+  else if (g.phase === "rewind") rewindStep(g, dt);
   else playerDrive(g, holding, dt);
   tail(g, dt);
 }

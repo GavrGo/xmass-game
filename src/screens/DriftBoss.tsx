@@ -159,7 +159,7 @@ const shadeHex = (hex: string, f: number) => {
 // Отдаление камеры на разгоне: первые camZoomStart секунд поле не отъезжает,
 // дальше масштаб плавно уходит к (1 - camZoomOut) по мере роста скорости.
 function zoomOf(g: Game) {
-  if (g.phase !== "play" && g.phase !== "boom") return 1;
+  if (g.phase !== "play" && g.phase !== "boom" && g.phase !== "rewind") return 1;
   const gate = clamp01((g.t - DRIFT.camZoomStart) / DRIFT.camZoomRamp);
   if (gate <= 0) return 1;
   const speed = Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
@@ -167,7 +167,7 @@ function zoomOf(g: Game) {
   return 1 - DRIFT.camZoomOut * gate * k;
 }
 
-function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
+export function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
   const fallCam = g.phase === "play" || g.phase === "boom" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
   const cam = fallCam * zoomOf(g);
   const s = (Math.min(W, H) / 300) * cam;
@@ -180,7 +180,8 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   const pts = g.track.pts;
   const from = Math.max(0, g.idx - BACK);
   const to = Math.min(pts.length - 2, g.idx + AHEAD);
-  const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / DRIFT.fallTime) : 1;
+  const fadeT = g.pendingRevive ? DRIFT.rewindDelay : DRIFT.fallTime;
+  const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / fadeT) : 1;
 
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#0a1f3a");
@@ -310,7 +311,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     }
   };
 
-  const drawVehicle = (v: Pose, pal: Palette, bar: boolean, bumper = false) => {
+  const drawVehicle = (v: Pose, pal: Palette, bar: boolean, bumper = false, skirts = false) => {
     const cc = Math.cos(v.h);
     const ss = Math.sin(v.h);
     const cp = Math.cos(v.pitch);
@@ -542,9 +543,30 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     }
     if (bumper) {
       const железо = "#101013";
-      box(20, 23, -10.5, 10.5, 2, 6, железо);
-      box(-23, -20, -10.5, 10.5, 2, 6, железо);
+      // Бампер — низкая накладка у основания кузова: 1/3 высоты капота.
+      // Внутреннюю грань не рисуем, иначе она просвечивает сквозь кузов.
+      const cap = (a0: number, a1: number, out: number) => {
+        const af = out > 0 ? a1 : a0;
+        addFace([[af, -10.5, 2], [af, 10.5, 2], [af, 10.5, 3.5], [af, -10.5, 3.5]], [out, 0, 0], железо);
+        addFace([[a0, -10.5, 3.5], [a1, -10.5, 3.5], [a1, 10.5, 3.5], [a0, 10.5, 3.5]], [0, 0, 1], железо);
+        addFace([[a0, -10.5, 2], [a1, -10.5, 2], [a1, 10.5, 2], [a0, 10.5, 2]], [0, 0, -1], железо);
+        addFace([[a0, -10.5, 2], [a1, -10.5, 2], [a1, -10.5, 3.5], [a0, -10.5, 3.5]], [0, -1, 0], железо);
+        addFace([[a0, 10.5, 2], [a1, 10.5, 2], [a1, 10.5, 3.5], [a0, 10.5, 3.5]], [0, 1, 0], железо);
+      };
+      layer = body;
+      cap(19.4, 23, 1);
+      cap(-23, -19.4, -1);
+      // Прочность+: тонкие чёрные накладки по бортам, у самого основания.
+      if (skirts) {
+        for (const sb of [-1, 1]) {
+          const b = sb * 10.4;
+          addFace([[-15, b, 2], [15, b, 2], [15, b, 3.4], [-15, b, 3.4]], [0, sb, 0], железо);
+          addFace([[-15, b, 3.4], [15, b, 3.4], [15, sb * 9.4, 3.4], [-15, sb * 9.4, 3.4]], [0, 0, 1], железо);
+          addFace([[-15, b, 2], [15, b, 2], [15, sb * 9.4, 2], [-15, sb * 9.4, 2]], [0, 0, -1], железо);
+        }
+      }
     }
+    layer = details;
     if (bar) {
       const red = Math.floor(time * 6) % 2 === 0;
       box(-4, 2, -4.5, -0.5, 12, 14, red ? "#ff2d2d" : "#4a1414");
@@ -741,7 +763,17 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.globalCompositeOperation = "source-over";
   };
   const drawPlayer = () => {
-    drawVehicle(g, wrecked ? WRECK_PAL : PLAYER_PALS[g.paint], false, g.bumpers && !wrecked);
+    const revive = g.phase === "rewind" ? Math.min(1, g.rewindT * 3.2) : 1;
+    const blink = g.phase === "rewind" && Math.random() < 0.25 ? 0.25 : 1;
+    ctx.globalAlpha = alpha * revive * blink;
+    drawVehicle(
+      g,
+      wrecked ? WRECK_PAL : PLAYER_PALS[g.paint],
+      false,
+      g.bumpers && !wrecked,
+      g.sideSkirts && !wrecked,
+    );
+    ctx.globalAlpha = alpha;
     if (wrecked) drawFlames(g.x, g.y, g.z);
     if (g.invulnT > 0 && g.phase === "play") {
       const [px, py] = P(g.x, g.y, g.z + 4);
@@ -1003,6 +1035,43 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.fillStyle = frac > 0.4 ? "#7bd88f" : frac > 0.2 ? "#f5c542" : "#ff5a4e";
     ctx.fillRect(hx - bw / 2, hy - bh / 2, bw * frac, bh);
   }
+  const dying = g.pendingRevive && (g.phase === "fall" || g.phase === "boom");
+  if (g.phase === "rewind" || dying) {
+    const k = g.phase === "rewind"
+      ? clamp01(g.rewindT / DRIFT.rewindTime)
+      : clamp01(g.deadT / DRIFT.rewindDelay);
+    const power = g.phase === "rewind" ? 1 - k * 0.6 : 0.5 * k;
+    ctx.globalAlpha = 1;
+    // лёгкие помехи: зерно, полосы развёртки, бегущий блик
+    const grains = Math.round(120 * power);
+    for (let i = 0; i < grains; i++) {
+      const nx = Math.random() * W;
+      const ny = Math.random() * H;
+      const a = (0.05 + Math.random() * 0.16) * power;
+      ctx.fillStyle = Math.random() < 0.5 ? `rgba(255,255,255,${a.toFixed(3)})` : `rgba(0,0,0,${a.toFixed(3)})`;
+      ctx.fillRect(nx, ny, 1 + Math.random() * 2, 1 + Math.random() * 1.5);
+    }
+    for (let i = 0; i < 5; i++) {
+      const ny = Math.random() * H;
+      ctx.fillStyle = `rgba(255,255,255,${((0.04 + Math.random() * 0.1) * power).toFixed(3)})`;
+      ctx.fillRect(0, ny, W, 1 + Math.random() * 2.5);
+    }
+    if (g.phase === "rewind") {
+      const scan = (k * 1.5 - 0.25) * H;
+      ctx.fillStyle = `rgba(255,255,255,${(0.1 * power).toFixed(3)})`;
+      ctx.fillRect(0, scan, W, 22);
+      const size = Math.round(Math.min(W, H) * 0.05);
+      ctx.font = `900 ${size}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = size * 0.22;
+      ctx.strokeStyle = `rgba(0,0,0,${(0.8 * power).toFixed(3)})`;
+      ctx.strokeText("◀◀ ПЕРЕМОТКА", W / 2, H * 0.24);
+      ctx.fillStyle = `rgba(255,255,255,${power.toFixed(3)})`;
+      ctx.fillText("◀◀ ПЕРЕМОТКА", W / 2, H * 0.24);
+    }
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -1015,6 +1084,7 @@ export default function DriftBoss() {
   const открытые = new Set(открытыеНавыки("drift", мастерство.уровень).map((н) => н.id));
   const навыкиДрифта: НавыкиДрифта = {
     прочность: открытые.has("durability") || открытые.has("durabilityPlus"),
+    прочностьПлюс: открытые.has("durabilityPlus"),
     страховка: открытые.has("insurancePlus") ? 2 : открытые.has("insurance") ? 1 : 0,
     коллекционер: открытые.has("collectorPlus") ? 2 : открытые.has("collector") ? 1.5 : 1,
   };
@@ -1150,8 +1220,9 @@ export default function DriftBoss() {
       } else if (statusRef.current === "over") {
         step(g, false, gdt);
       }
-      bw = g.phase === "play" || (g.phase === "boom" && g.boomT < 0.5) ? 0 : Math.min(1, bw + dt * 1.2);
-      canvas.style.filter = bw > 0 ? `grayscale(${bw})` : "";
+      const wantBW = g.phase === "play" || (g.phase === "boom" && g.boomT < 0.5) ? 0 : 1;
+      bw = wantBW > bw ? Math.min(wantBW, bw + dt * 1.8) : Math.max(wantBW, bw - dt * 3);
+      canvas.style.filter = bw > 0.01 ? `grayscale(${bw.toFixed(3)})` : "";
       if (scoreRef.current) scoreRef.current.textContent = String(scoreOf(g));
       draw(ctx, g, W, H, time);
       raf = requestAnimationFrame(frame);
