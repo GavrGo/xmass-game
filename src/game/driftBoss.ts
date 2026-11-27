@@ -118,14 +118,28 @@ export const DRIFT = {
   repairMinGap: 150,
   repairChance: 0.004,
   repairHeal: 2,
-  repairReach: 26,
+  repairReach: 46,
   smokeMax: 90,
   sparkMax: 160,
   distPerPoint: 1000,
-  distMult: 1.05,
+  distMult: 1.07,
   coinPoints: 1,
   copKillPoints: 30,
   popLife: 1.1,
+  durabilityHp: 5,
+  insuranceInvuln: 2,
+  insuranceRamp: 6,
+  insuranceSlow: 0.55,
+  collectorBoost: 1.5,
+  collectorBoostPlus: 2,
+  slowmoSpeed: 290,
+  slowmoScale: 0.45,
+  slowmoTime: 0.9,
+  slowmoJumpsMin: 3,
+  slowmoJumpsMax: 4,
+  camZoomStart: 30,
+  camZoomRamp: 1.5,
+  camZoomOut: 0.5,
 };
 
 const VEC = [
@@ -179,6 +193,7 @@ interface CoinGen {
   on: boolean;
   left: number;
   pos: number;
+  acc: number;
 }
 
 export interface Track {
@@ -195,6 +210,7 @@ export interface Track {
   sinceRepair: number;
   repairs: Repair[];
   lastRamp: number;
+  coinBoost: number;
 }
 
 export interface Smoke {
@@ -321,7 +337,26 @@ export interface Game extends Pose {
   boomT: number;
   kills: number;
   pops: Pop[];
+  maxHealth: number;
+  bumpers: boolean;
+  insuranceLeft: number;
+  invulnT: number;
+  speedLag: number;
+  speedFrom: number;
+  speedTo: number;
+  slowT: number;
+  jumpsHigh: number;
+  jumpsNeed: number;
 }
+
+/** Навыки Drift Boss, открытые по уровню мастерства. */
+export interface НавыкиДрифта {
+  прочность: boolean;
+  страховка: number;      // сколько восстановлений доступно за забег
+  коллекционер: number;   // множитель количества монет на дороге
+}
+
+export const БЕЗ_НАВЫКОВ: НавыкиДрифта = { прочность: false, страховка: 0, коллекционер: 1 };
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -347,16 +382,21 @@ function randInt(lo: number, hi: number) {
 }
 
 function newCoinGen(): CoinGen {
-  return { on: false, left: randInt(DRIFT.coinGapMin, DRIFT.coinGapMax), pos: 0 };
+  return { on: false, left: randInt(DRIFT.coinGapMin, DRIFT.coinGapMax), pos: 0, acc: 0 };
 }
 
-function nextCoin(c: CoinGen): boolean {
+function nextCoin(c: CoinGen, boost = 1): boolean {
   if (c.left <= 0) {
     c.on = !c.on;
     c.left = c.on ? randInt(DRIFT.coinRunMin, DRIFT.coinRunMax) : randInt(DRIFT.coinGapMin, DRIFT.coinGapMax);
     c.pos = 0;
+    c.acc = 0;
   }
-  const coin = c.on && c.pos % DRIFT.coinStep === 0;
+  // Плотность монет в дорожке: шаг уменьшается пропорционально множителю.
+  const шаг = DRIFT.coinStep / Math.max(1, boost);
+  c.acc += 1;
+  const coin = c.on && c.acc >= шаг;
+  if (coin) c.acc -= шаг;
   c.left--;
   c.pos++;
   return coin;
@@ -364,7 +404,7 @@ function nextCoin(c: CoinGen): boolean {
 
 function push(t: Track) {
   const j = t.pts.length;
-  const coin = nextCoin(t.coinGen);
+  const coin = nextCoin(t.coinGen, t.coinBoost);
   const w = t.width;
   const pt: Pt = { x: t.x, y: t.y, dir: t.dir, w, lift: 0, coin, taken: false };
   t.pts.push(pt);
@@ -563,7 +603,7 @@ function growTrack(t: Track, minLen: number) {
   while (t.pts.length < minLen) addSegment(t);
 }
 
-function createTrack(): Track {
+function createTrack(coinBoost = 1): Track {
   const t: Track = {
     pts: [],
     alt: [],
@@ -578,6 +618,7 @@ function createTrack(): Track {
     sinceRepair: 0,
     repairs: [],
     lastRamp: -1e9,
+    coinBoost,
   };
   push(t);
   advance(t, DRIFT.startStraight, 0);
@@ -585,9 +626,10 @@ function createTrack(): Track {
   return t;
 }
 
-export function createGame(): Game {
+export function createGame(навыки: НавыкиДрифта = БЕЗ_НАВЫКОВ): Game {
+  const максЗдоровье = DRIFT.maxHealth + (навыки.прочность ? DRIFT.durabilityHp : 0);
   return {
-    track: createTrack(),
+    track: createTrack(навыки.коллекционер || 1),
     route: 0,
     idx: 0,
     x: 0,
@@ -605,6 +647,9 @@ export function createGame(): Game {
     air: false,
     dist: 0,
     coins: 0,
+    slowT: 0,
+    jumpsHigh: 0,
+    jumpsNeed: DRIFT.slowmoJumpsMin,
     phase: "play",
     fallT: 0,
     offT: 0,
@@ -620,7 +665,14 @@ export function createGame(): Game {
     ripples: [],
     paint: Math.floor(Math.random() * 8),
     marks: [],
-    health: DRIFT.maxHealth,
+    health: максЗдоровье,
+    maxHealth: максЗдоровье,
+    bumpers: навыки.прочность,
+    insuranceLeft: Math.max(0, Math.floor(навыки.страховка)),
+    invulnT: 0,
+    speedLag: 0,
+    speedFrom: DRIFT.speedStart,
+    speedTo: DRIFT.speedStart,
     boomT: 0,
     kills: 0,
     pops: [],
@@ -788,14 +840,16 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
         p.struck = true;
         g.kills++;
         g.pops.push({ x: p.x, y: p.y, z: p.lift + 16, age: 0 });
-        g.health = Math.max(0, g.health - 1);
-        if (g.health === 0) {
-          g.phase = "boom";
-          g.boomT = 0;
-          g.vx = 0;
-          g.vy = 0;
-          blast(g);
-          for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
+        if (g.invulnT <= 0) {
+          g.health = Math.max(0, g.health - 1);
+          if (g.health === 0 && !возродить(g)) {
+            g.phase = "boom";
+            g.boomT = 0;
+            g.vx = 0;
+            g.vy = 0;
+            blast(g);
+            for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
+          }
         }
       }
       const sp = Math.hypot(vx, vy) || 1;
@@ -906,12 +960,53 @@ function updateSplash(g: Game, dt: number) {
 }
 
 function beginFall(g: Game, best: number) {
+  if (возродить(g)) return;
   const p = routePts(g.track, g.route)[best];
   emitSplash(g, g.x, g.y);
   g.phase = "fall";
   g.fallT = 0;
   g.fallSide = sideOf(g, p);
   for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
+}
+
+/** Скорость по пройденной дистанции — штатная кривая разгона. */
+export function speedAt(g: Game) {
+  return Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
+}
+
+/** Страховка: ставит целую машину по центру дороги на месте гибели. */
+function возродить(g: Game): boolean {
+  if (g.insuranceLeft <= 0) return false;
+  g.insuranceLeft--;
+  const pts = routePts(g.track, g.route);
+  const p = pts[clamp(g.idx, 0, pts.length - 1)];
+  const baseSpeed = speedAt(g);
+  g.phase = "play";
+  g.health = g.maxHealth;
+  g.invulnT = DRIFT.insuranceInvuln;
+  g.fallT = 0;
+  g.boomT = 0;
+  g.offT = 0;
+  g.air = false;
+  g.vz = 0;
+  g.cool = 0;
+  g.slowT = 0;
+  g.x = p.x;
+  g.y = p.y;
+  g.z = p.lift;
+  g.ground = p.lift;
+  g.h = ANG[p.dir];
+  g.av = 0;
+  g.roll = 0;
+  g.pitch = 0;
+  g.speedFrom = baseSpeed * DRIFT.insuranceSlow;
+  g.speedTo = baseSpeed;
+  g.speedLag = DRIFT.insuranceRamp;
+  g.vx = Math.cos(g.h) * g.speedFrom;
+  g.vy = Math.sin(g.h) * g.speedFrom;
+  g.marks = [];
+  for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
+  return true;
 }
 
 function playerDrive(g: Game, holding: boolean, dt: number) {
@@ -922,7 +1017,14 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
   g.roll += (clamp(-g.av * DRIFT.rollPerAv, -DRIFT.rollMax, DRIFT.rollMax) - g.roll) * Math.min(1, DRIFT.rollRate * dt);
   const turning = Math.abs(g.av) > 0.05;
 
-  const speed = Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
+  const base = speedAt(g);
+  let speed = base;
+  if (g.speedLag > 0) {
+    g.speedLag = Math.max(0, g.speedLag - dt);
+    const k = 1 - g.speedLag / DRIFT.insuranceRamp;
+    speed = Math.min(base, g.speedFrom + (g.speedTo - g.speedFrom) * k);
+  }
+  if (g.invulnT > 0) g.invulnT = Math.max(0, g.invulnT - dt);
   const grip = g.air ? DRIFT.airGrip : turning ? DRIFT.slideGrip : DRIFT.grip;
   const k = Math.min(1, grip * dt);
   g.vx += (Math.cos(g.h) * speed - g.vx) * k;
@@ -968,6 +1070,14 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
   } else if (g.cool <= 0 && -sf.curv * speed * speed > DRIFT.gravity * DRIFT.launchK) {
     g.air = true;
     g.vz = speed * DRIFT.launchSlope;
+    if (speed >= DRIFT.slowmoSpeed) {
+      g.jumpsHigh++;
+      if (g.jumpsHigh >= g.jumpsNeed) {
+        g.jumpsHigh = 0;
+        g.jumpsNeed = DRIFT.slowmoJumpsMin + Math.floor(Math.random() * (DRIFT.slowmoJumpsMax - DRIFT.slowmoJumpsMin + 1));
+        g.slowT = DRIFT.slowmoTime;
+      }
+    }
   } else {
     g.z = sf.lift;
   }
@@ -975,7 +1085,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
   const pitchTarget = g.air ? Math.atan2(g.vz, speed) : Math.atan(sf.slope);
   g.pitch += (clamp(pitchTarget, -DRIFT.pitchMax, DRIFT.pitchMax) - g.pitch) * Math.min(1, DRIFT.pitchRate * dt);
 
-  const off = !g.air && offRoadWheels(g, g.track, best) >= DRIFT.wheelsOffToFall;
+  const off = g.invulnT <= 0 && !g.air && offRoadWheels(g, g.track, best) >= DRIFT.wheelsOffToFall;
   g.offT = off ? g.offT + dt : 0;
   if (g.offT > DRIFT.edgeGrace) {
     beginFall(g, best);
@@ -994,7 +1104,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
     if (r.taken || g.air || Math.abs(r.idx - g.idx) > 12) continue;
     if (Math.hypot(r.x - g.x, r.y - g.y) < DRIFT.repairReach) {
       r.taken = true;
-      g.health = Math.min(DRIFT.maxHealth, g.health + DRIFT.repairHeal);
+      g.health = Math.min(g.maxHealth, g.health + DRIFT.repairHeal);
     }
   }
 

@@ -8,7 +8,8 @@ import { useMastery, сБонусом } from "../lib/useMastery";
 import { useNoSwipes } from "../lib/useNoSwipes";
 import { стат } from "../lib/stats";
 import { getSafeTop } from "../lib/telegram";
-import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import { навыкиИгры, открытыеНавыки } from "../game/skills";
+import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
 type Status = "menu" | "play" | "stamp" | "over";
 interface Итог {
@@ -50,6 +51,8 @@ const hash = (n: number) => {
 const STAMP_HOLD = 2.4;
 const CHIP = new Image();
 CHIP.src = "/assets/icons/slot-chip.png";
+const WRENCH = new Image();
+WRENCH.src = "/assets/icons/wrench.svg";
 const WRECK_PAL: Palette = {
   top: "#1c1c1e",
   cabin: "#2a2a2d",
@@ -153,8 +156,20 @@ const shadeHex = (hex: string, f: number) => {
   return `rgb(${ch((n >> 16) & 255)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
 };
 
+// Отдаление камеры на разгоне: первые camZoomStart секунд поле не отъезжает,
+// дальше масштаб плавно уходит к (1 - camZoomOut) по мере роста скорости.
+function zoomOf(g: Game) {
+  if (g.phase !== "play" && g.phase !== "boom") return 1;
+  const gate = clamp01((g.t - DRIFT.camZoomStart) / DRIFT.camZoomRamp);
+  if (gate <= 0) return 1;
+  const speed = Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
+  const k = clamp01((speed - DRIFT.speedStart) / (DRIFT.speedMax - DRIFT.speedStart));
+  return 1 - DRIFT.camZoomOut * gate * k;
+}
+
 function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
-  const cam = g.phase === "play" || g.phase === "boom" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
+  const fallCam = g.phase === "play" || g.phase === "boom" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
+  const cam = fallCam * zoomOf(g);
   const s = (Math.min(W, H) / 300) * cam;
   const cx = isoX(g.x, g.y);
   const cy = isoY(g.x, g.y);
@@ -295,7 +310,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     }
   };
 
-  const drawVehicle = (v: Pose, pal: Palette, bar: boolean) => {
+  const drawVehicle = (v: Pose, pal: Palette, bar: boolean, bumper = false) => {
     const cc = Math.cos(v.h);
     const ss = Math.sin(v.h);
     const cp = Math.cos(v.pitch);
@@ -525,6 +540,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
         addFace(hub, [0, sb, 0], HUB);
       }
     }
+    if (bumper) {
+      const железо = "#101013";
+      box(20, 23, -10.5, 10.5, 2, 6, железо);
+      box(-23, -20, -10.5, 10.5, 2, 6, железо);
+    }
     if (bar) {
       const red = Math.floor(time * 6) % 2 === 0;
       box(-4, 2, -4.5, -0.5, 12, 14, red ? "#ff2d2d" : "#4a1414");
@@ -721,8 +741,17 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     ctx.globalCompositeOperation = "source-over";
   };
   const drawPlayer = () => {
-    drawVehicle(g, wrecked ? WRECK_PAL : PLAYER_PALS[g.paint], false);
+    drawVehicle(g, wrecked ? WRECK_PAL : PLAYER_PALS[g.paint], false, g.bumpers && !wrecked);
     if (wrecked) drawFlames(g.x, g.y, g.z);
+    if (g.invulnT > 0 && g.phase === "play") {
+      const [px, py] = P(g.x, g.y, g.z + 4);
+      const pulse = 0.4 + 0.25 * Math.sin(time * 14);
+      ctx.beginPath();
+      ctx.arc(px, py, (26 + 4 * Math.sin(time * 9)) * s, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(130,225,255,${pulse.toFixed(3)})`;
+      ctx.lineWidth = 2.5 * s;
+      ctx.stroke();
+    }
   };
   const drawCoin = (p: Pt, i: number) => {
     if (!p.coin || p.taken || !dotVisible(p.x, p.y, p.lift)) return;
@@ -752,6 +781,15 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
       ctx.arc(gx, gy, 26 * s, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalCompositeOperation = "source-over";
+      if (WRENCH.complete && WRENCH.naturalWidth > 0) {
+        const size = 30 * s;
+        ctx.save();
+        ctx.translate(gx, gy);
+        ctx.rotate(Math.sin(time * 1.5 + r.idx) * 0.25);
+        ctx.drawImage(WRENCH, -size / 2, -size / 2, size, size);
+        ctx.restore();
+        continue;
+      }
       ctx.save();
       ctx.translate(gx, gy);
       ctx.rotate(Math.PI / 4 + Math.sin(time * 1.5 + r.idx) * 0.2);
@@ -959,7 +997,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     const [hx, hy] = P(g.x, g.y, g.z + 40);
     const bw = 44 * s;
     const bh = 5 * s;
-    const frac = g.health / DRIFT.maxHealth;
+    const frac = g.health / g.maxHealth;
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(hx - bw / 2, hy - bh / 2, bw, bh);
     ctx.fillStyle = frac > 0.4 ? "#7bd88f" : frac > 0.2 ? "#f5c542" : "#ff5a4e";
@@ -974,10 +1012,18 @@ export default function DriftBoss() {
   const navigate = useNavigate();
   useNoSwipes();
 
+  const открытые = new Set(открытыеНавыки("drift", мастерство.уровень).map((н) => н.id));
+  const навыкиДрифта: НавыкиДрифта = {
+    прочность: открытые.has("durability") || открытые.has("durabilityPlus"),
+    страховка: открытые.has("insurancePlus") ? 2 : открытые.has("insurance") ? 1 : 0,
+    коллекционер: открытые.has("collectorPlus") ? 2 : открытые.has("collector") ? 1.5 : 1,
+  };
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const coinsRef = useRef<HTMLSpanElement>(null);
   const scoreRef = useRef<HTMLSpanElement>(null);
   const gameRef = useRef<Game | null>(null);
+  const навыкиRef = useRef(навыкиДрифта);
+  навыкиRef.current = навыкиДрифта;
   const statusRef = useRef<Status>("menu");
   const holdingRef = useRef(false);
   const [status, setStatus] = useState<Status>("menu");
@@ -1015,7 +1061,7 @@ export default function DriftBoss() {
   завершитьRef.current = завершить;
 
   const старт = () => {
-    gameRef.current = createGame();
+    gameRef.current = createGame(навыкиRef.current);
     стат("plays_drift");
     начатьЗабег();
     setИтог(null);
@@ -1081,10 +1127,13 @@ export default function DriftBoss() {
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
       time += dt;
-      if (!gameRef.current) gameRef.current = createGame();
+      if (!gameRef.current) gameRef.current = createGame(навыкиRef.current);
       const g = gameRef.current;
+      const slow = g.slowT > 0;
+      if (slow) g.slowT = Math.max(0, g.slowT - dt);
+      const gdt = slow ? dt * DRIFT.slowmoScale : dt;
       if (statusRef.current === "play") {
-        step(g, holdingRef.current, dt);
+        step(g, holdingRef.current, gdt);
         if (g.phase === "over") {
           statusRef.current = "stamp";
           stampAt = time;
@@ -1093,17 +1142,16 @@ export default function DriftBoss() {
           void завершитьRef.current(scoreOf(g));
         }
       } else if (statusRef.current === "stamp") {
-        step(g, false, dt);
+        step(g, false, gdt);
         if (time - stampAt > STAMP_HOLD) {
           statusRef.current = "over";
           setStatus("over");
         }
       } else if (statusRef.current === "over") {
-        step(g, false, dt);
+        step(g, false, gdt);
       }
       bw = g.phase === "play" || (g.phase === "boom" && g.boomT < 0.5) ? 0 : Math.min(1, bw + dt * 1.2);
       canvas.style.filter = bw > 0 ? `grayscale(${bw})` : "";
-      if (coinsRef.current) coinsRef.current.textContent = String(g.coins);
       if (scoreRef.current) scoreRef.current.textContent = String(scoreOf(g));
       draw(ctx, g, W, H, time);
       raf = requestAnimationFrame(frame);
@@ -1134,10 +1182,6 @@ export default function DriftBoss() {
           className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3"
           style={{ paddingTop: getSafeTop() + 12 }}
         >
-          <div className="flex items-center gap-1.5 rounded-full bg-black/40 py-1 pl-1 pr-3">
-            <img src="/assets/icons/slot-chip.png" alt="" className="h-7 w-7" />
-            <span ref={coinsRef} className="text-base font-extrabold text-white">0</span>
-          </div>
           <span ref={scoreRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
             0
           </span>
@@ -1149,6 +1193,7 @@ export default function DriftBoss() {
           колонка="best_drift_boss"
           название={Т.игры.дрифтБосс.название}
           мастерство={мастерство}
+          навыки={навыкиИгры("drift")}
           onСтарт={старт}
           onНазад={() => navigate("/games")}
         />

@@ -1,8 +1,8 @@
 import { ПЛЮС_НАВЫКИ } from "../config";
 
-export type ИграСНавыками = "ksuha" | "babka" | "match3";
+export type ИграСНавыками = "ksuha" | "babka" | "match3" | "drift";
 
-export type ИдНавыка = "dash" | "armor" | "spiderSense" | "resurrection" | "repair" | "berserk" | "piggy" | "boom" | "tactic" | "piggyPlus" | "boomPlus" | "tacticPlus" | "resurrectionPlus" | "repairPlus" | "berserkPlus" | "dashPlus" | "armorPlus" | "spiderSensePlus";
+export type ИдНавыка = "dash" | "armor" | "spiderSense" | "resurrection" | "repair" | "berserk" | "piggy" | "boom" | "tactic" | "durability" | "insurance" | "collector" | "piggyPlus" | "boomPlus" | "tacticPlus" | "resurrectionPlus" | "repairPlus" | "berserkPlus" | "dashPlus" | "armorPlus" | "spiderSensePlus" | "durabilityPlus" | "insurancePlus" | "collectorPlus";
 
 export interface Навык {
   id: ИдНавыка;
@@ -167,6 +167,58 @@ export const НАВЫКИ: Навык[] = [
     название: "Паучье чутьё+",
     описание: "Монетки и подарки притягиваются к игроку как магнит",
     иконка: "🕸️",
+  },
+  // ---------- DRIFT BOSS ----------
+  {
+    id: "durability",
+    игра: "drift",
+    уровень: 1,
+    название: "Прочность",
+    описание: "Кузов крепче на 5 единиц здоровья, спереди и сзади появляются чёрные бамперы",
+    иконка: "🛡️",
+  },
+  {
+    id: "insurance",
+    игра: "drift",
+    уровень: 2,
+    название: "Страховка",
+    описание: "Один раз за забег машина цела: на дороге, с полным здоровьем, 2 секунды неуязвимости и плавный разгон обратно до прежней скорости за 6 секунд",
+    иконка: "⛑️",
+  },
+  {
+    id: "collector",
+    игра: "drift",
+    уровень: 3,
+    название: "Коллекционер",
+    описание: "Монет на дороге на 50% больше",
+    иконка: "🪙",
+  },
+  {
+    id: "durabilityPlus",
+    игра: "drift",
+    плюсДля: "durability",
+    уровень: ПЛЮС_НАВЫКИ.уровни.прочностьПлюс,
+    название: "Прочность+",
+    описание: "Кузов крепче на 10 единиц здоровья вместо 5",
+    иконка: "🛡️",
+  },
+  {
+    id: "insurancePlus",
+    игра: "drift",
+    плюсДля: "insurance",
+    уровень: ПЛЮС_НАВЫКИ.уровни.страховкаПлюс,
+    название: "Страховка+",
+    описание: "Два восстановления за забег вместо одного",
+    иконка: "⛑️",
+  },
+  {
+    id: "collectorPlus",
+    игра: "drift",
+    плюсДля: "collector",
+    уровень: ПЛЮС_НАВЫКИ.уровни.коллекционерПлюс,
+    название: "Коллекционер+",
+    описание: "Монет на дороге вдвое больше",
+    иконка: "🪙",
   },
 ];
 
