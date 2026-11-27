@@ -620,6 +620,7 @@ export const Т = {
         plays_jira: "Jira Fight",
         plays_babka: "Babka Crash",
         plays_blackjack: "Black Jack",
+        plays_drift: "Drift Boss",
         duels_sent: "Дуэли",
       },
     },

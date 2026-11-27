@@ -6,6 +6,7 @@ import GameResult from "../components/GameResult";
 import { useUser } from "../store/UserContext";
 import { useMastery, сБонусом } from "../lib/useMastery";
 import { useNoSwipes } from "../lib/useNoSwipes";
+import { стат } from "../lib/stats";
 import { getSafeTop } from "../lib/telegram";
 import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
@@ -780,17 +781,21 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   ctx.stroke();
   ctx.fillStyle = ASPHALT;
   ctx.fill();
-  for (let i = from; i < to; i++) {
-    if (!dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
-    for (const arr of routesAt(i)) {
-      for (let j = 0; j < 6; j++) {
-        const [sx, sy] = segPoint(arr, i, (j + 0.2 + 0.6 * hash(i * 5 + j)) / 6, -0.85 + 1.7 * hash(i * 7 + j + 0.5), 0);
-        ctx.beginPath();
-        ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
-        ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.45)";
-        ctx.fill();
+  for (const light of [false, true]) {
+    ctx.beginPath();
+    for (let i = from; i < to; i++) {
+      for (const arr of routesAt(i)) {
+        for (let j = 0; j < 6; j++) {
+          if (hash(i * 11 + j) > 0.5 !== light) continue;
+          const [sx, sy] = segPoint(arr, i, (j + 0.2 + 0.6 * hash(i * 5 + j)) / 6, -0.85 + 1.7 * hash(i * 7 + j + 0.5), 0);
+          const r = (0.6 + 1.1 * hash(i * 3 + j)) * s;
+          ctx.moveTo(sx + r, sy);
+          ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        }
       }
     }
+    ctx.fillStyle = light ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.45)";
+    ctx.fill();
   }
 
   const drawCopGlow = (c: Cop) => {
@@ -984,7 +989,8 @@ export default function DriftBoss() {
   const завершить = async (очки: number) => {
     const { user: u, change: изменить, начислить: начислитьМастерство, бонус: б } = свежее.current;
     if (!u) return;
-    const награда = сБонусом(посчитатьНаградуДрифта(очки, u.salary_level), б);
+    const расчёт = посчитатьНаградуДрифта(очки, u.salary_level);
+    const награда = { сумма: очки, бонусПроц: расчёт.бонусПроц, итого: Math.round(расчёт.итого * б) };
     const прежний = u.best_drift_boss ?? 0;
     const новыйРекорд = очки > прежний;
     setИтог({ очки, награда, личный: Math.max(очки, прежний), сохранение: "идёт" });
@@ -1010,6 +1016,7 @@ export default function DriftBoss() {
 
   const старт = () => {
     gameRef.current = createGame();
+    стат("plays_drift");
     начатьЗабег();
     setИтог(null);
     statusRef.current = "play";

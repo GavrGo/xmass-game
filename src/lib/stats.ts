@@ -3,7 +3,7 @@ import { getTelegramId } from "./telegram";
 
 export type ПолеСтатистики =
   | "seconds_in_game" | "slot_spins" | "wheel_spins"
-  | "plays_ksuha" | "plays_match3" | "plays_puzzle" | "plays_jira" | "plays_babka" | "plays_blackjack"
+  | "plays_ksuha" | "plays_match3" | "plays_puzzle" | "plays_jira" | "plays_babka" | "plays_blackjack" | "plays_drift"
   | "wheel_x3" | "wheel_x5" | "wheel_x10" | "wheel_x100" | "wheel_wins" | "wheel_losses" | "slot_bombs";
 
 export function стат(поле: ПолеСтатистики, n = 1) {
@@ -45,6 +45,7 @@ export interface СтрокаСтатистики {
   plays_jira: number;
   plays_babka: number;
   plays_blackjack: number;
+  plays_drift: number;
   duels_sent: number;
   wheel_x3?: number;
   wheel_x5?: number;

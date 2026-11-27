@@ -123,7 +123,7 @@ export const DRIFT = {
   sparkMax: 160,
   distPerPoint: 1000,
   distMult: 1.05,
-  coinPoints: 10,
+  coinPoints: 1,
   copKillPoints: 30,
   popLife: 1.1,
 };
@@ -1156,8 +1156,10 @@ function copDrive(g: Game, c: Cop, dt: number) {
     c.fallT = 0;
     c.fallSide = sideOf(c, pts[c.idx]);
     emitSplash(g, c.x, c.y);
-    g.kills++;
-    g.pops.push({ x: c.x, y: c.y, z: c.ground + 16, age: 0 });
+    if (g.phase === "play") {
+      g.kills++;
+      g.pops.push({ x: c.x, y: c.y, z: c.ground + 16, age: 0 });
+    }
   }
   if (c.phase === "enter" && c.age > DRIFT.copEnterTau * 3) c.phase = "chase";
 }
@@ -1332,9 +1334,9 @@ export function step(g: Game, holding: boolean, dt: number) {
 }
 
 export function scoreOf(g: Game) {
-  const distPts = Math.floor(g.dist / DRIFT.distPerPoint);
-  const base = distPts + g.coins * DRIFT.coinPoints + g.kills * DRIFT.copKillPoints;
-  return Math.floor(base * Math.pow(DRIFT.distMult, distPts));
+  const n = Math.floor(g.dist / DRIFT.distPerPoint);
+  const distScore = Math.floor((Math.pow(DRIFT.distMult, n) - 1) / (DRIFT.distMult - 1));
+  return distScore + g.coins * DRIFT.coinPoints + g.kills * DRIFT.copKillPoints;
 }
 
 export function посчитатьНаградуДрифта(очки: number, уровеньЗП: number) {
