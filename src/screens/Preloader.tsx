@@ -1,11 +1,9 @@
 import { Картинка } from "../components/Icon";
 import { АССЕТЫ } from "../config";
 import { Т } from "../texts";
-import { useАссеты } from "../lib/assets";
 
 // Фон: public/assets/backgrounds/preloader.png (во весь экран)
-export default function Прелоадер() {
-  useАссеты();
+export default function Прелоадер({ доля }: { доля: number }) {
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center overflow-hidden text-center"
@@ -29,6 +27,10 @@ export default function Прелоадер() {
 
       {/* Пустое место под мешок на фоне */}
       <div className="flex-1" />
+
+      <div className="mb-6 h-1.5 w-56 overflow-hidden rounded-full bg-white/20">
+        <div className="h-full rounded-full bg-white transition-[width] duration-200" style={{ width: `${Math.round(доля * 100)}%` }} />
+      </div>
 
       {/* Подвал */}
       <p className="mb-8 max-w-xs text-[11px] leading-relaxed text-white/60">{Т.прелоадер.подвал}</p>

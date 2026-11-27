@@ -19,7 +19,7 @@ import DriftBoss from "./screens/DriftBoss";
 import AdminPage from "./admin/AdminPage";
 import { ПРЕЛОАДЕР } from "./config";
 import { Т } from "./texts";
-import { загрузитьСписокФайлов } from "./lib/assets";
+import { загрузитьСписокФайлов, useПредзагрузкаUI } from "./lib/assets";
 import { звук } from "./lib/sound";
 import { запуститьУчётВремени } from "./lib/stats";
 import { обработатьПросроченные } from "./api/duels";
@@ -31,6 +31,7 @@ const Центр = ({ children }: { children: React.ReactNode }) => (
 // Основная игра: заставка → онбординг для новых → вкладки для остальных
 function Game() {
   const { user, loading, error, telegramId } = useUser();
+  const { готово: uiГотов, доля } = useПредзагрузкаUI();
   const [заставкаПоказана, setЗаставкаПоказана] = useState(false);
 
   useEffect(() => {
@@ -50,7 +51,7 @@ function Game() {
     }
   }, [игрокЕсть]);
 
-  if (loading || !заставкаПоказана) return <Прелоадер />;
+  if (loading || !заставкаПоказана || !uiГотов) return <Прелоадер доля={доля} />;
   if (error) return <Центр>{Т.общее.ошибка(error)}</Центр>;
   if (!telegramId) return <Центр>{Т.приложение.откройтеЧерезТелеграм}</Центр>;
   if (!user) return <Onboarding />; // новый игрок → онбординг

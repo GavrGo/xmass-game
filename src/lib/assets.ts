@@ -43,3 +43,29 @@ export function стильФона(ключ: keyof typeof АССЕТЫ.фоны)
   if (естьФайл(путь) !== true) return undefined;
   return { backgroundImage: `url(/${путь})`, backgroundSize: "cover", backgroundPosition: "center" };
 }
+
+const загруженные: HTMLImageElement[] = [];
+
+export async function предзагрузитьUI(папка: string, onProgress: (доля: number) => void): Promise<void> {
+  await загрузитьСписокФайлов();
+  const пути = [...(файлы ?? [])].filter((п) => п.startsWith(папка) && /\.(png|jpe?g|webp|gif)$/i.test(п));
+  if (!пути.length) { onProgress(1); return; }
+  let готово = 0;
+  await Promise.all(пути.map((п) => {
+    const img = new Image();
+    загруженные.push(img);
+    img.src = `/${п}`;
+    return img.decode().catch(() => {}).then(() => { готово++; onProgress(готово / пути.length); });
+  }));
+}
+
+export function useПредзагрузкаUI(): { готово: boolean; доля: number } {
+  const [доля, setДоля] = useState(0);
+  const [готово, setГотово] = useState(false);
+  useEffect(() => {
+    let жив = true;
+    предзагрузитьUI(АССЕТЫ.папки.ui, (д) => { if (жив) setДоля(д); }).then(() => { if (жив) setГотово(true); });
+    return () => { жив = false; };
+  }, []);
+  return { готово, доля };
+}

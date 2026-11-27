@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Т } from "../texts";
 import Эм from "../components/Emoji";
@@ -20,7 +20,7 @@ import {
   сгенерироватьУровень, времяУровня, наградаДжира, доскНаУровне,
 } from "../game/jira";
 
-type Фаза = "menu" | "playing" | "over";
+type Фаза = "menu" | "playing" | "ending" | "over";
 
 interface Итог {
   база: number;
@@ -47,6 +47,19 @@ function Задача({ цвет }: { цвет: string }) {
   );
 }
 
+function Всплытие({ children }: { children: ReactNode }) {
+  const [видно, setВидно] = useState(false);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setВидно(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+  return (
+    <div style={{ opacity: видно ? 1 : 0, transform: видно ? undefined : "translateY(24px)", transition: "opacity 0.5s ease, transform 0.5s ease" }}>
+      {children}
+    </div>
+  );
+}
+
 export default function JiraFight() {
   const { user, change } = useUser();
   const { бонус, мастерство, начатьЗабег, шкала, начислить: начислитьМастерство } = useMastery("jira");
@@ -65,6 +78,7 @@ export default function JiraFight() {
   const [тряска, setТряска] = useState<number | null>(null);
   const [фишекСессии, setФишекСессии] = useState(0);
   const [итог, setИтог] = useState<Итог | null>(null);
+  const [надпись, setНадпись] = useState(false);
 
   const доскиRef = useRef<Доски>([]);
   const уровеньRef = useRef(1);
@@ -147,6 +161,7 @@ export default function JiraFight() {
     рекордRef.current = свежее.current.user?.best_jira_level ?? 0;
     играЗакончена.current = false;
     setИтог(null);
+    setНадпись(false);
     начатьУровень(1);
   };
 
@@ -159,7 +174,12 @@ export default function JiraFight() {
     setВыбрана(null);
     const личный = () => Math.max(рекордRef.current, сессия.current.уровней);
     setИтог({ причина, уровней: сессия.current.уровней, фишек: сессия.current.фишек, база: сессия.current.сырых, личный: личный(), глобальный: undefined });
-    setФаза("over");
+    if (причина === "выход") setФаза("over");
+    else {
+      setФаза("ending");
+      setTimeout(() => setНадпись(true), 900);
+      setTimeout(() => setФаза("over"), 2400);
+    }
     if (причина !== "выход") звук.sfx("поражение"); // ← звук проигрыша
     await очередь.current; // дожидаемся всех зачислений
     setИтог((п) => (п ? { ...п, фишек: сессия.current.фишек } : п));
@@ -178,7 +198,7 @@ export default function JiraFight() {
   const уровеньПройден = () => {
     const L = уровеньRef.current;
     const { user: u, режим: р } = свежее.current;
-    const наградаЗаУровень = наградаДжира(К.награды.заУровень, р, u?.salary_level ?? 0);
+    const наградаЗаУровень = наградаДжира(К.награды.заУровень, р, u?.salary_level ?? 0, L);
     const новыйРекорд = L > рекордRef.current;
     if (новыйРекорд) рекордRef.current = L;
     сессия.current.уровней = L;
@@ -201,7 +221,7 @@ export default function JiraFight() {
     // Доска собрана — награда (один раз за доску)
     if (завершена(рез.доски[b]) && !награждённые.current.has(b)) {
       награждённые.current.add(b);
-      const н = наградаДжира(К.награды.заДоску, р, u?.salary_level ?? 0);
+      const н = наградаДжира(К.награды.заДоску, р, u?.salary_level ?? 0, уровеньRef.current);
       показатьТост(Т.игры.jira.тостДоска(н));
       звук.sfx("бонус"); // ← звук закрытой доски
       начислить(н);
@@ -273,7 +293,7 @@ export default function JiraFight() {
       )}
 
       {/* Доски */}
-      <div className="mt-4 flex w-full max-w-md flex-wrap justify-center gap-3">
+      <div className="mt-4 flex w-full max-w-md flex-wrap justify-center gap-3" style={{ filter: фаза === "ending" || фаза === "over" ? "grayscale(1)" : "none", transition: "filter 0.9s ease" }}>
         {доски.map((д, i) => {
           const готова = завершена(д);
           const выб = выбрана === i;
@@ -313,6 +333,17 @@ export default function JiraFight() {
         </div>
       )}
 
+      {фаза === "ending" && итог && (
+        <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center">
+          <span
+            className="rounded-2xl bg-black/75 px-6 py-3 text-2xl font-extrabold text-white shadow-xl"
+            style={{ opacity: надпись ? 1 : 0, transform: надпись ? "scale(1)" : "scale(0.8)", transition: "opacity 0.5s ease, transform 0.5s ease" }}
+          >
+            {итог.причина === "время" ? ТЖ.итог.времяВышло : ТЖ.итог.нетХодов}
+          </span>
+        </div>
+      )}
+
       {/* ===== МЕНЮ ===== */}
       {фаза === "menu" && (
         <GameMenu
@@ -335,7 +366,8 @@ export default function JiraFight() {
 
       {/* ===== ИТОГ ===== */}
       {фаза === "over" && итог && (
-        <GameResult
+        <Всплытие>
+          <GameResult
           заголовок={итог.причина === "время" ? ТЖ.итог.времяВышло : итог.причина === "нет ходов" ? ТЖ.итог.нетХодов : ТЖ.итог.завершена}
           база={итог.база}
           прокачкаПроц={бонусЗарплатыПроц({ salary_level: user?.salary_level ?? 0 })}
@@ -349,6 +381,7 @@ export default function JiraFight() {
           основная={{ подпись: Т.общее.игратьЕщё, onClick: старт }}
           вторичная={{ подпись: Т.общее.кСпискуИгр, onClick: () => navigate("/games") }}
         />
+        </Всплытие>
       )}
 
     </div>
