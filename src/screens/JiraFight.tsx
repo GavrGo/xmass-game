@@ -180,7 +180,7 @@ export default function JiraFight() {
       setФаза("ending");
       setФразаНетХодов(ТЖ.фразыНетХодов[Math.floor(Math.random() * ТЖ.фразыНетХодов.length)]);
       setTimeout(() => setНадпись(true), 900);
-      setTimeout(() => setФаза("over"), 2400);
+      setTimeout(() => setФаза("over"), 3300);
     }
     if (причина !== "выход") звук.sfx("поражение"); // ← звук проигрыша
     await очередь.current; // дожидаемся всех зачислений
@@ -338,7 +338,7 @@ export default function JiraFight() {
       {фаза === "ending" && итог && (
         <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center">
           <span
-            className="rounded-2xl bg-black/75 px-6 py-3 text-2xl font-extrabold text-white shadow-xl"
+            className="max-w-[85vw] rounded-2xl bg-black/75 px-5 py-3 text-center text-base font-extrabold leading-snug text-white shadow-xl"
             style={{ opacity: надпись ? 1 : 0, transform: надпись ? "scale(1)" : "scale(0.8)", transition: "opacity 0.5s ease, transform 0.5s ease" }}
           >
             {итог.причина === "время" ? ТЖ.итог.времяВышло : фразаНетХодов}
