@@ -270,32 +270,28 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
     q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
   };
+  const area = (q: [number, number][]) => {
+    let sum = 0;
+    for (let k = 0; k < q.length; k++) {
+      const [x1, y1] = q[k];
+      const [x2, y2] = q[(k + 1) % q.length];
+      sum += x1 * y2 - x2 * y1;
+    }
+    return sum;
+  };
+  const refSign = Math.sign(area(segQuad(pts, from, 0)));
+  const capQuad = (p: Pt, dz: number) => {
+    const ring = regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz));
+    return Math.sign(area(ring)) === refSign ? ring : ring.reverse();
+  };
   const roadPath = (dz: number) => {
     ctx.beginPath();
-    for (let i = from; i < to; i++) for (const arr of routesAt(i)) addQuad(segQuad(arr, i, dz));
-  };
-  const bendCaps = (dz: number, color: string) => {
-    ctx.fillStyle = color;
-    for (let i = from + 1; i < to; i++) {
+    for (let i = from; i < to; i++) {
       for (const arr of routesAt(i)) {
-        if (!bendsAt(arr, i)) continue;
-        const p = arr[i];
-        ctx.beginPath();
-        addQuad(regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz)));
-        ctx.fill();
+        addQuad(segQuad(arr, i, dz));
+        if (i > from && bendsAt(arr, i)) addQuad(capQuad(arr[i], dz));
       }
     }
-  };
-  const edgeLine = (arr: Pt[], side: number) => {
-    ctx.beginPath();
-    for (let i = from; i < to; i++) {
-      const [x, y] = segPoint(arr, i, 0, side, 0);
-      if (i === from) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    const [x, y] = segPoint(arr, to - 1, 1, side, 0);
-    ctx.lineTo(x, y);
-    ctx.stroke();
   };
 
   const drawVehicle = (v: Pose, pal: Palette, bar: boolean) => {
@@ -777,23 +773,21 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   roadPath(-WALL_H);
   ctx.fillStyle = WALL;
   ctx.fill();
-  bendCaps(-WALL_H, WALL);
   roadPath(0);
-  ctx.fillStyle = ASPHALT;
-  ctx.fill();
-  bendCaps(0, ASPHALT);
   ctx.lineJoin = "round";
   ctx.strokeStyle = ROAD_EDGE;
   ctx.lineWidth = 2.4 * s;
-  for (const arr of [pts, alt]) for (const side of [-1, 1]) edgeLine(arr, side);
+  ctx.stroke();
+  ctx.fillStyle = ASPHALT;
+  ctx.fill();
   for (let i = from; i < to; i++) {
     if (!dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
     for (const arr of routesAt(i)) {
-      for (let j = 0; j < 4; j++) {
-        const [sx, sy] = segPoint(arr, i, hash(i * 5 + j * 3 + 0.25), -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
+      for (let j = 0; j < 6; j++) {
+        const [sx, sy] = segPoint(arr, i, (j + 0.2 + 0.6 * hash(i * 5 + j)) / 6, -0.85 + 1.7 * hash(i * 7 + j + 0.5), 0);
         ctx.beginPath();
         ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
-        ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.28)";
+        ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.45)";
         ctx.fill();
       }
     }
@@ -825,9 +819,11 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
   for (let b = 1; b <= CREST_BANDS; b++) {
     ctx.beginPath();
     for (let i = from; i < to; i++) {
-      const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
-      if (Math.ceil(crest * CREST_BANDS) !== b) continue;
-      for (const arr of routesAt(i)) addQuad(segQuad(arr, i, 0));
+      for (const arr of routesAt(i)) {
+        const crest = clamp01(((arr[i].lift + arr[i + 1].lift) / 2) / DRIFT.rampHeight);
+        if (Math.ceil(crest * CREST_BANDS) !== b) continue;
+        addQuad(segQuad(arr, i, 0));
+      }
     }
     ctx.fillStyle = `rgba(255,255,255,${((0.3 * b) / CREST_BANDS).toFixed(3)})`;
     ctx.fill();
@@ -1025,6 +1021,19 @@ export default function DriftBoss() {
   };
 
   useEffect(() => {
+    const blockTouch = (e: TouchEvent) => {
+      if (statusRef.current === "play") e.preventDefault();
+    };
+    const blockSelect = (e: Event) => e.preventDefault();
+    window.addEventListener("touchstart", blockTouch, { passive: false });
+    document.addEventListener("selectstart", blockSelect);
+    return () => {
+      window.removeEventListener("touchstart", blockTouch);
+      document.removeEventListener("selectstart", blockSelect);
+    };
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     let W = 0;
@@ -1119,7 +1128,7 @@ export default function DriftBoss() {
           style={{ paddingTop: getSafeTop() + 12 }}
         >
           <div className="flex items-center gap-1.5 rounded-full bg-black/40 py-1 pl-1 pr-3">
-            <span className="h-7 w-7 rounded-full bg-gradient-to-b from-yellow-200 to-yellow-500 ring-2 ring-yellow-700" />
+            <img src="/assets/icons/slot-chip.png" alt="" className="h-7 w-7" />
             <span ref={coinsRef} className="text-base font-extrabold text-white">0</span>
           </div>
           <span ref={scoreRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">

@@ -116,12 +116,13 @@ export const DRIFT = {
   smokeChance: 0.35,
   copCull: 200,
   repairMinGap: 150,
-  repairChance: 0.008,
+  repairChance: 0.004,
   repairHeal: 2,
   repairReach: 26,
   smokeMax: 90,
   sparkMax: 160,
-  distPerPoint: 100,
+  distPerPoint: 1000,
+  distMult: 1.05,
   coinPoints: 10,
   copKillPoints: 30,
   popLife: 1.1,
@@ -1331,7 +1332,9 @@ export function step(g: Game, holding: boolean, dt: number) {
 }
 
 export function scoreOf(g: Game) {
-  return Math.floor(g.dist / DRIFT.distPerPoint) + g.coins * DRIFT.coinPoints + g.kills * DRIFT.copKillPoints;
+  const distPts = Math.floor(g.dist / DRIFT.distPerPoint);
+  const base = distPts + g.coins * DRIFT.coinPoints + g.kills * DRIFT.copKillPoints;
+  return Math.floor(base * Math.pow(DRIFT.distMult, distPts));
 }
 
 export function посчитатьНаградуДрифта(очки: number, уровеньЗП: number) {
