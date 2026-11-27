@@ -30,6 +30,44 @@ async function этоАдмин(telegramId) {
   return Array.isArray(rows) && rows.length > 0;
 }
 
+const ФОТО_ЛИМИТ = 4 * 1024 * 1024;
+const ПОДПИСЬ_ЛИМИТ = 1024;
+
+function разобратьФото(dataUrl) {
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl));
+  if (!m) return null;
+  const buf = Buffer.from(m[1], "base64");
+  return buf.length > 0 && buf.length <= ФОТО_ЛИМИТ ? new Blob([buf], { type: "image/jpeg" }) : null;
+}
+
+async function вызов(бот, метод, init) {
+  const r = await fetch(`https://api.telegram.org/bot${бот}/${метод}`, { method: "POST", ...init });
+  return r.json();
+}
+
+async function отправитьСообщение(бот, chatId, текст, фото) {
+  if (!фото) {
+    const j = await вызов(бот, "sendMessage", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: текст }),
+    });
+    return j.ok;
+  }
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  form.append("photo", фото, "photo.jpg");
+  const подпись = текст && текст.length <= ПОДПИСЬ_ЛИМИТ;
+  if (подпись) form.append("caption", текст);
+  const j = await вызов(бот, "sendPhoto", { body: form });
+  if (!j.ok) return false;
+  if (!текст || подпись) return true;
+  const k = await вызов(бот, "sendMessage", {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: текст }),
+  });
+  return k.ok;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false });
   const бот = токен();
@@ -37,7 +75,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: "Не заданы BOT_TOKEN, SUPABASE_URL или SUPABASE_ANON_KEY" });
   }
 
-  const { initData, text, ids } = req.body || {};
+  const { initData, text, ids, photo } = req.body || {};
   const юзер = проверитьInitData(String(initData || ""), бот);
   if (!юзер || !(await этоАдмин(юзер.id))) {
     return res.status(403).json({ ok: false, error: "Нет доступа" });
@@ -45,7 +83,9 @@ export default async function handler(req, res) {
 
   const текст = String(text || "").trim().slice(0, 4000);
   const список = (Array.isArray(ids) ? ids : []).slice(0, 25).map(Number).filter(Boolean);
-  if (!текст || список.length === 0) {
+  const фото = photo ? разобратьФото(photo) : null;
+  if (photo && !фото) return res.status(400).json({ ok: false, error: "Фото должно быть JPEG не больше 4 МБ" });
+  if ((!текст && !фото) || список.length === 0) {
     return res.status(400).json({ ok: false, error: "Пустой текст или список получателей" });
   }
 
@@ -54,12 +94,7 @@ export default async function handler(req, res) {
   await Promise.all(
     список.map(async (chatId) => {
       try {
-        const j = await fetch(`https://api.telegram.org/bot${бот}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, text: текст }),
-        }).then((r) => r.json());
-        if (j.ok) sent++;
+        if (await отправитьСообщение(бот, chatId, текст, фото)) sent++;
         else failed++;
       } catch {
         failed++;
