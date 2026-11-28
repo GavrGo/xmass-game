@@ -204,6 +204,7 @@ export interface Track {
   pts: Pt[];
   alt: Pt[];
   width: number;
+  сложность: СложностьДрифта;
   forkEnd: number;
   props: Prop[];
   x: number;
@@ -337,6 +338,7 @@ export interface Game extends Pose {
   ripples: { x: number; y: number; age: number }[];
   paint: number;
   model: number;
+  сложность: СложностьДрифта;
   marks: Mark[];
   health: number;
   boomT: number;
@@ -374,10 +376,55 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function widthAt(d: number) {
+/**
+ * Сложность заезда.
+ * normal   — штатные правила: полный разгон, дорога чередует узкие и широкие зоны.
+ * training — «Тренировочный»: разгон вдвое медленнее, дорога почти не сужается,
+ *            фишки идут с множителем 0.25 и в рекорды такой заезд не попадает.
+ */
+export type СложностьДрифта = "normal" | "training";
+
+export interface ПравилаСложности {
+  название: string;
+  подпись?: string;
+  /** <1 — скорость набирается медленнее (0.5 = в два раза). */
+  множительРазгона: number;
+  /** Доля узких зон: 0 — штатное чередование, 0.1 — сужение раз в 10 зон. */
+  доляУзкихЗон: number;
+  множительНаград: number;
+  вРекордах: boolean;
+}
+
+export const ДРИФТ_СЛОЖНОСТИ: Record<СложностьДрифта, ПравилаСложности> = {
+  normal: {
+    название: "Обычный",
+    подпись: "Полный разгон, дорога сужается как обычно",
+    множительРазгона: 1,
+    доляУзкихЗон: 0,
+    множительНаград: 1,
+    вРекордах: true,
+  },
+  training: {
+    название: "Тренировочный",
+    подпись: "Разгон в 2 раза медленнее, дороги почти не сужаются",
+    множительРазгона: 0.5,
+    доляУзкихЗон: 0.1,
+    множительНаград: 0.25,
+    вРекордах: false,
+  },
+};
+
+function widthAt(d: number, сложность: СложностьДрифта = "normal") {
   const s = d / 10;
   if (s < DRIFT.wideFirst) return DRIFT.wideWidth;
-  return Math.floor((s - DRIFT.wideFirst) / DRIFT.zoneLen) % 2 === 0 ? DRIFT.narrowWidth : DRIFT.wideWidth;
+  const зона = Math.floor((s - DRIFT.wideFirst) / DRIFT.zoneLen);
+  const доля = ДРИФТ_СЛОЖНОСТИ[сложность].доляУзкихЗон;
+  if (доля > 0) {
+    // Тренировка: узкая зона попадается редко, остальное время дорога широкая.
+    const шаг = Math.max(2, Math.round(1 / доля));
+    return зона > 0 && зона % шаг === 0 ? DRIFT.narrowWidth : DRIFT.wideWidth;
+  }
+  return зона % 2 === 0 ? DRIFT.narrowWidth : DRIFT.wideWidth;
 }
 
 export function routePts(track: Track, route: number) {
@@ -596,7 +643,7 @@ function addSegment(t: Track) {
     buildFork(t);
     return;
   }
-  t.width = t.pts.length - 1 === t.forkEnd ? DRIFT.wideWidth : widthAt(t.pts.length * DRIFT.sample);
+  t.width = t.pts.length - 1 === t.forkEnd ? DRIFT.wideWidth : widthAt(t.pts.length * DRIFT.sample, t.сложность);
   const len = DRIFT.segMin + Math.random() * (DRIFT.segMax - DRIFT.segMin);
   const start = t.pts.length;
   const steps = advance(t, len, 1 - t.dir);
@@ -615,11 +662,12 @@ function growTrack(t: Track, minLen: number) {
   while (t.pts.length < minLen) addSegment(t);
 }
 
-function createTrack(coinBoost = 1): Track {
+function createTrack(coinBoost = 1, сложность: СложностьДрифта = "normal"): Track {
   const t: Track = {
     pts: [],
     alt: [],
     width: DRIFT.wideWidth,
+    сложность,
     forkEnd: -1,
     props: [],
     x: 0,
@@ -638,15 +686,27 @@ function createTrack(coinBoost = 1): Track {
   return t;
 }
 
-// Ротация моделей между заездами. Счётчик живёт на уровне модуля, а не в компоненте:
-// иначе при перемонтировании экрана он сбрасывается и каждый заезд начинается с базовой машины.
-let счётчикМоделей = 0;
+// Выбор модели машины на заезд. История живёт на уровне модуля, а не в компоненте:
+// иначе при перемонтировании экрана она сбрасывается.
+// Правило: машина случайная, но не повторяется в этом заезде и в двух предыдущих.
+// То есть выпавшая в первом заезде модель снова доступна только с четвёртого.
+const ОКНО_ИСТОРИИ = Math.max(1, Math.min(2, CAR_MODEL_COUNT - 1));
+let историяМоделей: number[] = [];
 
-/** Следующая модель по кругу: 0, 1, 2, … (stock → muscle → supercar → tuned → suv). */
+/** Случайная модель, которой не было в двух прошлых заездах. */
 export function взятьМодель(): number {
-  const m = счётчикМоделей;
-  счётчикМоделей = (счётчикМоделей + 1) % CAR_MODEL_COUNT;
-  return m;
+  const запрещены = new Set(историяМоделей);
+  const свободные: number[] = [];
+  for (let i = 0; i < CAR_MODEL_COUNT; i++) if (!запрещены.has(i)) свободные.push(i);
+  const пул = свободные.length > 0 ? свободные : Array.from({ length: CAR_MODEL_COUNT }, (_, i) => i);
+  const модель = пул[Math.floor(Math.random() * пул.length)];
+  историяМоделей = [...историяМоделей, модель].slice(-ОКНО_ИСТОРИИ);
+  return модель;
+}
+
+/** История последних выбранных моделей (для тестов и отладки). */
+export function историяВыбранныхМоделей(): number[] {
+  return [...историяМоделей];
 }
 
 function нормализоватьМодель(модель?: number): number {
@@ -654,10 +714,10 @@ function нормализоватьМодель(модель?: number): number {
   return ((m % CAR_MODEL_COUNT) + CAR_MODEL_COUNT) % CAR_MODEL_COUNT;
 }
 
-export function createGame(навыки: НавыкиДрифта = БЕЗ_НАВЫКОВ, модель?: number): Game {
+export function createGame(навыки: НавыкиДрифта = БЕЗ_НАВЫКОВ, модель?: number, сложность: СложностьДрифта = "normal"): Game {
   const максЗдоровье = DRIFT.maxHealth + (навыки.прочность ? DRIFT.durabilityHp : 0);
   return {
-    track: createTrack(навыки.коллекционер || 1),
+    track: createTrack(навыки.коллекционер || 1, сложность),
     route: 0,
     idx: 0,
     x: 0,
@@ -698,6 +758,7 @@ export function createGame(навыки: НавыкиДрифта = БЕЗ_НА�
     ripples: [],
     paint: Math.floor(Math.random() * 8),
     model: нормализоватьМодель(модель),
+    сложность,
     marks: [],
     health: максЗдоровье,
     maxHealth: максЗдоровье,
@@ -1015,7 +1076,8 @@ function beginFall(g: Game, best: number) {
 
 /** Скорость по пройденной дистанции — штатная кривая разгона. */
 export function speedAt(g: Game) {
-  return Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
+  const разгон = ДРИФТ_СЛОЖНОСТИ[g.сложность].множительРазгона;
+  return Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx * разгон);
 }
 
 /** Страховка: гибель отыграна, запускаем сценку «перемотки» на месте аварии. */

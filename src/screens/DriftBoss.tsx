@@ -10,7 +10,7 @@ import { стат } from "../lib/stats";
 import { getSafeTop } from "../lib/telegram";
 import { навыкиИгры, открытыеНавыки } from "../game/skills";
 import { buildCar, autoBody, autoCabin, type ModelApi, type Palette } from "../game/carModels";
-import { DRIFT, createGame, взятьМодель, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import { DRIFT, ДРИФТ_СЛОЖНОСТИ, createGame, взятьМодель, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt, type СложностьДрифта } from "../game/driftBoss";
 
 type Status = "menu" | "play" | "stamp" | "over";
 interface Итог {
@@ -1105,18 +1105,34 @@ export default function DriftBoss() {
   const holdingRef = useRef(false);
   const [status, setStatus] = useState<Status>("menu");
   const [итог, setИтог] = useState<Итог | null>(null);
+  const [сложность, setСложность] = useState<СложностьДрифта>("normal");
+  const сложностьRef = useRef<СложностьДрифта>("normal");
+  сложностьRef.current = сложность;
 
   const свежее = useRef({ user, change, начислить, бонус });
   свежее.current = { user, change, начислить, бонус };
 
-  const завершить = async (очки: number) => {
+  const завершить = async (очки: number, режим: СложностьДрифта = "normal") => {
     const { user: u, change: изменить, начислить: начислитьМастерство, бонус: б } = свежее.current;
     if (!u) return;
+    const правила = ДРИФТ_СЛОЖНОСТИ[режим];
     const расчёт = посчитатьНаградуДрифта(очки, u.salary_level);
-    const награда = { сумма: очки, бонусПроц: расчёт.бонусПроц, итого: Math.round(расчёт.итого * б) };
+    const награда = {
+      сумма: очки,
+      бонусПроц: расчёт.бонусПроц,
+      // Тренировка приносит фишки с множителем 0.25.
+      итого: Math.round(расчёт.итого * б * правила.множительНаград),
+    };
     const прежний = u.best_drift_boss ?? 0;
-    const новыйРекорд = очки > прежний;
-    setИтог({ очки, награда, личный: Math.max(очки, прежний), сохранение: "идёт" });
+    // Заезд в режиме, который не идёт в рекорды, личный рекорд не трогает.
+    const новыйРекорд = правила.вРекордах && очки > прежний;
+    setИтог({
+      очки,
+      награда,
+      личный: правила.вРекордах ? Math.max(очки, прежний) : прежний,
+      сохранение: "идёт",
+      предупреждение: правила.вРекордах ? undefined : `${правила.название} режим: фишки ×${правила.множительНаград}, в рекорды заезд не идёт`,
+    });
     try {
       начислитьМастерство(награда.итого);
       if (награда.итого > 0 || новыйРекорд) await изменить({ chips: награда.итого }, новыйРекорд ? { best_drift_boss: очки } : {});
@@ -1138,7 +1154,7 @@ export default function DriftBoss() {
   завершитьRef.current = завершить;
 
   const старт = () => {
-    gameRef.current = createGame(навыкиRef.current, взятьМодель());
+    gameRef.current = createGame(навыкиRef.current, взятьМодель(), сложностьRef.current);
     стат("plays_drift");
     начатьЗабег();
     setИтог(null);
@@ -1217,7 +1233,7 @@ export default function DriftBoss() {
           stampAt = time;
           holdingRef.current = false;
           setStatus("stamp");
-          void завершитьRef.current(scoreOf(g));
+          void завершитьRef.current(scoreOf(g), g.сложность);
         }
       } else if (statusRef.current === "stamp") {
         step(g, false, gdt);
@@ -1264,6 +1280,11 @@ export default function DriftBoss() {
           <span ref={scoreRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
             0
           </span>
+          {сложность === "training" && (
+            <span className="absolute left-1/2 top-14 -translate-x-1/2 rounded-lg bg-amber-400/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-300 ring-1 ring-amber-300/30">
+              🎓 Тренировка · ×{ДРИФТ_СЛОЖНОСТИ.training.множительНаград}
+            </span>
+          )}
         </div>
       )}
 
@@ -1273,6 +1294,21 @@ export default function DriftBoss() {
           название={Т.игры.дрифтБосс.название}
           мастерство={мастерство}
           навыки={навыкиИгры("drift")}
+          сложности={[
+            {
+              id: "normal",
+              название: `🎯 ${ДРИФТ_СЛОЖНОСТИ.normal.название}`,
+              подпись: ДРИФТ_СЛОЖНОСТИ.normal.подпись,
+            },
+            {
+              id: "training",
+              название: `🎓 ${ДРИФТ_СЛОЖНОСТИ.training.название}`,
+              подпись: ДРИФТ_СЛОЖНОСТИ.training.подпись,
+              множитель: ДРИФТ_СЛОЖНОСТИ.training.множительНаград,
+            },
+          ]}
+          выбрана={сложность}
+          onВыбор={(id) => setСложность(id as СложностьДрифта)}
           onСтарт={старт}
           onНазад={() => navigate("/games")}
         />
