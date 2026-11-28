@@ -9,7 +9,8 @@ import { useNoSwipes } from "../lib/useNoSwipes";
 import { стат } from "../lib/stats";
 import { getSafeTop } from "../lib/telegram";
 import { навыкиИгры, открытыеНавыки } from "../game/skills";
-import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+import { buildCar, autoBody, autoCabin, type ModelApi, type Palette } from "../game/carModels";
+import { DRIFT, createGame, взятьМодель, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
 
 type Status = "menu" | "play" | "stamp" | "over";
 interface Итог {
@@ -65,17 +66,7 @@ const WRECK_PAL: Palette = {
 };
 
 type Local = [number, number, number];
-type Face = { pts: [number, number][]; color: string; depth: number };
-type Palette = {
-  top: string;
-  cabin: string;
-  side: string;
-  end: string;
-  glass: string;
-  stripe: string;
-  light: string;
-  tail: string;
-};
+type Face = { pts: [number, number][]; color: string; depth: number; vd: number[] };
 
 const COP_PAL: Palette = {
   top: "#f0f0f0",
@@ -311,7 +302,7 @@ export function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: numbe
     }
   };
 
-  const drawVehicle = (v: Pose, pal: Palette, bar: boolean, bumper = false, skirts = false) => {
+  const drawVehicle = (v: Pose, pal: Palette, bar: boolean, bumper = false, skirts = false, model = 0) => {
     const cc = Math.cos(v.h);
     const ss = Math.sin(v.h);
     const cp = Math.cos(v.pitch);
@@ -341,7 +332,12 @@ export function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: numbe
       const mx = w.reduce((t, p) => t + p[0], 0) / k;
       const my = w.reduce((t, p) => t + p[1], 0) / k;
       const mz = w.reduce((t, p) => t + p[2], 0) / k;
-      layer.push({ pts: w.map(([x, y, z]) => P(x, y, z)), color, depth: mx + my + 1.5 * mz });
+      layer.push({
+        pts: w.map(([x, y, z]) => P(x, y, z)),
+        color,
+        depth: mx + my + 1.5 * mz,
+        vd: w.map(([x, y, z]) => x + y + 1.5 * z),
+      });
     };
     const prism = (prof: [number, number][], b0: number, b1: number, colors: string[], cap: string) => {
       const n = prof.length;
@@ -475,109 +471,119 @@ export function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: numbe
     beamCone(-5.5);
     beamCone(5.5);
     ctx.globalCompositeOperation = "source-over";
-    prism(BODY_PROF, -10, 10, [pal.side, pal.end, pal.top, pal.top, pal.top, pal.end], pal.side);
-    layer = body;
-    for (const [b0, b1] of [
-      [-3.6, -2.2],
-      [2.2, 3.6],
-    ] as [number, number][]) {
-      addFace(
-        [
-          [-13, b0, 7.02],
-          [9, b0, 7.02],
-          [9, b1, 7.02],
-          [-13, b1, 7.02],
-        ],
-        [0, 0, 1],
-        pal.stripe,
-      );
-    }
-    layer = cabin;
-    prism(CABIN_PROF, -8.5, 8.5, [pal.glass, pal.top, pal.glass, pal.side], pal.cabin);
-
-    layer = details;
-    for (const sb of [-1, 1]) {
-      addFace(
-        CABIN_GLASS.map(([a, z]) => [a, sb * 8.65, z] as Local),
-        [0, sb, 0],
-        pal.glass,
-      );
-    }
-    for (const [b0, b1] of [
-      [4, 7],
-      [-7, -4],
-    ] as [number, number][]) {
-      addFace(
-        [
-          [20.1, b0, 3],
-          [20.1, b1, 3],
-          [20.1, b1, 5],
-          [20.1, b0, 5],
-        ],
-        [1, 0, 0],
-        pal.light,
-      );
-      addFace(
-        [
-          [-20.1, b0, 3],
-          [-20.1, b1, 3],
-          [-20.1, b1, 5],
-          [-20.1, b0, 5],
-        ],
-        [-1, 0, 0],
-        pal.tail,
-      );
-    }
-    for (const aw of [-12, 12]) {
-      for (const sb of [-1, 1]) {
-        const ring: Local[] = [];
-        const hub: Local[] = [];
-        for (let k = 0; k < 20; k++) {
-          const t = (k / 20) * Math.PI * 2;
-          ring.push([aw + 4 * Math.cos(t), sb * 10.3, 4 + 4 * Math.sin(t)]);
-          hub.push([aw + 1.8 * Math.cos(t), sb * 10.5, 4 + 1.8 * Math.sin(t)]);
+    const glows: [number, number, number, number, string, number][] = [];
+    const setLayer = (n: "body" | "cabin" | "stripe" | "details") => {
+      // «stripe» — накладки поверх кабины (полосы на крыше), рисуем последним слоем.
+      layer = n === "body" ? body : n === "cabin" ? cabin : details;
+    };
+    // Габарит одинаковый у всех моделей, поэтому хитбокс, посадка и коллизии не меняются.
+    const carApi: ModelApi = {
+      pal,
+      layer: setLayer,
+      body: (prof, b0, b1, colors, cap) => {
+        setLayer("body");
+        prism(prof as [number, number][], b0, b1, colors || autoBody(prof, pal), cap || pal.side);
+      },
+      cabinPrism: (prof, b0, b1, colors, cap) => {
+        setLayer("cabin");
+        prism(prof as [number, number][], b0, b1, colors || autoCabin(prof, pal), cap || pal.cabin);
+      },
+      face: (verts, n, color) => {
+        addFace(verts as Local[], n as Local, color);
+      },
+      quad: (verts, n, color) => {
+        addFace(verts as Local[], n as Local, color);
+      },
+      box: (a0, a1, b0, b1, z0, z1, color) => box(a0, a1, b0, b1, z0, z1, color),
+      detailBox: (a0, a1, b0, b1, z0, z1, color) => box(a0, a1, b0, b1, z0, z1, color),
+      wheels: (r = 4, zc = 4, bOut = 10.3) => {
+        setLayer("details");
+        for (const aw of [-12, 12]) {
+          for (const sb of [-1, 1]) {
+            const ring: Local[] = [];
+            const hub: Local[] = [];
+            for (let k = 0; k < 20; k++) {
+              const t = (k / 20) * Math.PI * 2;
+              ring.push([aw + r * Math.cos(t), sb * bOut, zc + r * Math.sin(t)]);
+              hub.push([aw + r * 0.45 * Math.cos(t), sb * (bOut + 0.2), zc + r * 0.45 * Math.sin(t)]);
+            }
+            addFace(ring, [0, sb, 0], TIRE);
+            addFace(hub, [0, sb, 0], HUB);
+          }
         }
-        addFace(ring, [0, sb, 0], TIRE);
-        addFace(hub, [0, sb, 0], HUB);
-      }
-    }
-    if (bumper) {
-      const железо = "#101013";
-      // Бампер — низкая накладка у основания кузова: 1/3 высоты капота.
-      // Внутреннюю грань не рисуем, иначе она просвечивает сквозь кузов.
-      const cap = (a0: number, a1: number, out: number) => {
-        const af = out > 0 ? a1 : a0;
-        addFace([[af, -10.5, 2], [af, 10.5, 2], [af, 10.5, 3.5], [af, -10.5, 3.5]], [out, 0, 0], железо);
-        addFace([[a0, -10.5, 3.5], [a1, -10.5, 3.5], [a1, 10.5, 3.5], [a0, 10.5, 3.5]], [0, 0, 1], железо);
-        addFace([[a0, -10.5, 2], [a1, -10.5, 2], [a1, 10.5, 2], [a0, 10.5, 2]], [0, 0, -1], железо);
-        addFace([[a0, -10.5, 2], [a1, -10.5, 2], [a1, -10.5, 3.5], [a0, -10.5, 3.5]], [0, -1, 0], железо);
-        addFace([[a0, 10.5, 2], [a1, 10.5, 2], [a1, 10.5, 3.5], [a0, 10.5, 3.5]], [0, 1, 0], железо);
-      };
-      layer = body;
-      cap(19.4, 23, 1);
-      cap(-23, -19.4, -1);
-      // Прочность+: тонкие чёрные накладки по бортам, у самого основания.
-      if (skirts) {
-        for (const sb of [-1, 1]) {
-          const b = sb * 10.4;
-          addFace([[-15, b, 2], [15, b, 2], [15, b, 3.4], [-15, b, 3.4]], [0, sb, 0], железо);
-          addFace([[-15, b, 3.4], [15, b, 3.4], [15, sb * 9.4, 3.4], [-15, sb * 9.4, 3.4]], [0, 0, 1], железо);
-          addFace([[-15, b, 2], [15, b, 2], [15, sb * 9.4, 2], [-15, sb * 9.4, 2]], [0, 0, -1], железо);
+      },
+      arches: (r0, r1, b, color) => {
+        setLayer("details");
+        for (const a of [-12, 12]) {
+          for (const sb of [-1, 1]) {
+            const pts: Local[] = [];
+            const N = 14;
+            const a0 = Math.PI * 0.92;
+            const a1 = -Math.PI * 0.08;
+            for (let i = 0; i <= N; i++) {
+              const t = a0 + (a1 - a0) * (i / N);
+              pts.push([a + r1 * Math.cos(t), sb * b, 4 + r1 * Math.sin(t)]);
+            }
+            for (let i = N; i >= 0; i--) {
+              const t = a0 + (a1 - a0) * (i / N);
+              pts.push([a + r0 * Math.cos(t), sb * b, 4 + r0 * Math.sin(t)]);
+            }
+            addFace(pts, [0, sb, 0], color);
+          }
         }
-      }
-    }
-    layer = details;
-    if (bar) {
-      const red = Math.floor(time * 6) % 2 === 0;
-      box(-4, 2, -4.5, -0.5, 12, 14, red ? "#ff2d2d" : "#4a1414");
-      box(-4, 2, 0.5, 4.5, 12, 14, red ? "#1f1f1f" : "#2d62ff");
-    }
+      },
+      glow: (a, b, z, r, rgb, kk) => glows.push([a, b, z, r, rgb, kk]),
+    };
+    buildCar(model, pal, carApi);
 
     for (const layerFaces of [body, cabin]) {
       layerFaces.sort((p, q) => p.depth - q.depth);
       for (const f of layerFaces) poly(f.pts, f.color);
     }
-    for (const f of details) poly(f.pts, f.color);
+    // Детали рисуем поверх кузова — но только те, что действительно перед ним.
+    // Деталь дальнего борта (зеркало, юбка, обвес) иначе проявляется сквозь кузов.
+    const planeDepth = (f: Face, px: number, py: number) => {
+      const q = f.pts;
+      const [x0, y0] = q[0];
+      for (let i = 1; i < q.length - 1; i++) {
+        const [x1, y1] = q[i];
+        const [x2, y2] = q[i + 1];
+        const det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+        if (Math.abs(det) < 1e-9) continue;
+        const u = ((px - x0) * (y2 - y0) - (x2 - x0) * (py - y0)) / det;
+        const v = ((x1 - x0) * (py - y0) - (px - x0) * (y1 - y0)) / det;
+        return f.vd[0] + u * (f.vd[i] - f.vd[0]) + v * (f.vd[i + 1] - f.vd[0]);
+      }
+      return f.depth;
+    };
+    const inTri = (q: [number, number][], px: number, py: number) => {
+      const [x0, y0] = q[0];
+      for (let i = 1; i < q.length - 1; i++) {
+        const [x1, y1] = q[i];
+        const [x2, y2] = q[i + 1];
+        const det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+        if (Math.abs(det) < 1e-9) continue;
+        const u = ((px - x0) * (y2 - y0) - (x2 - x0) * (py - y0)) / det;
+        const v = ((x1 - x0) * (py - y0) - (px - x0) * (y1 - y0)) / det;
+        if (u >= -0.001 && v >= -0.001 && u + v <= 1.001) return true;
+      }
+      return false;
+    };
+    const solidFaces = body.concat(cabin);
+    for (const f of details) {
+      const px = f.pts.reduce((t, q) => t + q[0], 0) / f.pts.length;
+      const py = f.pts.reduce((t, q) => t + q[1], 0) / f.pts.length;
+      let hidden = false;
+      for (const sf of solidFaces) {
+        if (sf.depth - f.depth < 0.5) continue;
+        if (!inTri(sf.pts, px, py)) continue;
+        if (planeDepth(sf, px, py) - f.depth > 0.5) {
+          hidden = true;
+          break;
+        }
+      }
+      if (!hidden) poly(f.pts, f.color);
+    }
 
     const lamp = (a: number, b: number, z: number, r: number, col: string, k: number) => {
       const [wx, wy, wz] = toW(a, b, z);
@@ -591,10 +597,7 @@ export function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: numbe
       ctx.fill();
     };
     ctx.globalCompositeOperation = "lighter";
-    for (const b of [-5.5, 5.5]) {
-      lamp(20.5, b, 4, 10, "255,240,180", 0.45);
-      lamp(-20.5, b, 4, 12, "255,40,40", 0.6);
-    }
+    for (const [ga, gb, gz, gr, gcol, gk] of glows) lamp(ga, gb, gz, gr, gcol, gk);
     ctx.globalCompositeOperation = "source-over";
   };
 
@@ -772,6 +775,7 @@ export function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: numbe
       false,
       g.bumpers && !wrecked,
       g.sideSkirts && !wrecked,
+      g.model,
     );
     ctx.globalAlpha = alpha;
     if (wrecked) drawFlames(g.x, g.y, g.z);
@@ -1093,6 +1097,9 @@ export default function DriftBoss() {
   const scoreRef = useRef<HTMLSpanElement>(null);
   const gameRef = useRef<Game | null>(null);
   const навыкиRef = useRef(навыкиДрифта);
+  // Ротация моделей: каждый заезд — следующая машина (счётчик в driftBoss.ts,
+  // живёт на уровне модуля и не сбрасывается при перемонтировании экрана).
+  // Цвет краски остаётся случайным — он выбирается в createGame.
   навыкиRef.current = навыкиДрифта;
   const statusRef = useRef<Status>("menu");
   const holdingRef = useRef(false);
@@ -1131,7 +1138,7 @@ export default function DriftBoss() {
   завершитьRef.current = завершить;
 
   const старт = () => {
-    gameRef.current = createGame(навыкиRef.current);
+    gameRef.current = createGame(навыкиRef.current, взятьМодель());
     стат("plays_drift");
     начатьЗабег();
     setИтог(null);
@@ -1197,7 +1204,8 @@ export default function DriftBoss() {
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
       time += dt;
-      if (!gameRef.current) gameRef.current = createGame(навыкиRef.current);
+      // Заглушка для меню: рисуем базовую машину, ротацию не занимаем.
+      if (!gameRef.current) gameRef.current = createGame(навыкиRef.current, 0);
       const g = gameRef.current;
       const slow = g.slowT > 0;
       if (slow) g.slowT = Math.max(0, g.slowT - dt);

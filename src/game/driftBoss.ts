@@ -1,5 +1,6 @@
 import { ДРИФТ_БОСС } from "../config";
 import { бонусЗарплатыПроц } from "./effects";
+import { CAR_MODEL_COUNT } from "./carModels";
 
 export const CAR = { len: 40, width: 20 };
 export const WHEEL_POS: [number, number][] = [
@@ -335,6 +336,7 @@ export interface Game extends Pose {
   splash: Spark[];
   ripples: { x: number; y: number; age: number }[];
   paint: number;
+  model: number;
   marks: Mark[];
   health: number;
   boomT: number;
@@ -636,7 +638,23 @@ function createTrack(coinBoost = 1): Track {
   return t;
 }
 
-export function createGame(навыки: НавыкиДрифта = БЕЗ_НАВЫКОВ): Game {
+// Ротация моделей между заездами. Счётчик живёт на уровне модуля, а не в компоненте:
+// иначе при перемонтировании экрана он сбрасывается и каждый заезд начинается с базовой машины.
+let счётчикМоделей = 0;
+
+/** Следующая модель по кругу: 0, 1, 2, … (stock → muscle → supercar → tuned → suv). */
+export function взятьМодель(): number {
+  const m = счётчикМоделей;
+  счётчикМоделей = (счётчикМоделей + 1) % CAR_MODEL_COUNT;
+  return m;
+}
+
+function нормализоватьМодель(модель?: number): number {
+  const m = модель === undefined ? взятьМодель() : модель;
+  return ((m % CAR_MODEL_COUNT) + CAR_MODEL_COUNT) % CAR_MODEL_COUNT;
+}
+
+export function createGame(навыки: НавыкиДрифта = БЕЗ_НАВЫКОВ, модель?: number): Game {
   const максЗдоровье = DRIFT.maxHealth + (навыки.прочность ? DRIFT.durabilityHp : 0);
   return {
     track: createTrack(навыки.коллекционер || 1),
@@ -679,6 +697,7 @@ export function createGame(навыки: НавыкиДрифта = БЕЗ_НА�
     splash: [],
     ripples: [],
     paint: Math.floor(Math.random() * 8),
+    model: нормализоватьМодель(модель),
     marks: [],
     health: максЗдоровье,
     maxHealth: максЗдоровье,
