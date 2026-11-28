@@ -1,0 +1,1709 @@
+diff --git a/src/game/driftBoss.ts b/src/game/driftBoss.ts
+index 0815383..4513007 100644
+--- a/src/game/driftBoss.ts
++++ b/src/game/driftBoss.ts
+@@ -1,3 +1,7 @@
++import { ДРИФТ_БОСС } from "../config";
++import { бонусЗарплатыПроц } from "./effects";
++import { CAR_MODEL_COUNT } from "./carModels";
++
+ export const CAR = { len: 40, width: 20 };
+ export const WHEEL_POS: [number, number][] = [
+   [-12, -10],
+@@ -24,8 +28,11 @@ export const DRIFT = {
+   narrowWidth: 85,
+   wideFirst: 150,
+   zoneLen: 100,
+-  coinEvery: 9,
+-  coinChance: 0.75,
++  coinGapMin: 20,
++  coinGapMax: 40,
++  coinRunMin: 6,
++  coinRunMax: 14,
++  coinStep: 3,
+   coinPickup: 24,
+   rampChance: 0.35,
+   rampGap: 160,
+@@ -86,7 +93,7 @@ export const DRIFT = {
+   splashKick: 170,
+   rippleLife: 1.0,
+   copJitter: 0.15,
+-  leafCount: 60,
++  leafCount: 22,
+   leafNear: 100,
+   leafAhead: 90,
+   leafRadius: 26,
+@@ -95,15 +102,48 @@ export const DRIFT = {
+   leafCull: 1800,
+   leafBehind: 1000,
+   forkChance: 0.32,
+-  forkRunMin: 70,
+-  forkRunMax: 130,
+-  forkSpanMin: 70,
+-  forkSpanMax: 130,
++  forkAxisMin: 120,
++  forkAxisMax: 180,
++  forkLegMin: 14,
++  forkLegCountMin: 3,
++  forkLegCountMax: 4,
++  forkSep: 17,
++  forkRampChance: 0.6,
+   boomTime: 1.5,
+   rampJunctionGap: 10,
+   maxHealth: 5,
+-  forkMinGap: 260,
++  forkMinGap: 380,
+   routeSlack: 2,
++  smokeChance: 0.35,
++  copCull: 200,
++  repairMinGap: 150,
++  repairChance: 0.004,
++  repairHeal: 2,
++  repairReach: 46,
++  smokeMax: 90,
++  sparkMax: 160,
++  distPerPoint: 1000,
++  distMult: 1.07,
++  coinPoints: 1,
++  copKillPoints: 30,
++  popLife: 1.1,
++  durabilityHp: 5,
++  insuranceInvuln: 2,
++  insuranceRamp: 6,
++  insuranceSlow: 0.55,
++  collectorBoost: 1.5,
++  collectorBoostPlus: 2,
++  slowmoSpeed: 290,
++  slowmoScale: 0.45,
++  slowmoTime: 0.9,
++  slowmoJumpsMin: 3,
++  slowmoJumpsMax: 4,
++  camZoomStart: 30,
++  camZoomRamp: 8,
++  camZoomOut: 0.25,
++  rewindDelay: 2,
++  rewindTime: 1.3,
++  rewindSpan: 16,
+ };
+ 
+ const VEC = [
+@@ -146,6 +186,20 @@ export interface Prop {
+   struck: boolean;
+ }
+ 
++export interface Repair {
++  idx: number;
++  x: number;
++  y: number;
++  taken: boolean;
++}
++
++interface CoinGen {
++  on: boolean;
++  left: number;
++  pos: number;
++  acc: number;
++}
++
+ export interface Track {
+   pts: Pt[];
+   alt: Pt[];
+@@ -155,9 +209,12 @@ export interface Track {
+   x: number;
+   y: number;
+   dir: number;
+-  sinceCoin: number;
++  coinGen: CoinGen;
+   sinceProp: number;
++  sinceRepair: number;
++  repairs: Repair[];
+   lastRamp: number;
++  coinBoost: number;
+ }
+ 
+ export interface Smoke {
+@@ -247,6 +304,13 @@ interface Hist {
+   route: number;
+ }
+ 
++export interface Pop {
++  x: number;
++  y: number;
++  z: number;
++  age: number;
++}
++
+ export interface Game extends Pose {
+   track: Track;
+   route: number;
+@@ -258,7 +322,7 @@ export interface Game extends Pose {
+   cool: number;
+   dist: number;
+   coins: number;
+-  phase: "play" | "fall" | "boom" | "over";
++  phase: "play" | "fall" | "boom" | "rewind" | "over";
+   fallT: number;
+   offT: number;
+   fallSide: number;
+@@ -272,11 +336,40 @@ export interface Game extends Pose {
+   splash: Spark[];
+   ripples: { x: number; y: number; age: number }[];
+   paint: number;
++  model: number;
+   marks: Mark[];
+   health: number;
+   boomT: number;
++  kills: number;
++  pops: Pop[];
++  maxHealth: number;
++  bumpers: boolean;
++  insuranceLeft: number;
++  invulnT: number;
++  speedLag: number;
++  speedFrom: number;
++  speedTo: number;
++  slowT: number;
++  jumpsHigh: number;
++  jumpsNeed: number;
++  pendingRevive: boolean;   // страховка уже сработала, идёт сценка гибели
++  deadT: number;            // сколько секунд прошло с момента гибели
++  rewindT: number;          // прогресс сценки «перемотки»
++  rewindFrom: number;
++  rewindTo: number;
++  sideSkirts: boolean;      // Прочность+: боковые накладки
+ }
+ 
++/** Навыки Drift Boss, открытые по уровню мастерства. */
++export interface НавыкиДрифта {
++  прочность: boolean;
++  прочностьПлюс: boolean;
++  страховка: number;      // сколько восстановлений доступно за забег
++  коллекционер: number;   // множитель количества монет на дороге
++}
++
++export const БЕЗ_НАВЫКОВ: НавыкиДрифта = { прочность: false, прочностьПлюс: false, страховка: 0, коллекционер: 1 };
++
+ function clamp(v: number, lo: number, hi: number) {
+   return Math.max(lo, Math.min(hi, v));
+ }
+@@ -296,11 +389,34 @@ function routeDist(x: number, y: number, pts: Pt[], i: number) {
+   return distSeg(x, y, pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y);
+ }
+ 
++function randInt(lo: number, hi: number) {
++  return lo + Math.floor(Math.random() * (hi - lo + 1));
++}
++
++function newCoinGen(): CoinGen {
++  return { on: false, left: randInt(DRIFT.coinGapMin, DRIFT.coinGapMax), pos: 0, acc: 0 };
++}
++
++function nextCoin(c: CoinGen, boost = 1): boolean {
++  if (c.left <= 0) {
++    c.on = !c.on;
++    c.left = c.on ? randInt(DRIFT.coinRunMin, DRIFT.coinRunMax) : randInt(DRIFT.coinGapMin, DRIFT.coinGapMax);
++    c.pos = 0;
++    c.acc = 0;
++  }
++  // Плотность монет в дорожке: шаг уменьшается пропорционально множителю.
++  const шаг = DRIFT.coinStep / Math.max(1, boost);
++  c.acc += 1;
++  const coin = c.on && c.acc >= шаг;
++  if (coin) c.acc -= шаг;
++  c.left--;
++  c.pos++;
++  return coin;
++}
++
+ function push(t: Track) {
+   const j = t.pts.length;
+-  t.sinceCoin++;
+-  const coin = t.sinceCoin >= DRIFT.coinEvery && Math.random() < DRIFT.coinChance;
+-  if (coin) t.sinceCoin = 0;
++  const coin = nextCoin(t.coinGen, t.coinBoost);
+   const w = t.width;
+   const pt: Pt = { x: t.x, y: t.y, dir: t.dir, w, lift: 0, coin, taken: false };
+   t.pts.push(pt);
+@@ -310,6 +426,12 @@ function push(t: Track) {
+     t.sinceProp = 0;
+     spawnProp(t, pt, j);
+   }
++  t.sinceRepair++;
++  if (j >= DRIFT.propStartIdx && !coin && t.sinceRepair >= DRIFT.repairMinGap && Math.random() < DRIFT.repairChance) {
++    t.sinceRepair = 0;
++    const lat = (Math.random() * 2 - 1) * (w / 2 - 30);
++    t.repairs.push({ idx: j, x: pt.dir === 0 ? pt.x : pt.x + lat, y: pt.dir === 0 ? pt.y + lat : pt.y, taken: false });
++  }
+ }
+ 
+ function spawnProp(t: Track, at: Pt, idx: number) {
+@@ -343,10 +465,91 @@ function advance(t: Track, len: number, dir: number) {
+   return steps;
+ }
+ 
+-// A fork is a rectangle laid on its side. The main road runs straight on and then
+-// turns; the branch turns at once and then runs straight on, so the two meet again
+-// at the far corner. Both paths are built only from the two legal directions, they
+-// have the same length, and they share the split and merge points exactly.
++interface Leg {
++  axis: number;
++  len: number;
++}
++
++function splitLen(total: number, count: number): number[] {
++  const w = Array.from({ length: count }, () => 0.5 + Math.random());
++  const sum = w.reduce((a, b) => a + b, 0);
++  const spare = total - count * DRIFT.forkLegMin;
++  const parts = w.map((x) => DRIFT.forkLegMin + Math.floor((spare * x) / sum));
++  parts[count - 1] += total - parts.reduce((a, b) => a + b, 0);
++  return parts;
++}
++
++function legsFrom(startAxis: number, count: number, A: number, B: number): Leg[] {
++  const need = [0, 0];
++  for (let k = 0; k < count; k++) need[(startAxis + k) % 2]++;
++  const lens = [splitLen(A, need[0]), splitLen(B, need[1])];
++  const used = [0, 0];
++  const legs: Leg[] = [];
++  for (let k = 0; k < count; k++) {
++    const axis = (startAxis + k) % 2;
++    legs.push({ axis, len: lens[axis][used[axis]++] });
++  }
++  return legs;
++}
++
++function trail(legs: Leg[]) {
++  const u = [0];
++  let c = 0;
++  for (const leg of legs) {
++    for (let i = 0; i < leg.len; i++) {
++      if (leg.axis === 0) c++;
++      u.push(c);
++    }
++  }
++  return u;
++}
++
++function separated(a: Leg[], b: Leg[], n: number) {
++  const ua = trail(a);
++  const ub = trail(b);
++  const sign = Math.sign(ua[1] - ub[1]);
++  if (sign === 0) return false;
++  for (let i = 1; i < n; i++) {
++    const d = ua[i] - ub[i];
++    if (Math.sign(d) !== sign) return false;
++    if (i >= DRIFT.forkSep && i <= n - DRIFT.forkSep && Math.abs(d) < DRIFT.forkSep) return false;
++  }
++  return true;
++}
++
++function forkLegs() {
++  const A = randInt(DRIFT.forkAxisMin, DRIFT.forkAxisMax);
++  const B = randInt(DRIFT.forkAxisMin, DRIFT.forkAxisMax);
++  for (let k = 0; k < 200; k++) {
++    const main = legsFrom(0, randInt(DRIFT.forkLegCountMin, DRIFT.forkLegCountMax), A, B);
++    const branch = legsFrom(1, randInt(DRIFT.forkLegCountMin, DRIFT.forkLegCountMax), A, B);
++    if (separated(main, branch, A + B)) return { main, branch };
++  }
++  return {
++    main: [
++      { axis: 0, len: A },
++      { axis: 1, len: B },
++    ],
++    branch: [
++      { axis: 1, len: B },
++      { axis: 0, len: A },
++    ],
++  };
++}
++
++function legRamp(arr: Pt[], a: number, b: number) {
++  const L = DRIFT.rampLen;
++  const M = DRIFT.rampJunctionGap;
++  if (b - a < L + 2 * M || Math.random() >= DRIFT.forkRampChance) return;
++  const from = a + M + Math.floor(Math.random() * (b - a - L - 2 * M));
++  for (let j = 0; j < L; j++) {
++    arr[from + j].lift = DRIFT.rampHeight * Math.sin((Math.PI * (j + 1)) / (L + 1));
++  }
++}
++
++// A fork is two staircases between the same split and merge points. Both use only the
++// two legal directions, have the same length, and are kept apart so the roads never
++// overlap. Each path has several turns and may carry ramps.
+ function buildFork(t: Track) {
+   const step = DRIFT.sample;
+   t.width = DRIFT.wideWidth;
+@@ -354,26 +557,34 @@ function buildFork(t: Track) {
+   const s0 = t.pts.length - 1;
+   const S = t.pts[s0];
+   const dIn = t.dir;
+-  const dTurn = 1 - dIn;
+-  const run = DRIFT.forkRunMin + Math.floor(Math.random() * (DRIFT.forkRunMax - DRIFT.forkRunMin + 1));
+-  const span = DRIFT.forkSpanMin + Math.floor(Math.random() * (DRIFT.forkSpanMax - DRIFT.forkSpanMin + 1));
+-  advance(t, run * step, dIn);
+-  advance(t, span * step, dTurn);
++  const dirOf = (axis: number) => (axis ? 1 - dIn : dIn);
++  const { main, branch } = forkLegs();
++  const mainRanges: [number, number][] = [];
++  for (const leg of main) {
++    const a = t.pts.length;
++    advance(t, leg.len * step, dirOf(leg.axis));
++    mainRanges.push([a, t.pts.length]);
++  }
+   const e0 = t.pts.length - 1;
++  const coinGen = newCoinGen();
+   let ax = S.x;
+   let ay = S.y;
+   let k = s0 + 1;
+-  for (let i = 0; i < span; i++) {
+-    ax += VEC[dTurn].x * step;
+-    ay += VEC[dTurn].y * step;
+-    t.alt[k++] = { x: ax, y: ay, dir: dTurn, w, lift: 0, coin: false, taken: false };
+-  }
+-  for (let i = 1; i < run; i++) {
+-    ax += VEC[dIn].x * step;
+-    ay += VEC[dIn].y * step;
+-    t.alt[k++] = { x: ax, y: ay, dir: dIn, w, lift: 0, coin: false, taken: false };
++  const branchRanges: [number, number][] = [];
++  for (const leg of branch) {
++    const a = k;
++    const d = dirOf(leg.axis);
++    for (let i = 0; i < leg.len; i++) {
++      ax += VEC[d].x * step;
++      ay += VEC[d].y * step;
++      if (k < e0) t.alt[k] = { x: ax, y: ay, dir: d, w, lift: 0, coin: nextCoin(coinGen), taken: false };
++      k++;
++    }
++    branchRanges.push([a, Math.min(k, e0)]);
+   }
+   t.alt[e0] = t.pts[e0];
++  for (const [a, b] of mainRanges) legRamp(t.pts, a, Math.min(b, e0));
++  for (const [a, b] of branchRanges) legRamp(t.alt, a, b);
+   for (let i = s0 + 8; i < e0 - 8; i += 6) {
+     if (Math.random() < DRIFT.propChance) spawnProp(t, t.alt[i], i);
+   }
+@@ -404,7 +615,7 @@ function growTrack(t: Track, minLen: number) {
+   while (t.pts.length < minLen) addSegment(t);
+ }
+ 
+-function createTrack(): Track {
++function createTrack(coinBoost = 1): Track {
+   const t: Track = {
+     pts: [],
+     alt: [],
+@@ -414,9 +625,12 @@ function createTrack(): Track {
+     x: 0,
+     y: 0,
+     dir: 0,
+-    sinceCoin: 0,
++    coinGen: newCoinGen(),
+     sinceProp: 0,
++    sinceRepair: 0,
++    repairs: [],
+     lastRamp: -1e9,
++    coinBoost,
+   };
+   push(t);
+   advance(t, DRIFT.startStraight, 0);
+@@ -424,9 +638,10 @@ function createTrack(): Track {
+   return t;
+ }
+ 
+-export function createGame(): Game {
++export function createGame(навыки: НавыкиДрифта = БЕЗ_НАВЫКОВ, модель = 0): Game {
++  const максЗдоровье = DRIFT.maxHealth + (навыки.прочность ? DRIFT.durabilityHp : 0);
+   return {
+-    track: createTrack(),
++    track: createTrack(навыки.коллекционер || 1),
+     route: 0,
+     idx: 0,
+     x: 0,
+@@ -444,6 +659,14 @@ export function createGame(): Game {
+     air: false,
+     dist: 0,
+     coins: 0,
++    slowT: 0,
++    jumpsHigh: 0,
++    jumpsNeed: DRIFT.slowmoJumpsMin,
++    pendingRevive: false,
++    deadT: 0,
++    rewindT: 0,
++    rewindFrom: 0,
++    rewindTo: 0,
+     phase: "play",
+     fallT: 0,
+     offT: 0,
+@@ -458,9 +681,20 @@ export function createGame(): Game {
+     splash: [],
+     ripples: [],
+     paint: Math.floor(Math.random() * 8),
++    model: ((модель % CAR_MODEL_COUNT) + CAR_MODEL_COUNT) % CAR_MODEL_COUNT,
+     marks: [],
+-    health: DRIFT.maxHealth,
++    health: максЗдоровье,
++    maxHealth: максЗдоровье,
++    bumpers: навыки.прочность,
++    sideSkirts: навыки.прочностьПлюс,
++    insuranceLeft: Math.max(0, Math.floor(навыки.страховка)),
++    invulnT: 0,
++    speedLag: 0,
++    speedFrom: DRIFT.speedStart,
++    speedTo: DRIFT.speedStart,
+     boomT: 0,
++    kills: 0,
++    pops: [],
+   };
+ }
+ 
+@@ -538,6 +772,7 @@ function sideOf(p: { x: number; y: number; h: number }, pt: Pt) {
+ }
+ 
+ function emitSmoke(g: Game, p: Pose) {
++  if (g.smoke.length >= DRIFT.smokeMax) return;
+   const side = (Math.random() - 0.5) * 16;
+   const c = Math.cos(p.h);
+   const s = Math.sin(p.h);
+@@ -558,6 +793,7 @@ function updateSmoke(g: Game, dt: number) {
+ }
+ 
+ function emitSparks(g: Game, x: number, y: number, z: number) {
++  if (g.sparks.length >= DRIFT.sparkMax) return;
+   for (let i = 0; i < DRIFT.sparkCount; i++) {
+     const a = Math.random() * Math.PI * 2;
+     const sp = 120 + Math.random() * 180;
+@@ -621,14 +857,23 @@ function hitProps(g: Game, x: number, y: number, vx: number, vy: number, radius:
+       if (distSeg(x, y, ax, ay, bx, by) > DRIFT.policeReach) continue;
+       if (byPlayer && !p.struck) {
+         p.struck = true;
+-        g.health = Math.max(0, g.health - 1);
+-        if (g.health === 0) {
+-          g.phase = "boom";
+-          g.boomT = 0;
+-          g.vx = 0;
+-          g.vy = 0;
+-          blast(g);
+-          for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
++        g.kills++;
++        g.pops.push({ x: p.x, y: p.y, z: p.lift + 16, age: 0 });
++        if (g.invulnT <= 0) {
++          g.health = Math.max(0, g.health - 1);
++          if (g.health === 0) {
++            if (g.insuranceLeft > 0) {
++              g.insuranceLeft--;
++              g.pendingRevive = true;
++              g.deadT = 0;
++            }
++            g.phase = "boom";
++            g.boomT = 0;
++            g.vx = 0;
++            g.vy = 0;
++            blast(g);
++            for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
++          }
+         }
+       }
+       const sp = Math.hypot(vx, vy) || 1;
+@@ -739,6 +984,11 @@ function updateSplash(g: Game, dt: number) {
+ }
+ 
+ function beginFall(g: Game, best: number) {
++  if (g.insuranceLeft > 0) {
++    g.insuranceLeft--;
++    g.pendingRevive = true;
++    g.deadT = 0;
++  }
+   const p = routePts(g.track, g.route)[best];
+   emitSplash(g, g.x, g.y);
+   g.phase = "fall";
+@@ -747,6 +997,102 @@ function beginFall(g: Game, best: number) {
+   for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
+ }
+ 
++/** Скорость по пройденной дистанции — штатная кривая разгона. */
++export function speedAt(g: Game) {
++  return Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
++}
++
++/** Страховка: гибель отыграна, запускаем сценку «перемотки» на месте аварии. */
++function startRewind(g: Game) {
++  const pts = routePts(g.track, g.route);
++  const p = pts[clamp(g.idx, 0, pts.length - 1)];
++  g.phase = "rewind";
++  g.rewindT = 0;
++  g.deadT = 0;
++  g.fallT = 0;
++  g.boomT = 0;
++  g.offT = 0;
++  g.air = false;
++  g.vz = 0;
++  g.cool = 0;
++  g.slowT = 0;
++  g.h = ANG[p.dir];
++  g.x = p.x;
++  g.y = p.y;
++  g.z = p.lift;
++  g.ground = p.lift;
++  g.av = 0;
++  g.roll = 0;
++  g.pitch = 0;
++  g.vx = 0;
++  g.vy = 0;
++  g.health = g.maxHealth;
++  // Плёнку крутим назад: машина откатывается по дороге и встаёт на центр полосы.
++  g.rewindFrom = g.idx;
++  g.rewindTo = Math.max(1, g.idx - DRIFT.rewindSpan);
++  for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
++}
++
++/** Кадр сценки: машина пятится назад по дороге, экран в помехах. */
++function rewindStep(g: Game, dt: number) {
++  g.rewindT = Math.min(DRIFT.rewindTime, g.rewindT + dt);
++  const k = clamp(g.rewindT / DRIFT.rewindTime, 0, 1);
++  const e = 1 - (1 - k) * (1 - k);
++  const fi = g.rewindFrom + (g.rewindTo - g.rewindFrom) * e;
++  const pts = routePts(g.track, g.route);
++  const i = clamp(Math.floor(fi), 0, pts.length - 2);
++  const u = clamp(fi - i, 0, 1);
++  const a = pts[i];
++  const b = pts[i + 1];
++  g.x = a.x + (b.x - a.x) * u;
++  g.y = a.y + (b.y - a.y) * u;
++  g.z = a.lift + (b.lift - a.lift) * u;
++  g.ground = g.z;
++  g.h = ANG[u < 0.5 ? a.dir : b.dir];
++  g.idx = Math.max(0, Math.round(fi));
++  g.roll = 0;
++  g.pitch = 0;
++  g.av = 0;
++  g.vx = 0;
++  g.vy = 0;
++  if (g.rewindT >= DRIFT.rewindTime) finishRevive(g);
++}
++
++/** Перемотка закончилась: машина цела, стоит по центру полосы и плавно разгоняется. */
++function finishRevive(g: Game) {
++  const pts = routePts(g.track, g.route);
++  const p = pts[clamp(g.idx, 0, pts.length - 1)];
++  const baseSpeed = speedAt(g);
++  g.phase = "play";
++  g.pendingRevive = false;
++  g.deadT = 0;
++  g.rewindT = 0;
++  g.health = g.maxHealth;
++  g.invulnT = DRIFT.insuranceInvuln;
++  g.fallT = 0;
++  g.boomT = 0;
++  g.offT = 0;
++  g.air = false;
++  g.vz = 0;
++  g.cool = 0;
++  g.slowT = 0;
++  g.x = p.x;
++  g.y = p.y;
++  g.z = p.lift;
++  g.ground = p.lift;
++  g.h = ANG[p.dir];
++  g.av = 0;
++  g.roll = 0;
++  g.pitch = 0;
++  g.speedFrom = baseSpeed * DRIFT.insuranceSlow;
++  g.speedTo = baseSpeed;
++  g.speedLag = DRIFT.insuranceRamp;
++  g.vx = Math.cos(g.h) * g.speedFrom;
++  g.vy = Math.sin(g.h) * g.speedFrom;
++  g.marks = [];
++  for (const c of g.cops) if (c.phase === "chase" || c.phase === "enter") c.phase = "halt";
++}
++
+ function playerDrive(g: Game, holding: boolean, dt: number) {
+   const d = angleDiff(holding ? ANG[1] : ANG[0], g.h);
+   const want = clamp(d * DRIFT.turnFollow, -DRIFT.turnMax, DRIFT.turnMax);
+@@ -755,7 +1101,14 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
+   g.roll += (clamp(-g.av * DRIFT.rollPerAv, -DRIFT.rollMax, DRIFT.rollMax) - g.roll) * Math.min(1, DRIFT.rollRate * dt);
+   const turning = Math.abs(g.av) > 0.05;
+ 
+-  const speed = Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
++  const base = speedAt(g);
++  let speed = base;
++  if (g.speedLag > 0) {
++    g.speedLag = Math.max(0, g.speedLag - dt);
++    const k = 1 - g.speedLag / DRIFT.insuranceRamp;
++    speed = Math.min(base, g.speedFrom + (g.speedTo - g.speedFrom) * k);
++  }
++  if (g.invulnT > 0) g.invulnT = Math.max(0, g.invulnT - dt);
+   const grip = g.air ? DRIFT.airGrip : turning ? DRIFT.slideGrip : DRIFT.grip;
+   const k = Math.min(1, grip * dt);
+   g.vx += (Math.cos(g.h) * speed - g.vx) * k;
+@@ -801,6 +1154,14 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
+   } else if (g.cool <= 0 && -sf.curv * speed * speed > DRIFT.gravity * DRIFT.launchK) {
+     g.air = true;
+     g.vz = speed * DRIFT.launchSlope;
++    if (speed >= DRIFT.slowmoSpeed) {
++      g.jumpsHigh++;
++      if (g.jumpsHigh >= g.jumpsNeed) {
++        g.jumpsHigh = 0;
++        g.jumpsNeed = DRIFT.slowmoJumpsMin + Math.floor(Math.random() * (DRIFT.slowmoJumpsMax - DRIFT.slowmoJumpsMin + 1));
++        g.slowT = DRIFT.slowmoTime;
++      }
++    }
+   } else {
+     g.z = sf.lift;
+   }
+@@ -808,7 +1169,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
+   const pitchTarget = g.air ? Math.atan2(g.vz, speed) : Math.atan(sf.slope);
+   g.pitch += (clamp(pitchTarget, -DRIFT.pitchMax, DRIFT.pitchMax) - g.pitch) * Math.min(1, DRIFT.pitchRate * dt);
+ 
+-  const off = !g.air && offRoadWheels(g, g.track, best) >= DRIFT.wheelsOffToFall;
++  const off = g.invulnT <= 0 && !g.air && offRoadWheels(g, g.track, best) >= DRIFT.wheelsOffToFall;
+   g.offT = off ? g.offT + dt : 0;
+   if (g.offT > DRIFT.edgeGrace) {
+     beginFall(g, best);
+@@ -823,6 +1184,14 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
+     }
+   }
+ 
++  for (const r of g.track.repairs) {
++    if (r.taken || g.air || Math.abs(r.idx - g.idx) > 12) continue;
++    if (Math.hypot(r.x - g.x, r.y - g.y) < DRIFT.repairReach) {
++      r.taken = true;
++      g.health = Math.min(g.maxHealth, g.health + DRIFT.repairHeal);
++    }
++  }
++
+   if (!g.air) hitProps(g, g.x, g.y, g.vx, g.vy, DRIFT.carRadius, true);
+ 
+   g.hist.push({ t: g.t, x: g.x, y: g.y, h: g.h, v: speed, route: g.route });
+@@ -833,10 +1202,7 @@ function playerDrive(g: Game, holding: boolean, dt: number) {
+ }
+ 
+ function skid(g: Game, p: Pose, on: boolean, marks: Mark[]) {
+-  if (on) {
+-    emitSmoke(g, p);
+-    emitSmoke(g, p);
+-  }
++  if (on && Math.random() < DRIFT.smokeChance) emitSmoke(g, p);
+   pushMark(marks, p, on);
+ }
+ 
+@@ -858,7 +1224,10 @@ function fallStep(g: Game, dt: number) {
+   g.vx *= 1 - 2 * dt;
+   g.vy *= 1 - 2 * dt;
+   g.z -= DRIFT.fallDrop * dt;
+-  if (g.fallT >= DRIFT.fallTime) g.phase = "over";
++  if (g.pendingRevive) {
++    g.deadT += dt;
++    if (g.deadT >= DRIFT.rewindDelay) startRewind(g);
++  } else if (g.fallT >= DRIFT.fallTime) g.phase = "over";
+ }
+ 
+ function sampleHist(hist: Hist[], t: number): Hist {
+@@ -984,6 +1353,10 @@ function copDrive(g: Game, c: Cop, dt: number) {
+     c.fallT = 0;
+     c.fallSide = sideOf(c, pts[c.idx]);
+     emitSplash(g, c.x, c.y);
++    if (g.phase === "play") {
++      g.kills++;
++      g.pops.push({ x: c.x, y: c.y, z: c.ground + 16, age: 0 });
++    }
+   }
+   if (c.phase === "enter" && c.age > DRIFT.copEnterTau * 3) c.phase = "chase";
+ }
+@@ -1043,7 +1416,7 @@ function stepCops(g: Game, dt: number) {
+   for (const c of g.cops) {
+     if (c.phase !== "fall") hitProps(g, c.x, c.y, c.vx, c.vy, DRIFT.copRadius, false);
+   }
+-  g.cops = g.cops.filter((c) => c.phase !== "fall" || c.fallT < DRIFT.fallTime);
++  g.cops = g.cops.filter((c) => (c.phase === "fall" ? c.fallT < DRIFT.fallTime : c.idx > g.idx - DRIFT.copCull));
+ }
+ 
+ function stirLeaves(g: Game, x: number, y: number, speed: number) {
+@@ -1115,13 +1488,31 @@ function updateLeaves(g: Game, dt: number) {
+   spawnLeaves(g);
+ }
+ 
++function emitWreckSmoke(g: Game, dt: number) {
++  const wrecked = g.phase === "boom" || (g.phase === "over" && g.health === 0);
++  if (!wrecked || g.smoke.length >= DRIFT.smokeMax || Math.random() > dt * 12) return;
++  g.smoke.push({
++    x: g.x + (Math.random() * 2 - 1) * 12,
++    y: g.y + (Math.random() * 2 - 1) * 12,
++    z: g.z + 22,
++    age: 0,
++    life: 1.4 + Math.random() * 1.2,
++    r: 7 + Math.random() * 6,
++    shade: 40 + Math.floor(Math.random() * 30),
++  });
++}
++
+ function tail(g: Game, dt: number) {
++  for (const q of g.pops) q.age += dt;
++  g.pops = g.pops.filter((q) => q.age < DRIFT.popLife);
+   stepCops(g, dt);
+   updateProps(g, dt);
+   updateSparks(g, dt);
+   updateSplash(g, dt);
++  emitWreckSmoke(g, dt);
+   updateSmoke(g, dt);
+   updateLeaves(g, dt);
++  g.track.repairs = g.track.repairs.filter((r) => !r.taken && r.idx > g.idx - 60);
+ }
+ 
+ export function step(g: Game, holding: boolean, dt: number) {
+@@ -1133,12 +1524,24 @@ export function step(g: Game, holding: boolean, dt: number) {
+   g.t += dt;
+   if (g.phase === "boom") {
+     g.boomT += dt;
+-    if (g.boomT >= DRIFT.boomTime) g.phase = "over";
++    if (g.pendingRevive) {
++      g.deadT += dt;
++      if (g.deadT >= DRIFT.rewindDelay) startRewind(g);
++    } else if (g.boomT >= DRIFT.boomTime) g.phase = "over";
+   } else if (g.phase === "fall") fallStep(g, dt);
++  else if (g.phase === "rewind") rewindStep(g, dt);
+   else playerDrive(g, holding, dt);
+   tail(g, dt);
+ }
+ 
+ export function scoreOf(g: Game) {
+-  return Math.floor(g.dist / 10) + g.coins * 10;
++  const n = Math.floor(g.dist / DRIFT.distPerPoint);
++  const distScore = Math.floor((Math.pow(DRIFT.distMult, n) - 1) / (DRIFT.distMult - 1));
++  return distScore + g.coins * DRIFT.coinPoints + g.kills * DRIFT.copKillPoints;
++}
++
++export function посчитатьНаградуДрифта(очки: number, уровеньЗП: number) {
++  const сумма = Math.floor(очки * ДРИФТ_БОСС.фишкиЗаОчко);
++  const бонусПроц = бонусЗарплатыПроц({ salary_level: уровеньЗП });
++  return { сумма, бонусПроц, итого: Math.floor(сумма * (1 + бонусПроц / 100) + 1e-9) };
+ }
+diff --git a/src/screens/DriftBoss.tsx b/src/screens/DriftBoss.tsx
+index 2ad086f..108bea9 100644
+--- a/src/screens/DriftBoss.tsx
++++ b/src/screens/DriftBoss.tsx
+@@ -1,11 +1,27 @@
+ import { useEffect, useRef, useState } from "react";
+ import { useNavigate } from "react-router-dom";
+ import { Т } from "../texts";
+-import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, type Cop, type Game, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
++import GameMenu from "../components/GameMenu";
++import GameResult from "../components/GameResult";
++import { useUser } from "../store/UserContext";
++import { useMastery, сБонусом } from "../lib/useMastery";
++import { useNoSwipes } from "../lib/useNoSwipes";
++import { стат } from "../lib/stats";
++import { getSafeTop } from "../lib/telegram";
++import { навыкиИгры, открытыеНавыки } from "../game/skills";
++import { buildCar, autoBody, autoCabin, CAR_MODEL_COUNT, type ModelApi, type Palette } from "../game/carModels";
++import { DRIFT, createGame, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt } from "../game/driftBoss";
+ 
+-const BEST_KEY = "driftBossBest";
++type Status = "menu" | "play" | "stamp" | "over";
++interface Итог {
++  очки: number;
++  награда: { сумма: number; бонусПроц: number; итого: number };
++  личный: number;
++  сохранение: "идёт" | "готово" | "ошибка";
++  предупреждение?: string;
++  текстОшибки?: string;
++}
+ 
+-type Status = "idle" | "play" | "stamp" | "over";
+ const isoX = (x: number, y: number) => (x - y) * 0.866;
+ const isoY = (x: number, y: number) => (x + y) * 0.5;
+ 
+@@ -34,19 +50,23 @@ const hash = (n: number) => {
+   return v - Math.floor(v);
+ };
+ const STAMP_HOLD = 2.4;
++const CHIP = new Image();
++CHIP.src = "/assets/icons/slot-chip.png";
++const WRENCH = new Image();
++WRENCH.src = "/assets/icons/wrench.svg";
++const WRECK_PAL: Palette = {
++  top: "#1c1c1e",
++  cabin: "#2a2a2d",
++  side: "#0e0e10",
++  end: "#060607",
++  glass: "#101216",
++  stripe: "#26262a",
++  light: "#3a3a3a",
++  tail: "#2a0c0c",
++};
+ 
+ type Local = [number, number, number];
+-type Face = { pts: [number, number][]; color: string; depth: number };
+-type Palette = {
+-  top: string;
+-  cabin: string;
+-  side: string;
+-  end: string;
+-  glass: string;
+-  stripe: string;
+-  light: string;
+-  tail: string;
+-};
++type Face = { pts: [number, number][]; color: string; depth: number; vd: number[] };
+ 
+ const COP_PAL: Palette = {
+   top: "#f0f0f0",
+@@ -127,8 +147,20 @@ const shadeHex = (hex: string, f: number) => {
+   return `rgb(${ch((n >> 16) & 255)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
+ };
+ 
+-function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
+-  const cam = g.phase === "play" || g.phase === "boom" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
++// Отдаление камеры на разгоне: первые camZoomStart секунд поле не отъезжает,
++// дальше масштаб плавно уходит к (1 - camZoomOut) по мере роста скорости.
++function zoomOf(g: Game) {
++  if (g.phase !== "play" && g.phase !== "boom" && g.phase !== "rewind") return 1;
++  const gate = clamp01((g.t - DRIFT.camZoomStart) / DRIFT.camZoomRamp);
++  if (gate <= 0) return 1;
++  const speed = Math.min(DRIFT.speedMax, DRIFT.speedStart + g.dist * DRIFT.speedPerPx);
++  const k = clamp01((speed - DRIFT.speedStart) / (DRIFT.speedMax - DRIFT.speedStart));
++  return 1 - DRIFT.camZoomOut * gate * k;
++}
++
++export function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time: number) {
++  const fallCam = g.phase === "play" || g.phase === "boom" ? 1 : 1 - 0.7 * Math.min(1, g.fallT / DRIFT.fallTime);
++  const cam = fallCam * zoomOf(g);
+   const s = (Math.min(W, H) / 300) * cam;
+   const cx = isoX(g.x, g.y);
+   const cy = isoY(g.x, g.y);
+@@ -139,7 +171,8 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+   const pts = g.track.pts;
+   const from = Math.max(0, g.idx - BACK);
+   const to = Math.min(pts.length - 2, g.idx + AHEAD);
+-  const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / DRIFT.fallTime) : 1;
++  const fadeT = g.pendingRevive ? DRIFT.rewindDelay : DRIFT.fallTime;
++  const alpha = g.phase === "fall" ? Math.max(0, 1 - g.fallT / fadeT) : 1;
+ 
+   const bg = ctx.createLinearGradient(0, 0, 0, H);
+   bg.addColorStop(0, "#0a1f3a");
+@@ -235,41 +268,41 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+     const c = arr[i + 1];
+     return Math.abs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) > 1e-6;
+   };
+-  const tracePoly = (q: [number, number][]) => {
+-    ctx.beginPath();
+-    q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+-    ctx.closePath();
+-  };
+   const alt = g.track.alt;
+   const routesAt = (i: number): Pt[][] => (alt[i] !== pts[i] || alt[i + 1] !== pts[i + 1] ? [pts, alt] : [pts]);
+-  const MARGIN = 120 * s;
+-  const visible = (q: [number, number][]) => {
+-    for (const [x, y] of q) if (x > -MARGIN && x < W + MARGIN && y > -MARGIN && y < H + MARGIN) return true;
+-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+-    for (const [x, y] of q) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+-    return x0 < W && x1 > 0 && y0 < H && y1 > 0;
+-  };
+   const dotVisible = (x: number, y: number, z: number, m = 60) => {
+     const [sx, sy] = P(x, y, z);
+     return sx > -m * s && sx < W + m * s && sy > -m * s && sy < H + m * s;
+   };
+-  const roadShapes = (a: number, b: number, dz: number) => {
+-    const out: [number, number][][] = [];
+-    for (let i = a; i < b; i++) {
++  const addQuad = (q: [number, number][]) => {
++    q.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
++    ctx.closePath();
++  };
++  const area = (q: [number, number][]) => {
++    let sum = 0;
++    for (let k = 0; k < q.length; k++) {
++      const [x1, y1] = q[k];
++      const [x2, y2] = q[(k + 1) % q.length];
++      sum += x1 * y2 - x2 * y1;
++    }
++    return sum;
++  };
++  const refSign = Math.sign(area(segQuad(pts, from, 0)));
++  const capQuad = (p: Pt, dz: number) => {
++    const ring = regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz));
++    return Math.sign(area(ring)) === refSign ? ring : ring.reverse();
++  };
++  const roadPath = (dz: number) => {
++    ctx.beginPath();
++    for (let i = from; i < to; i++) {
+       for (const arr of routesAt(i)) {
+-        const q = segQuad(arr, i, dz);
+-        if (visible(q)) out.push(q);
+-        if (i > a && bendsAt(arr, i)) {
+-          const p = arr[i];
+-          const c = regular(12, p.w / 2).map(([dx, dy]) => P(p.x + dx, p.y + dy, p.lift + dz));
+-          if (visible(c)) out.push(c);
+-        }
++        addQuad(segQuad(arr, i, dz));
++        if (i > from && bendsAt(arr, i)) addQuad(capQuad(arr[i], dz));
+       }
+     }
+-    return out;
+   };
+ 
+-  const drawVehicle = (v: Pose, pal: Palette, bar: boolean) => {
++  const drawVehicle = (v: Pose, pal: Palette, bar: boolean, bumper = false, skirts = false, model = 0) => {
+     const cc = Math.cos(v.h);
+     const ss = Math.sin(v.h);
+     const cp = Math.cos(v.pitch);
+@@ -299,7 +332,12 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+       const mx = w.reduce((t, p) => t + p[0], 0) / k;
+       const my = w.reduce((t, p) => t + p[1], 0) / k;
+       const mz = w.reduce((t, p) => t + p[2], 0) / k;
+-      layer.push({ pts: w.map(([x, y, z]) => P(x, y, z)), color, depth: mx + my + 1.5 * mz });
++      layer.push({
++        pts: w.map(([x, y, z]) => P(x, y, z)),
++        color,
++        depth: mx + my + 1.5 * mz,
++        vd: w.map(([x, y, z]) => x + y + 1.5 * z),
++      });
+     };
+     const prism = (prof: [number, number][], b0: number, b1: number, colors: string[], cap: string) => {
+       const n = prof.length;
+@@ -433,83 +471,119 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+     beamCone(-5.5);
+     beamCone(5.5);
+     ctx.globalCompositeOperation = "source-over";
+-    prism(BODY_PROF, -10, 10, [pal.side, pal.end, pal.top, pal.top, pal.top, pal.end], pal.side);
+-    layer = body;
+-    for (const [b0, b1] of [
+-      [-3.6, -2.2],
+-      [2.2, 3.6],
+-    ] as [number, number][]) {
+-      addFace(
+-        [
+-          [-13, b0, 7.02],
+-          [9, b0, 7.02],
+-          [9, b1, 7.02],
+-          [-13, b1, 7.02],
+-        ],
+-        [0, 0, 1],
+-        pal.stripe,
+-      );
+-    }
+-    layer = cabin;
+-    prism(CABIN_PROF, -8.5, 8.5, [pal.glass, pal.top, pal.glass, pal.side], pal.cabin);
+-
+-    layer = details;
+-    for (const sb of [-1, 1]) {
+-      addFace(
+-        CABIN_GLASS.map(([a, z]) => [a, sb * 8.65, z] as Local),
+-        [0, sb, 0],
+-        pal.glass,
+-      );
+-    }
+-    for (const [b0, b1] of [
+-      [4, 7],
+-      [-7, -4],
+-    ] as [number, number][]) {
+-      addFace(
+-        [
+-          [20.1, b0, 3],
+-          [20.1, b1, 3],
+-          [20.1, b1, 5],
+-          [20.1, b0, 5],
+-        ],
+-        [1, 0, 0],
+-        pal.light,
+-      );
+-      addFace(
+-        [
+-          [-20.1, b0, 3],
+-          [-20.1, b1, 3],
+-          [-20.1, b1, 5],
+-          [-20.1, b0, 5],
+-        ],
+-        [-1, 0, 0],
+-        pal.tail,
+-      );
+-    }
+-    for (const aw of [-12, 12]) {
+-      for (const sb of [-1, 1]) {
+-        const ring: Local[] = [];
+-        const hub: Local[] = [];
+-        for (let k = 0; k < 20; k++) {
+-          const t = (k / 20) * Math.PI * 2;
+-          ring.push([aw + 4 * Math.cos(t), sb * 10.3, 4 + 4 * Math.sin(t)]);
+-          hub.push([aw + 1.8 * Math.cos(t), sb * 10.5, 4 + 1.8 * Math.sin(t)]);
++    const glows: [number, number, number, number, string, number][] = [];
++    const setLayer = (n: "body" | "cabin" | "stripe" | "details") => {
++      // «stripe» — накладки поверх кабины (полосы на крыше), рисуем последним слоем.
++      layer = n === "body" ? body : n === "cabin" ? cabin : details;
++    };
++    // Габарит одинаковый у всех моделей, поэтому хитбокс, посадка и коллизии не меняются.
++    const carApi: ModelApi = {
++      pal,
++      layer: setLayer,
++      body: (prof, b0, b1, colors, cap) => {
++        setLayer("body");
++        prism(prof as [number, number][], b0, b1, colors || autoBody(prof, pal), cap || pal.side);
++      },
++      cabinPrism: (prof, b0, b1, colors, cap) => {
++        setLayer("cabin");
++        prism(prof as [number, number][], b0, b1, colors || autoCabin(prof, pal), cap || pal.cabin);
++      },
++      face: (verts, n, color) => {
++        addFace(verts as Local[], n as Local, color);
++      },
++      quad: (verts, n, color) => {
++        addFace(verts as Local[], n as Local, color);
++      },
++      box: (a0, a1, b0, b1, z0, z1, color) => box(a0, a1, b0, b1, z0, z1, color),
++      detailBox: (a0, a1, b0, b1, z0, z1, color) => box(a0, a1, b0, b1, z0, z1, color),
++      wheels: (r = 4, zc = 4, bOut = 10.3) => {
++        setLayer("details");
++        for (const aw of [-12, 12]) {
++          for (const sb of [-1, 1]) {
++            const ring: Local[] = [];
++            const hub: Local[] = [];
++            for (let k = 0; k < 20; k++) {
++              const t = (k / 20) * Math.PI * 2;
++              ring.push([aw + r * Math.cos(t), sb * bOut, zc + r * Math.sin(t)]);
++              hub.push([aw + r * 0.45 * Math.cos(t), sb * (bOut + 0.2), zc + r * 0.45 * Math.sin(t)]);
++            }
++            addFace(ring, [0, sb, 0], TIRE);
++            addFace(hub, [0, sb, 0], HUB);
++          }
+         }
+-        addFace(ring, [0, sb, 0], TIRE);
+-        addFace(hub, [0, sb, 0], HUB);
+-      }
+-    }
+-    if (bar) {
+-      const red = Math.floor(time * 6) % 2 === 0;
+-      box(-4, 2, -4.5, -0.5, 12, 14, red ? "#ff2d2d" : "#4a1414");
+-      box(-4, 2, 0.5, 4.5, 12, 14, red ? "#1f1f1f" : "#2d62ff");
+-    }
++      },
++      arches: (r0, r1, b, color) => {
++        setLayer("details");
++        for (const a of [-12, 12]) {
++          for (const sb of [-1, 1]) {
++            const pts: Local[] = [];
++            const N = 14;
++            const a0 = Math.PI * 0.92;
++            const a1 = -Math.PI * 0.08;
++            for (let i = 0; i <= N; i++) {
++              const t = a0 + (a1 - a0) * (i / N);
++              pts.push([a + r1 * Math.cos(t), sb * b, 4 + r1 * Math.sin(t)]);
++            }
++            for (let i = N; i >= 0; i--) {
++              const t = a0 + (a1 - a0) * (i / N);
++              pts.push([a + r0 * Math.cos(t), sb * b, 4 + r0 * Math.sin(t)]);
++            }
++            addFace(pts, [0, sb, 0], color);
++          }
++        }
++      },
++      glow: (a, b, z, r, rgb, kk) => glows.push([a, b, z, r, rgb, kk]),
++    };
++    buildCar(model, pal, carApi);
+ 
+     for (const layerFaces of [body, cabin]) {
+       layerFaces.sort((p, q) => p.depth - q.depth);
+       for (const f of layerFaces) poly(f.pts, f.color);
+     }
+-    for (const f of details) poly(f.pts, f.color);
++    // Детали рисуем поверх кузова — но только те, что действительно перед ним.
++    // Деталь дальнего борта (зеркало, юбка, обвес) иначе проявляется сквозь кузов.
++    const planeDepth = (f: Face, px: number, py: number) => {
++      const q = f.pts;
++      const [x0, y0] = q[0];
++      for (let i = 1; i < q.length - 1; i++) {
++        const [x1, y1] = q[i];
++        const [x2, y2] = q[i + 1];
++        const det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
++        if (Math.abs(det) < 1e-9) continue;
++        const u = ((px - x0) * (y2 - y0) - (x2 - x0) * (py - y0)) / det;
++        const v = ((x1 - x0) * (py - y0) - (px - x0) * (y1 - y0)) / det;
++        return f.vd[0] + u * (f.vd[i] - f.vd[0]) + v * (f.vd[i + 1] - f.vd[0]);
++      }
++      return f.depth;
++    };
++    const inTri = (q: [number, number][], px: number, py: number) => {
++      const [x0, y0] = q[0];
++      for (let i = 1; i < q.length - 1; i++) {
++        const [x1, y1] = q[i];
++        const [x2, y2] = q[i + 1];
++        const det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
++        if (Math.abs(det) < 1e-9) continue;
++        const u = ((px - x0) * (y2 - y0) - (x2 - x0) * (py - y0)) / det;
++        const v = ((x1 - x0) * (py - y0) - (px - x0) * (y1 - y0)) / det;
++        if (u >= -0.001 && v >= -0.001 && u + v <= 1.001) return true;
++      }
++      return false;
++    };
++    const solidFaces = body.concat(cabin);
++    for (const f of details) {
++      const px = f.pts.reduce((t, q) => t + q[0], 0) / f.pts.length;
++      const py = f.pts.reduce((t, q) => t + q[1], 0) / f.pts.length;
++      let hidden = false;
++      for (const sf of solidFaces) {
++        if (sf.depth - f.depth < 0.5) continue;
++        if (!inTri(sf.pts, px, py)) continue;
++        if (planeDepth(sf, px, py) - f.depth > 0.5) {
++          hidden = true;
++          break;
++        }
++      }
++      if (!hidden) poly(f.pts, f.color);
++    }
+ 
+     const lamp = (a: number, b: number, z: number, r: number, col: string, k: number) => {
+       const [wx, wy, wz] = toW(a, b, z);
+@@ -523,10 +597,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+       ctx.fill();
+     };
+     ctx.globalCompositeOperation = "lighter";
+-    for (const b of [-5.5, 5.5]) {
+-      lamp(20.5, b, 4, 10, "255,240,180", 0.45);
+-      lamp(-20.5, b, 4, 12, "255,40,40", 0.6);
+-    }
++    for (const [ga, gb, gz, gr, gcol, gk] of glows) lamp(ga, gb, gz, gr, gcol, gk);
+     ctx.globalCompositeOperation = "source-over";
+   };
+ 
+@@ -676,34 +747,129 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+   const carBehind = g.phase === "fall" && g.x + g.y > near.x + near.y;
+   const behindCop = (c: Cop) => c.phase === "fall" && c.x + c.y > routePts(g.track, c.route)[c.idx].x + routePts(g.track, c.route)[c.idx].y;
+   const wrecked = g.phase === "boom" || (g.phase === "over" && g.health === 0);
+-  if (carBehind) drawVehicle(g, PLAYER_PALS[g.paint], false);
++  const drawFlames = (x: number, y: number, z: number) => {
++    const f = Math.floor(time * 14);
++    ctx.globalCompositeOperation = "lighter";
++    for (let k = 0; k < 9; k++) {
++      const seed = k * 1.37 + f * 0.61;
++      const [fx, fy] = P(x + (hash(seed) - 0.5) * 30, y + (hash(seed + 3.1) - 0.5) * 12, z + 6 + hash(seed + 7.7) * 22);
++      const R = (5 + hash(seed + 11.3) * 7) * s;
++      const grd = ctx.createRadialGradient(fx, fy, 0, fx, fy, R);
++      grd.addColorStop(0, `rgba(255,230,140,${(0.9 * alpha).toFixed(3)})`);
++      grd.addColorStop(0.45, `rgba(255,120,30,${(0.7 * alpha).toFixed(3)})`);
++      grd.addColorStop(1, "rgba(200,30,0,0)");
++      ctx.fillStyle = grd;
++      ctx.beginPath();
++      ctx.arc(fx, fy, R, 0, Math.PI * 2);
++      ctx.fill();
++    }
++    ctx.globalCompositeOperation = "source-over";
++  };
++  const drawPlayer = () => {
++    const revive = g.phase === "rewind" ? Math.min(1, g.rewindT * 3.2) : 1;
++    const blink = g.phase === "rewind" && Math.random() < 0.25 ? 0.25 : 1;
++    ctx.globalAlpha = alpha * revive * blink;
++    drawVehicle(
++      g,
++      wrecked ? WRECK_PAL : PLAYER_PALS[g.paint],
++      false,
++      g.bumpers && !wrecked,
++      g.sideSkirts && !wrecked,
++      g.model,
++    );
++    ctx.globalAlpha = alpha;
++    if (wrecked) drawFlames(g.x, g.y, g.z);
++    if (g.invulnT > 0 && g.phase === "play") {
++      const [px, py] = P(g.x, g.y, g.z + 4);
++      const pulse = 0.4 + 0.25 * Math.sin(time * 14);
++      ctx.beginPath();
++      ctx.arc(px, py, (26 + 4 * Math.sin(time * 9)) * s, 0, Math.PI * 2);
++      ctx.strokeStyle = `rgba(130,225,255,${pulse.toFixed(3)})`;
++      ctx.lineWidth = 2.5 * s;
++      ctx.stroke();
++    }
++  };
++  const drawCoin = (p: Pt, i: number) => {
++    if (!p.coin || p.taken || !dotVisible(p.x, p.y, p.lift)) return;
++    const [sx, sy] = P(p.x, p.y, p.lift + 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
++    const size = 16 * s;
++    if (CHIP.complete && CHIP.naturalWidth > 0) {
++      ctx.drawImage(CHIP, sx - size / 2, sy - size / 2, size, size);
++      return;
++    }
++    ctx.beginPath();
++    ctx.arc(sx, sy, 7 * s, 0, Math.PI * 2);
++    ctx.fillStyle = "#ffc93c";
++    ctx.fill();
++  };
++  const drawRepairs = () => {
++    for (const r of g.track.repairs) {
++      if (r.taken || r.idx < from || r.idx > to) continue;
++      const z = g.track.pts[r.idx].lift + 16 + Math.sin(time * 2.5 + r.idx) * 3;
++      if (!dotVisible(r.x, r.y, z, 40)) continue;
++      const [gx, gy] = P(r.x, r.y, z);
++      const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 26 * s);
++      glow.addColorStop(0, "rgba(120,255,150,0.75)");
++      glow.addColorStop(1, "rgba(120,255,150,0)");
++      ctx.globalCompositeOperation = "lighter";
++      ctx.fillStyle = glow;
++      ctx.beginPath();
++      ctx.arc(gx, gy, 26 * s, 0, Math.PI * 2);
++      ctx.fill();
++      ctx.globalCompositeOperation = "source-over";
++      if (WRENCH.complete && WRENCH.naturalWidth > 0) {
++        const size = 30 * s;
++        ctx.save();
++        ctx.translate(gx, gy);
++        ctx.rotate(Math.sin(time * 1.5 + r.idx) * 0.25);
++        ctx.drawImage(WRENCH, -size / 2, -size / 2, size, size);
++        ctx.restore();
++        continue;
++      }
++      ctx.save();
++      ctx.translate(gx, gy);
++      ctx.rotate(Math.PI / 4 + Math.sin(time * 1.5 + r.idx) * 0.2);
++      ctx.lineCap = "round";
++      ctx.strokeStyle = "#c9ffd6";
++      ctx.lineWidth = 3 * s;
++      ctx.beginPath();
++      ctx.moveTo(0, -2 * s);
++      ctx.lineTo(0, 9 * s);
++      ctx.stroke();
++      ctx.beginPath();
++      ctx.arc(0, -6 * s, 4.5 * s, -Math.PI / 2 + 0.6, (Math.PI * 3) / 2 - 0.6);
++      ctx.stroke();
++      ctx.restore();
++    }
++  };
++  if (carBehind) drawPlayer();
+   for (const c of g.cops) if (behindCop(c)) drawVehicle(c, COP_PAL, true);
+ 
+-  const top = roadShapes(from, to, 0);
+-  for (const q of roadShapes(from, to, -WALL_H)) poly(q, WALL);
++  roadPath(-WALL_H);
++  ctx.fillStyle = WALL;
++  ctx.fill();
++  roadPath(0);
+   ctx.lineJoin = "round";
+   ctx.strokeStyle = ROAD_EDGE;
+   ctx.lineWidth = 2.4 * s;
+-  for (const q of top) {
+-    tracePoly(q);
+-    ctx.stroke();
+-  }
+-  for (const q of top) {
+-    tracePoly(q);
+-    ctx.fillStyle = ASPHALT;
+-    ctx.fill();
+-  }
+-  for (let i = from; i < to; i++) {
+-    if (!dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
+-    for (const arr of routesAt(i)) {
+-      for (let j = 0; j < 4; j++) {
+-        const [sx, sy] = segPoint(arr, i, hash(i * 5 + j * 3 + 0.25), -0.9 + 1.8 * hash(i * 7 + j + 0.5), 0);
+-        ctx.beginPath();
+-        ctx.arc(sx, sy, (0.6 + 1.1 * hash(i * 3 + j)) * s, 0, Math.PI * 2);
+-        ctx.fillStyle = hash(i * 11 + j) > 0.5 ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.28)";
+-        ctx.fill();
++  ctx.stroke();
++  ctx.fillStyle = ASPHALT;
++  ctx.fill();
++  for (const light of [false, true]) {
++    ctx.beginPath();
++    for (let i = from; i < to; i++) {
++      for (const arr of routesAt(i)) {
++        for (let j = 0; j < 6; j++) {
++          if (hash(i * 11 + j) > 0.5 !== light) continue;
++          const [sx, sy] = segPoint(arr, i, (j + 0.2 + 0.6 * hash(i * 5 + j)) / 6, -0.85 + 1.7 * hash(i * 7 + j + 0.5), 0);
++          const r = (0.6 + 1.1 * hash(i * 3 + j)) * s;
++          ctx.moveTo(sx + r, sy);
++          ctx.arc(sx, sy, r, 0, Math.PI * 2);
++        }
+       }
+     }
++    ctx.fillStyle = light ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.45)";
++    ctx.fill();
+   }
+ 
+   const drawCopGlow = (c: Cop) => {
+@@ -728,14 +894,18 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+   ctx.globalCompositeOperation = "lighter";
+   for (const c of g.cops) if (c.phase !== "fall") drawCopGlow(c);
+   ctx.globalCompositeOperation = "source-over";
+-  for (let i = from; i < to; i++) {
+-    const crest = clamp01(((pts[i].lift + pts[i + 1].lift) / 2) / DRIFT.rampHeight);
+-    if (crest <= 0 || !dotVisible(pts[i].x, pts[i].y, 0, 200)) continue;
+-    for (const arr of routesAt(i)) {
+-      tracePoly(segQuad(arr, i, 0));
+-      ctx.fillStyle = `rgba(255,255,255,${(0.3 * crest).toFixed(3)})`;
+-      ctx.fill();
++  const CREST_BANDS = 10;
++  for (let b = 1; b <= CREST_BANDS; b++) {
++    ctx.beginPath();
++    for (let i = from; i < to; i++) {
++      for (const arr of routesAt(i)) {
++        const crest = clamp01(((arr[i].lift + arr[i + 1].lift) / 2) / DRIFT.rampHeight);
++        if (Math.ceil(crest * CREST_BANDS) !== b) continue;
++        addQuad(segQuad(arr, i, 0));
++      }
+     }
++    ctx.fillStyle = `rgba(255,255,255,${((0.3 * b) / CREST_BANDS).toFixed(3)})`;
++    ctx.fill();
+   }
+ 
+   const drawMarks = (list: Mark[]) => {
+@@ -792,17 +962,10 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+   }
+   ctx.globalAlpha = alpha;
+   for (let i = from; i <= to; i++) {
+-    const p: Pt = pts[i];
+-    if (!p.coin || p.taken || !dotVisible(p.x, p.y, p.lift)) continue;
+-    const [sx, sy] = P(p.x, p.y, p.lift + 2 + Math.abs(Math.sin(time * 4 + i)) * 3);
+-    ctx.beginPath();
+-    ctx.arc(sx, sy, 7 * s, 0, Math.PI * 2);
+-    ctx.fillStyle = "#ffc93c";
+-    ctx.fill();
+-    ctx.strokeStyle = "#b8860b";
+-    ctx.lineWidth = 2 * s;
+-    ctx.stroke();
++    drawCoin(pts[i], i);
++    if (alt[i] !== pts[i]) drawCoin(alt[i], i + 0.5);
+   }
++  drawRepairs();
+ 
+   for (const pr of g.track.props) {
+     if (from <= pr.idx && pr.idx <= to && dotVisible(pr.x, pr.y, pr.z, 120)) drawProp(pr);
+@@ -841,6 +1004,7 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+     ctx.globalCompositeOperation = "source-over";
+   }
+   for (const p of g.smoke) {
++    if (!dotVisible(p.x, p.y, p.z, 40)) continue;
+     const [sx, sy] = P(p.x, p.y, p.z);
+     const k = p.age / p.life;
+     ctx.beginPath();
+@@ -850,49 +1014,162 @@ function draw(ctx: CanvasRenderingContext2D, g: Game, W: number, H: number, time
+   }
+ 
+   for (const c of g.cops) if (!behindCop(c)) drawVehicle(c, COP_PAL, true);
+-  if (!carBehind && !wrecked) drawVehicle(g, PLAYER_PALS[g.paint], false);
++  if (!carBehind) drawPlayer();
++  for (const pop of g.pops) {
++    const k = pop.age / DRIFT.popLife;
++    const [px, py] = P(pop.x, pop.y, pop.z + k * 40);
++    const label = `+${DRIFT.copKillPoints}`;
++    ctx.font = `900 ${Math.round(16 * s)}px system-ui, sans-serif`;
++    ctx.textAlign = "center";
++    ctx.textBaseline = "middle";
++    ctx.lineJoin = "round";
++    ctx.lineWidth = 4 * s;
++    ctx.strokeStyle = `rgba(20,10,0,${(0.85 * (1 - k) * alpha).toFixed(3)})`;
++    ctx.strokeText(label, px, py);
++    ctx.fillStyle = `rgba(255,214,70,${((1 - k) * alpha).toFixed(3)})`;
++    ctx.fillText(label, px, py);
++  }
+   if (g.phase === "play") {
+     const [hx, hy] = P(g.x, g.y, g.z + 40);
+     const bw = 44 * s;
+     const bh = 5 * s;
+-    const frac = g.health / DRIFT.maxHealth;
++    const frac = g.health / g.maxHealth;
+     ctx.fillStyle = "rgba(0,0,0,0.55)";
+     ctx.fillRect(hx - bw / 2, hy - bh / 2, bw, bh);
+     ctx.fillStyle = frac > 0.4 ? "#7bd88f" : frac > 0.2 ? "#f5c542" : "#ff5a4e";
+     ctx.fillRect(hx - bw / 2, hy - bh / 2, bw * frac, bh);
+   }
++  const dying = g.pendingRevive && (g.phase === "fall" || g.phase === "boom");
++  if (g.phase === "rewind" || dying) {
++    const k = g.phase === "rewind"
++      ? clamp01(g.rewindT / DRIFT.rewindTime)
++      : clamp01(g.deadT / DRIFT.rewindDelay);
++    const power = g.phase === "rewind" ? 1 - k * 0.6 : 0.5 * k;
++    ctx.globalAlpha = 1;
++    // лёгкие помехи: зерно, полосы развёртки, бегущий блик
++    const grains = Math.round(120 * power);
++    for (let i = 0; i < grains; i++) {
++      const nx = Math.random() * W;
++      const ny = Math.random() * H;
++      const a = (0.05 + Math.random() * 0.16) * power;
++      ctx.fillStyle = Math.random() < 0.5 ? `rgba(255,255,255,${a.toFixed(3)})` : `rgba(0,0,0,${a.toFixed(3)})`;
++      ctx.fillRect(nx, ny, 1 + Math.random() * 2, 1 + Math.random() * 1.5);
++    }
++    for (let i = 0; i < 5; i++) {
++      const ny = Math.random() * H;
++      ctx.fillStyle = `rgba(255,255,255,${((0.04 + Math.random() * 0.1) * power).toFixed(3)})`;
++      ctx.fillRect(0, ny, W, 1 + Math.random() * 2.5);
++    }
++    if (g.phase === "rewind") {
++      const scan = (k * 1.5 - 0.25) * H;
++      ctx.fillStyle = `rgba(255,255,255,${(0.1 * power).toFixed(3)})`;
++      ctx.fillRect(0, scan, W, 22);
++      const size = Math.round(Math.min(W, H) * 0.05);
++      ctx.font = `900 ${size}px system-ui, sans-serif`;
++      ctx.textAlign = "center";
++      ctx.textBaseline = "middle";
++      ctx.lineJoin = "round";
++      ctx.lineWidth = size * 0.22;
++      ctx.strokeStyle = `rgba(0,0,0,${(0.8 * power).toFixed(3)})`;
++      ctx.strokeText("◀◀ ПЕРЕМОТКА", W / 2, H * 0.24);
++      ctx.fillStyle = `rgba(255,255,255,${power.toFixed(3)})`;
++      ctx.fillText("◀◀ ПЕРЕМОТКА", W / 2, H * 0.24);
++    }
++  }
+   ctx.globalAlpha = 1;
+ }
+ 
+ export default function DriftBoss() {
++  const { user, change } = useUser();
++  const { бонус, мастерство, начатьЗабег, начислить, шкала } = useMastery("drift");
+   const navigate = useNavigate();
++  useNoSwipes();
++
++  const открытые = new Set(открытыеНавыки("drift", мастерство.уровень).map((н) => н.id));
++  const навыкиДрифта: НавыкиДрифта = {
++    прочность: открытые.has("durability") || открытые.has("durabilityPlus"),
++    прочностьПлюс: открытые.has("durabilityPlus"),
++    страховка: открытые.has("insurancePlus") ? 2 : открытые.has("insurance") ? 1 : 0,
++    коллекционер: открытые.has("collectorPlus") ? 2 : открытые.has("collector") ? 1.5 : 1,
++  };
++
+   const canvasRef = useRef<HTMLCanvasElement>(null);
+-  const coinsRef = useRef<HTMLSpanElement>(null);
+-  const distRef = useRef<HTMLSpanElement>(null);
++  const scoreRef = useRef<HTMLSpanElement>(null);
+   const gameRef = useRef<Game | null>(null);
+-  const statusRef = useRef<Status>("idle");
++  const навыкиRef = useRef(навыкиДрифта);
++  // Ротация моделей: каждый новый заезд — следующая машина, цвет краски на рандоме (в createGame).
++  const модельRef = useRef(-1);
++  навыкиRef.current = навыкиДрифта;
++  const statusRef = useRef<Status>("menu");
+   const holdingRef = useRef(false);
+-  const [status, setStatus] = useState<Status>("idle");
+-  const [result, setResult] = useState({ score: 0, best: 0 });
++  const [status, setStatus] = useState<Status>("menu");
++  const [итог, setИтог] = useState<Итог | null>(null);
++
++  const свежее = useRef({ user, change, начислить, бонус });
++  свежее.current = { user, change, начислить, бонус };
++
++  const завершить = async (очки: number) => {
++    const { user: u, change: изменить, начислить: начислитьМастерство, бонус: б } = свежее.current;
++    if (!u) return;
++    const расчёт = посчитатьНаградуДрифта(очки, u.salary_level);
++    const награда = { сумма: очки, бонусПроц: расчёт.бонусПроц, итого: Math.round(расчёт.итого * б) };
++    const прежний = u.best_drift_boss ?? 0;
++    const новыйРекорд = очки > прежний;
++    setИтог({ очки, награда, личный: Math.max(очки, прежний), сохранение: "идёт" });
++    try {
++      начислитьМастерство(награда.итого);
++      if (награда.итого > 0 || новыйРекорд) await изменить({ chips: награда.итого }, новыйРекорд ? { best_drift_boss: очки } : {});
++      setИтог((x) => (x ? { ...x, сохранение: "готово" } : x));
++    } catch (e: any) {
++      if (новыйРекорд && String(e?.message).includes("best_drift_boss")) {
++        try {
++          await изменить({ chips: награда.итого });
++          setИтог((x) => (x ? { ...x, сохранение: "готово", предупреждение: Т.предупреждения.дрифт } : x));
++        } catch (e2: any) {
++          setИтог((x) => (x ? { ...x, сохранение: "ошибка", текстОшибки: e2?.message } : x));
++        }
++      } else {
++        setИтог((x) => (x ? { ...x, сохранение: "ошибка", текстОшибки: e?.message } : x));
++      }
++    }
++  };
++  const завершитьRef = useRef(завершить);
++  завершитьRef.current = завершить;
+ 
+-  const begin = () => {
+-    gameRef.current = createGame();
++  const старт = () => {
++    модельRef.current = (модельRef.current + 1) % CAR_MODEL_COUNT;
++    gameRef.current = createGame(навыкиRef.current, модельRef.current);
++    стат("plays_drift");
++    начатьЗабег();
++    setИтог(null);
+     statusRef.current = "play";
+     setStatus("play");
+   };
+ 
+-  const press = () => {
+-    if (statusRef.current === "idle") begin();
++  const нажатие = () => {
+     if (statusRef.current === "play") holdingRef.current = true;
+   };
+ 
++  useEffect(() => {
++    const blockTouch = (e: TouchEvent) => {
++      if (statusRef.current === "play") e.preventDefault();
++    };
++    const blockSelect = (e: Event) => e.preventDefault();
++    window.addEventListener("touchstart", blockTouch, { passive: false });
++    document.addEventListener("selectstart", blockSelect);
++    return () => {
++      window.removeEventListener("touchstart", blockTouch);
++      document.removeEventListener("selectstart", blockSelect);
++    };
++  }, []);
++
+   useEffect(() => {
+     const canvas = canvasRef.current!;
+     const ctx = canvas.getContext("2d")!;
+     let W = 0;
+     let H = 0;
+     const resize = () => {
+-      const dpr = window.devicePixelRatio || 1;
++      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+       W = canvas.clientWidth;
+       H = canvas.clientHeight;
+       canvas.width = W * dpr;
+@@ -907,7 +1184,7 @@ export default function DriftBoss() {
+     const keyDown = (e: KeyboardEvent) => {
+       if (e.code !== "Space") return;
+       e.preventDefault();
+-      if (!e.repeat) press();
++      if (!e.repeat) нажатие();
+     };
+     const keyUp = (e: KeyboardEvent) => {
+       if (e.code === "Space") release();
+@@ -927,34 +1204,33 @@ export default function DriftBoss() {
+       const dt = Math.min(0.033, (now - last) / 1000);
+       last = now;
+       time += dt;
+-      if (!gameRef.current) gameRef.current = createGame();
++      if (!gameRef.current) gameRef.current = createGame(навыкиRef.current);
+       const g = gameRef.current;
++      const slow = g.slowT > 0;
++      if (slow) g.slowT = Math.max(0, g.slowT - dt);
++      const gdt = slow ? dt * DRIFT.slowmoScale : dt;
+       if (statusRef.current === "play") {
+-        step(g, holdingRef.current, dt);
++        step(g, holdingRef.current, gdt);
+         if (g.phase === "over") {
+           statusRef.current = "stamp";
+           stampAt = time;
+           holdingRef.current = false;
+-          const score = scoreOf(g);
+-          const prev = Number(localStorage.getItem(BEST_KEY)) || 0;
+-          const best = Math.max(prev, score);
+-          localStorage.setItem(BEST_KEY, String(best));
+-          setResult({ score, best });
+           setStatus("stamp");
++          void завершитьRef.current(scoreOf(g));
+         }
+       } else if (statusRef.current === "stamp") {
+-        step(g, false, dt);
++        step(g, false, gdt);
+         if (time - stampAt > STAMP_HOLD) {
+           statusRef.current = "over";
+           setStatus("over");
+         }
+       } else if (statusRef.current === "over") {
+-        step(g, false, dt);
++        step(g, false, gdt);
+       }
+-      bw = g.phase === "play" || (g.phase === "boom" && g.boomT < 0.5) ? 0 : Math.min(1, bw + dt * 1.2);
+-      canvas.style.filter = bw > 0 ? `grayscale(${bw})` : "";
+-      if (coinsRef.current) coinsRef.current.textContent = String(g.coins);
+-      if (distRef.current) distRef.current.textContent = String(Math.floor(g.dist / 10));
++      const wantBW = g.phase === "play" || (g.phase === "boom" && g.boomT < 0.5) ? 0 : 1;
++      bw = wantBW > bw ? Math.min(wantBW, bw + dt * 1.8) : Math.max(wantBW, bw - dt * 3);
++      canvas.style.filter = bw > 0.01 ? `grayscale(${bw.toFixed(3)})` : "";
++      if (scoreRef.current) scoreRef.current.textContent = String(scoreOf(g));
+       draw(ctx, g, W, H, time);
+       raf = requestAnimationFrame(frame);
+     };
+@@ -972,39 +1248,35 @@ export default function DriftBoss() {
+ 
+   return (
+     <div
+-      onPointerDown={press}
++      onPointerDown={нажатие}
+       onContextMenu={(e) => e.preventDefault()}
+       className="fixed inset-0 z-30 select-none overflow-hidden bg-black"
+       style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none" }}
+     >
+       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+ 
+-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3">
+-        <div className="flex items-center gap-1.5 rounded-full bg-black/40 py-1 pl-1 pr-3">
+-          <span className="h-7 w-7 rounded-full bg-gradient-to-b from-yellow-200 to-yellow-500 ring-2 ring-yellow-700" />
+-          <span ref={coinsRef} className="text-base font-extrabold text-white">0</span>
+-        </div>
+-        <span ref={distRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
+-          0
+-        </span>
+-        <button
+-          type="button"
+-          onPointerDown={(e) => e.stopPropagation()}
+-          onClick={() => navigate("/games")}
+-          className="btn btn-secondary pointer-events-auto !px-3 !py-2 text-sm"
++      {(status === "play" || status === "stamp") && (
++        <div
++          className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3"
++          style={{ paddingTop: getSafeTop() + 12 }}
+         >
+-          {Т.общее.назад}
+-        </button>
+-      </div>
+-
+-      {status === "idle" && (
+-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/30 p-6 text-center">
+-          <div className="text-3xl font-extrabold text-white">{Т.дрифтБосс.название}</div>
+-          <div className="max-w-xs text-sm text-white/85">{Т.дрифтБосс.подсказка}</div>
+-          <div className="mt-2 text-sm font-bold text-brand-yellow">{Т.дрифтБосс.старт}</div>
++          <span ref={scoreRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
++            0
++          </span>
+         </div>
+       )}
+ 
++      {status === "menu" && (
++        <GameMenu
++          колонка="best_drift_boss"
++          название={Т.игры.дрифтБосс.название}
++          мастерство={мастерство}
++          навыки={навыкиИгры("drift")}
++          onСтарт={старт}
++          onНазад={() => navigate("/games")}
++        />
++      )}
++
+       {status === "stamp" && (
+         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+           <style>{`@keyframes driftStamp{0%{transform:scale(2.2);opacity:0}50%{transform:scale(0.96);opacity:1}72%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}`}</style>
+@@ -1023,30 +1295,29 @@ export default function DriftBoss() {
+                 whiteSpace: "nowrap",
+               }}
+             >
+-              {Т.дрифтБосс.потрачено}
++              {Т.игры.дрифтБосс.потрачено}
+             </div>
+           </div>
+         </div>
+       )}
+ 
+-      {status === "over" && (
+-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 p-6 text-center">
+-          <div className="text-2xl font-extrabold text-white">{Т.дрифтБосс.конец}</div>
+-          <div className="text-lg font-bold text-brand-yellow">
+-            {Т.дрифтБосс.счёт}: {result.score}
+-          </div>
+-          <div className="text-sm text-white/70">
+-            {Т.дрифтБосс.рекорд}: {result.best}
+-          </div>
+-          <div className="mt-2 flex gap-3">
+-            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={begin} className="btn btn-primary">
+-              {Т.дрифтБосс.заново}
+-            </button>
+-            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => navigate("/games")} className="btn btn-secondary">
+-              {Т.дрифтБосс.меню}
+-            </button>
+-          </div>
+-        </div>
++      {status === "over" && итог && (
++        <GameResult
++          заголовок={Т.игры.дрифтБосс.конец}
++          база={итог.награда.сумма}
++          прокачкаПроц={итог.награда.бонусПроц}
++          мастерство={мастерство}
++          шкала={шкала}
++          итог={итог.награда.итого}
++          прогресс={{ подпись: Т.игры.дрифтБосс.счёт, значение: String(итог.очки) }}
++          лучший={итог.личный}
++          лучшийПодпись={Т.игры.дрифтБосс.рекордПодпись}
++          колонка="best_drift_boss"
++          ошибка={итог.сохранение === "ошибка" ? Т.общее.ошибкаСохранения(итог.текстОшибки) : undefined}
++          предупреждение={итог.сохранение === "идёт" ? Т.общее.сохраняем : итог.предупреждение}
++          основная={{ подпись: Т.общее.игратьЕщё, disabled: итог.сохранение === "идёт", onClick: старт }}
++          вторичная={{ подпись: Т.игры.дрифтБосс.меню, onClick: () => navigate("/games") }}
++        />
+       )}
+     </div>
+   );
