@@ -10,13 +10,14 @@ import { стат } from "../lib/stats";
 import { getSafeTop } from "../lib/telegram";
 import { навыкиИгры, открытыеНавыки } from "../game/skills";
 import { buildCar, autoBody, autoCabin, type ModelApi, type Palette } from "../game/carModels";
-import { DRIFT, ДРИФТ_СЛОЖНОСТИ, createGame, взятьМодель, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt, type СложностьДрифта } from "../game/driftBoss";
+import { DRIFT, ДРИФТ_СЛОЖНОСТИ, createGame, взятьМодель, итогРекорда, policeAxis, routePts, scoreOf, step, посчитатьНаградуДрифта, type Cop, type Game, type НавыкиДрифта, type Mark, type Pose, type Prop, type PropKind, type Pt, type СложностьДрифта } from "../game/driftBoss";
 
 type Status = "menu" | "play" | "stamp" | "over";
 interface Итог {
   очки: number;
   награда: { сумма: number; бонусПроц: number; итого: number };
   личный: number;
+  безРекорда: boolean;
   сохранение: "идёт" | "готово" | "ошибка";
   предупреждение?: string;
   текстОшибки?: string;
@@ -1120,22 +1121,26 @@ export default function DriftBoss() {
     const награда = {
       сумма: очки,
       бонусПроц: расчёт.бонусПроц,
-      // Тренировка приносит фишки с множителем 0.25.
+      // Тренировка приносит фишки с множителем 0.1.
       итого: Math.round(расчёт.итого * б * правила.множительНаград),
     };
     const прежний = u.best_drift_boss ?? 0;
-    // Заезд в режиме, который не идёт в рекорды, личный рекорд не трогает.
-    const новыйРекорд = правила.вРекордах && очки > прежний;
+    // Заезд в режиме, который не идёт в рекорды, рекорд не трогает и в базу
+    // ничего про него не пишет.
+    const рекорд = итогРекорда(очки, режим, прежний);
+    const новыйРекорд = рекорд.новый;
     setИтог({
       очки,
       награда,
-      личный: правила.вРекордах ? Math.max(очки, прежний) : прежний,
+      личный: рекорд.личный,
       сохранение: "идёт",
-      предупреждение: правила.вРекордах ? undefined : `${правила.название} режим: фишки ×${правила.множительНаград}, в рекорды заезд не идёт`,
+      безРекорда: !рекорд.вРекордах,
+      предупреждение: рекорд.вРекордах ? undefined : `${правила.название} режим: фишки ×${правила.множительНаград}, рекорд не учитывается`,
     });
     try {
       начислитьМастерство(награда.итого);
-      if (награда.итого > 0 || новыйРекорд) await изменить({ chips: награда.итого }, новыйРекорд ? { best_drift_boss: очки } : {});
+      const записьРекорда = рекорд.значение !== null ? { best_drift_boss: рекорд.значение } : {};
+      if (награда.итого > 0 || новыйРекорд) await изменить({ chips: награда.итого }, записьРекорда);
       setИтог((x) => (x ? { ...x, сохранение: "готово" } : x));
     } catch (e: any) {
       if (новыйРекорд && String(e?.message).includes("best_drift_boss")) {
@@ -1280,11 +1285,6 @@ export default function DriftBoss() {
           <span ref={scoreRef} className="absolute left-1/2 top-2 -translate-x-1/2 text-4xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
             0
           </span>
-          {сложность === "training" && (
-            <span className="absolute left-1/2 top-14 -translate-x-1/2 rounded-lg bg-amber-400/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-300 ring-1 ring-amber-300/30">
-              🎓 Тренировка · ×{ДРИФТ_СЛОЖНОСТИ.training.множительНаград}
-            </span>
-          )}
         </div>
       )}
 
@@ -1350,6 +1350,7 @@ export default function DriftBoss() {
           лучший={итог.личный}
           лучшийПодпись={Т.игры.дрифтБосс.рекордПодпись}
           колонка="best_drift_boss"
+          безРекорда={итог.безРекорда}
           ошибка={итог.сохранение === "ошибка" ? Т.общее.ошибкаСохранения(итог.текстОшибки) : undefined}
           предупреждение={итог.сохранение === "идёт" ? Т.общее.сохраняем : итог.предупреждение}
           основная={{ подпись: Т.общее.игратьЕщё, disabled: итог.сохранение === "идёт", onClick: старт }}
